@@ -36,6 +36,8 @@ class User < ApplicationRecord
   end
   private_class_method :bcrypt_password?
 
+  VERIFICATION_TTL = 1.day
+
   def self.register!(email:, password:, name:)
     raise ApiError.new("User already exists", status: :bad_request) if exists?(email: email)
 
@@ -44,8 +46,18 @@ class User < ApplicationRecord
       password: password,
       name: name,
       verification_token: SecureRandom.hex(32),
-      verification_expires_at: 1.day.from_now
+      verification_expires_at: VERIFICATION_TTL.from_now
     )
+  end
+
+  def regenerate_verification!
+    raise ApiError.new("User is already verified", status: :unprocessable_content) if verified?
+
+    update!(verification_token: SecureRandom.hex(32), verification_expires_at: VERIFICATION_TTL.from_now)
+  end
+
+  def mark_verified!
+    update!(verified: true, verification_token: nil, verification_expires_at: nil)
   end
 
   def self.verify_email!(token)
@@ -55,7 +67,7 @@ class User < ApplicationRecord
       raise ApiError.new("Verification link has expired", status: :bad_request)
     end
 
-    user.update!(verified: true, verification_token: nil, verification_expires_at: nil)
+    user.mark_verified!
     user
   end
 

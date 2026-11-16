@@ -5,6 +5,7 @@ export type User = {
   sessions?: Session[];
   setup_completed: boolean;
   admin: boolean;
+  verified: boolean;
   last_login_at: Date;
   job_board_entries_count?: number;
 }
