@@ -27,6 +27,8 @@ Rails.application.routes.draw do
 
     put "users", to: "users#update"
     get "users", to: "users#index"
+    post "users/:id/resend_verification", to: "users#resend_verification"
+    post "users/:id/verify", to: "users#verify"
 
     post "feedback_entries", to: "feedback_entries#create"
     get "feedback_entries", to: "feedback_entries#index"
