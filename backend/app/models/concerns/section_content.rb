@@ -8,6 +8,8 @@ module SectionContent
     p br strong b em i s u code a ul ol li h1 h2 h3 h4 h5 h6 blockquote hr span
   ].freeze
   ALLOWED_ATTRIBUTES = %w[href target rel style data-cv-hidden].freeze
+  # The editor keeps an empty paragraph after a trailing list; it is not content.
+  TRAILING_EMPTY_PARAGRAPHS = %r{(?:<p>(?:\s|&nbsp;|<br\s*/?>)*</p>)+\z}
 
   included do
     before_validation :normalize_content
@@ -18,7 +20,7 @@ module SectionContent
       sanitized = Rails::HTML5::SafeListSanitizer.new.sanitize(
         html.to_s, tags: ALLOWED_TAGS, attributes: ALLOWED_ATTRIBUTES
       )
-      blank_content?(sanitized) ? "" : sanitized
+      blank_content?(sanitized) ? "" : sanitized.sub(TRAILING_EMPTY_PARAGRAPHS, "")
     end
 
     def blank_content?(html)

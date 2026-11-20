@@ -20,7 +20,7 @@ const navLinks = [
   { href: "/dashboard", icon: HomeIcon, label: "Dashboard" },
   { href: "/board", icon: KanbanIcon, label: "Board" },
   { href: "/sheet", icon: SheetIcon, label: "Sheet" },
-  { href: "/cv-sections", icon: LayersIcon, label: "Resume" },
+  { href: "/resume", icon: LayersIcon, label: "Resume" },
 ];
 
 const Navbar = () => {

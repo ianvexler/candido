@@ -1,0 +1,197 @@
+"use client";
+
+import { addCurriculumSections } from "@/api/resources/curriculums/addCurriculumSections";
+import { getCurriculum } from "@/api/resources/curriculums/getCurriculum";
+import { reorderCurriculumSections } from "@/api/resources/curriculums/reorderCurriculumSections";
+import { updateCurriculum } from "@/api/resources/curriculums/updateCurriculum";
+import Loader from "@/components/common/Loader";
+import AddSheetButton from "@/components/resume/AddSheetButton";
+import CurriculumSectionCard from "@/components/resume/CurriculumSectionCard";
+import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
+import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
+import SectionPreview from "@/components/resume/SectionPreview";
+import InlineInput from "@/components/ui/InlineInput";
+import { Curriculum, CurriculumSection } from "@/lib/types";
+import { move } from "@dnd-kit/helpers";
+import { DragDropProvider } from "@dnd-kit/react";
+import { ArrowLeftIcon, LayersIcon } from "lucide-react";
+import NextLink from "next/link";
+import { ComponentProps, use, useEffect, useState } from "react";
+import toast from "react-hot-toast";
+
+type DragEndEvent = Parameters<NonNullable<ComponentProps<typeof DragDropProvider>["onDragEnd"]>>[0];
+
+interface ResumePageProps {
+  params: Promise<{ id: string }>;
+}
+
+const ResumePage = ({ params }: ResumePageProps) => {
+  const { id } = use(params);
+  const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
+  const [sections, setSections] = useState<CurriculumSection[]>([]);
+  const [title, setTitle] = useState("");
+  const [loadError, setLoadError] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getCurriculum(id)
+      .then((response) => {
+        if (cancelled) return;
+        setCurriculum(response.curriculum);
+        setSections(response.curriculum.sections ?? []);
+        setTitle(response.curriculum.title);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) setLoadError(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loadError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <p className="font-medium">This resume could not be loaded.</p>
+        <NextLink href="/resume" className="text-sm underline">
+          Back to your resumes
+        </NextLink>
+      </div>
+    );
+  }
+
+  if (!curriculum) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader />
+      </div>
+    );
+  }
+
+  const saveTitle = async () => {
+    const next = title.trim();
+    if (!next) {
+      setTitle(curriculum.title);
+      return;
+    }
+    if (next === curriculum.title) return;
+
+    try {
+      const response = await updateCurriculum(curriculum.id, { title: next });
+      setCurriculum(response.curriculum);
+      setTitle(response.curriculum.title);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to rename resume");
+    }
+  };
+
+  const replaceSection = (next: CurriculumSection) =>
+    setSections((current) => current.map((item) => (item.id === next.id ? next : item)));
+
+  const onAddSections = async ({ sectionTemplateIds }: SectionPickerResult) => {
+    try {
+      const response = await addCurriculumSections(curriculum.id, sectionTemplateIds);
+      setSections(response.curriculum.sections ?? []);
+    } catch (error) {
+      toast.error("Failed to add sections");
+      throw error;
+    }
+  };
+
+  const onDragEnd = (event: DragEndEvent) => {
+    if (event.canceled) return;
+
+    const previous = sections;
+    const next = move(previous, event);
+    if (next.every((section, index) => section.id === previous[index].id)) return;
+
+    setSections(next);
+    void reorderCurriculumSections(
+      curriculum.id,
+      next.map((section) => section.id)
+    ).catch((error) => {
+      console.error(error);
+      toast.error("Failed to save the new order");
+      setSections(previous);
+    });
+  };
+
+  return (
+    <DocumentWorkspace
+      header={
+        <>
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <NextLink
+              href="/resume"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeftIcon className="size-4" />
+              Resumes
+            </NextLink>
+            <NextLink
+              href="/resume/sections"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <LayersIcon className="size-4" />
+              Section library
+            </NextLink>
+          </div>
+          <InlineInput
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            onBlur={() => void saveTitle()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+            aria-label="Resume name"
+            className="border-0 py-0 text-4xl font-bold tracking-tight"
+          />
+          <p className="mt-1 text-base font-light text-muted-foreground">
+            Edits here only change this resume. Drag the handle to reorder; hide a section to leave it out.
+          </p>
+        </>
+      }
+      preview={
+        <SectionPreview
+          sections={sections.filter((section) => !section.hidden)}
+          emptyMessage="Add sections from your library. Hidden sections and hidden text are left out here."
+        />
+      }
+    >
+      <DragDropProvider onDragEnd={onDragEnd}>
+        <div className="space-y-8">
+          {sections.map((section, index) => (
+            <CurriculumSectionCard
+              key={section.id}
+              curriculumId={curriculum.id}
+              section={section}
+              index={index}
+              onChange={replaceSection}
+              onRemoved={(sectionId) =>
+                setSections((current) => current.filter((item) => item.id !== sectionId))
+              }
+            />
+          ))}
+        </div>
+      </DragDropProvider>
+
+      <AddSheetButton onClick={() => setPickerOpen(true)}>Add from library</AddSheetButton>
+
+      <SectionPickerDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        title="Add from library"
+        description="Ticked sections are copied to the end of this resume."
+        confirmLabel="Add sections"
+        onConfirm={onAddSections}
+      />
+    </DocumentWorkspace>
+  );
+};
+
+export default ResumePage;

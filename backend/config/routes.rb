@@ -37,6 +37,17 @@ Rails.application.routes.draw do
     put "section_templates/:id", to: "section_templates#update"
     delete "section_templates/:id", to: "section_templates#destroy"
 
+    get "curriculums", to: "curriculums#index"
+    post "curriculums", to: "curriculums#create"
+    get "curriculums/:id", to: "curriculums#show"
+    put "curriculums/:id", to: "curriculums#update"
+    delete "curriculums/:id", to: "curriculums#destroy"
+    post "curriculums/:curriculum_id/sections", to: "curriculum_sections#create"
+    put "curriculums/:curriculum_id/sections/order", to: "curriculum_sections#reorder"
+    put "curriculums/:curriculum_id/sections/:id", to: "curriculum_sections#update"
+    delete "curriculums/:curriculum_id/sections/:id", to: "curriculum_sections#destroy"
+    post "curriculums/:curriculum_id/sections/:id/sync", to: "curriculum_sections#sync"
+
     get "uploads/:filename",
       to: "uploads#show",
       constraints: { filename: /[^\/]+/ },

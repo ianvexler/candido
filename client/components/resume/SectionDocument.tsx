@@ -1,38 +1,66 @@
 "use client";
 
-import { deleteSectionTemplate } from "@/api/resources/sectionTemplates/deleteSectionTemplate";
-import { updateSectionTemplate } from "@/api/resources/sectionTemplates/updateSectionTemplate";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import SimpleMenuBar from "@/components/richEditor/simpleEditor/SimpleMenuBar";
 import "@/components/richEditor/styles.scss";
 import { Button } from "@/components/ui/Button";
 import InlineInput from "@/components/ui/InlineInput";
 import { Textarea } from "@/components/ui/Textarea";
-import { SectionTemplate } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { SectionFields } from "@/lib/types";
 import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ReactNode, Ref, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import HiddenMark from "./HiddenMark";
+import { normalizeContent } from "./documentContent";
 
 const SAVE_DELAY_MS = 600;
 
-interface SectionDocumentProps {
-  template: SectionTemplate;
-  onChange: (template: SectionTemplate) => void;
-  onDelete: (id: number) => void;
+interface SectionDocumentProps<T extends SectionFields> {
+  section: T;
+  /** Persists the fields and resolves with the saved record. */
+  save: (fields: SectionFields) => Promise<T>;
+  onSaved: (next: T) => void;
+  /** Deletes the record. Rejecting keeps the section on screen. */
+  onDelete: () => Promise<void>;
+  deleteTitle: string;
+  deleteDescription: string;
+  /** Extra controls at the top right, shown before the delete button. */
+  actions?: ReactNode;
+  /** Shown above the section, e.g. a "library changed" notice. */
+  notice?: ReactNode;
+  /** Fades the page, e.g. when the section is hidden from a CV. */
+  dimmed?: boolean;
+  articleRef?: Ref<HTMLElement>;
+  className?: string;
 }
 
-const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps) => {
-  const [sectionType, setSectionType] = useState(template.section_type);
-  const [title, setTitle] = useState(template.title);
-  const [description, setDescription] = useState(template.description ?? "");
+/**
+ * A paper-style editor for one section. Edits autosave after a short pause.
+ * The editor is uncontrolled: remount it (change its key) to load new content.
+ */
+const SectionDocument = <T extends SectionFields>({
+  section,
+  save,
+  onSaved,
+  onDelete,
+  deleteTitle,
+  deleteDescription,
+  actions,
+  notice,
+  dimmed = false,
+  articleRef,
+  className,
+}: SectionDocumentProps<T>) => {
+  const [sectionType, setSectionType] = useState(section.section_type);
+  const [title, setTitle] = useState(section.title);
+  const [description, setDescription] = useState(section.description ?? "");
   const [deleteOpen, setDeleteOpen] = useState(false);
-
   // Bumped on every edit; a non-zero value means there are unsaved changes.
   const [dirty, setDirty] = useState(0);
   const markDirty = () => setDirty((count) => count + 1);
@@ -45,7 +73,7 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
       HiddenMark,
     ],
     immediatelyRender: false,
-    content: template.content || "<p></p>",
+    content: section.content || "<p></p>",
     editorProps: {
       attributes: {
         class:
@@ -60,13 +88,23 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
 
     const timer = setTimeout(() => {
       setDirty(0);
-      void updateSectionTemplate(template.id, {
+      const fields: SectionFields = {
         title: title.trim() || "Untitled",
         section_type: sectionType.trim() || "Section",
         description: description.trim() || null,
-        content: editor.getHTML(),
-      })
-        .then((response) => onChange(response.section_template))
+        content: normalizeContent(editor.getHTML()),
+      };
+      // Editor housekeeping (e.g. its trailing paragraph) can fire updates
+      // without any real change; saving those would mark CV copies as stale.
+      const unchanged =
+        fields.title === section.title &&
+        fields.section_type === section.section_type &&
+        fields.description === (section.description || null) &&
+        fields.content === normalizeContent(section.content);
+      if (unchanged) return;
+
+      void save(fields)
+        .then(onSaved)
         .catch((error) => {
           console.error(error);
           toast.error("Failed to save section");
@@ -74,33 +112,37 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
     }, SAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [dirty, editor, template.id, title, sectionType, description, onChange]);
+  }, [dirty, editor, title, sectionType, description, section, save, onSaved]);
 
   const onConfirmDelete = async () => {
     setDirty(0);
-    try {
-      await deleteSectionTemplate(template.id);
-      onDelete(template.id);
-      toast.success("Section deleted");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to delete section");
-    }
+    await onDelete();
   };
 
   return (
     <>
-      <article className="group relative mx-auto w-full max-w-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] px-10 py-10 sm:px-14">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="absolute right-4 top-4 opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={() => setDeleteOpen(true)}
-          aria-label="Delete section"
-        >
-          <Trash2Icon />
-        </Button>
+      <article
+        ref={articleRef}
+        className={cn(
+          "group relative mx-auto w-full max-w-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] px-10 py-10 sm:px-14 transition-opacity",
+          dimmed && "opacity-55",
+          className
+        )}
+      >
+        <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {actions}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setDeleteOpen(true)}
+            aria-label="Delete section"
+          >
+            <Trash2Icon />
+          </Button>
+        </div>
+
+        {notice}
 
         <InlineInput
           value={sectionType}
@@ -109,7 +151,7 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
             markDirty();
           }}
           placeholder="Section type"
-          className="border-0 py-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
+          className="border-0 py-0 pr-28 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
         />
         <InlineInput
           value={title}
@@ -170,8 +212,8 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={onConfirmDelete}
-        title="Delete this section?"
-        description="This removes the reusable section from your library. CVs that already imported it are not changed."
+        title={deleteTitle}
+        description={deleteDescription}
         confirmLabel="Delete"
         variant="destructive"
       />

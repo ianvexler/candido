@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_20_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_20_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -32,6 +32,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_20_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "content", default: "", null: false
+    t.datetime "synced_at"
     t.index ["curriculum_id", "position"], name: "index_curriculum_sections_on_curriculum_id_and_position"
     t.index ["curriculum_id"], name: "index_curriculum_sections_on_curriculum_id"
     t.index ["section_template_id"], name: "index_curriculum_sections_on_section_template_id"

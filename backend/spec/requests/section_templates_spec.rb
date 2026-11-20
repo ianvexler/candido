@@ -96,6 +96,17 @@ RSpec.describe "Section templates" do
       expect(template.reload.content).to eq("")
     end
 
+    it "drops the empty paragraph the editor keeps after a trailing list" do
+      template = create(:section_template, user: user)
+
+      put "/api/v1/section_templates/#{template.id}",
+        params: { content: "<ul><li><p>Ruby</p></li></ul><p></p>" },
+        headers: headers,
+        as: :json
+
+      expect(template.reload.content).to eq("<ul><li><p>Ruby</p></li></ul>")
+    end
+
     it "forbids another user's template" do
       template = create(:section_template)
 

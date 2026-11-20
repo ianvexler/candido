@@ -1,5 +1,12 @@
 const HIDDEN_SELECTOR = "[data-cv-hidden]";
 
+/**
+ * The editor appends an empty paragraph after a trailing list. Strip it so that
+ * opening a section doesn't count as an edit. The server strips it the same way.
+ */
+export const normalizeContent = (html: string) =>
+  html.replace(/(?:<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)+$/, "");
+
 /** Removes hidden spans so only exportable text is left. */
 export const stripHiddenHtml = (html: string) => {
   if (typeof window === "undefined") {

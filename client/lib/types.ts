@@ -124,3 +124,42 @@ export type SectionTemplate = {
   created_at: Date;
   updated_at: Date;
 }
+
+/** Fields every resume section has, whether in the library or inside a CV. */
+export type SectionFields = {
+  title: string;
+  section_type: string;
+  description: string | null;
+  /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
+  content: string;
+}
+
+export const CurriculumLayouts = ["single_column", "two_column"] as const;
+export type CurriculumLayout = (typeof CurriculumLayouts)[number];
+
+export type CurriculumSection = SectionFields & {
+  id: number;
+  curriculum_id: number;
+  section_template_id: number | null;
+  styles: Record<string, unknown>;
+  position: number;
+  hidden: boolean;
+  synced_at: Date | null;
+  /** The library section was edited after this copy was last synced. */
+  library_updated: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type Curriculum = {
+  id: number;
+  user_id: number;
+  title: string;
+  description: string | null;
+  layout: CurriculumLayout;
+  styles: Record<string, unknown>;
+  section_count: number;
+  sections?: CurriculumSection[];
+  created_at: Date;
+  updated_at: Date;
+}
