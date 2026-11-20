@@ -7,7 +7,7 @@ on:
 
 jobs:
   backend:
-    # Pinned: setup-ruby has no prebuilt Ruby 3.4.5 for ubuntu-26.04 (ubuntu-latest)
+    # Pinned: setup-ruby has no prebuilt Ruby 3.4.x for ubuntu-26.04 (ubuntu-latest)
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -49,7 +49,7 @@ jobs:
         run: bundle exec rspec
 
   backend-lint:
-    # Pinned: setup-ruby has no prebuilt Ruby 3.4.5 for ubuntu-26.04 (ubuntu-latest)
+    # Pinned: setup-ruby has no prebuilt Ruby 3.4.x for ubuntu-26.04 (ubuntu-latest)
     runs-on: ubuntu-24.04
     defaults:
       run:
