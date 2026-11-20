@@ -1,32 +1,27 @@
 "use client";
 
-import { ResumeHeader, SectionFields } from "@/lib/types";
-import { hasVisibleText, stripHiddenHtml } from "./documentContent";
+import { ExportSection, ResumeDocument } from "@/lib/resume/exportDocument";
+import { ResumeHeader } from "@/lib/types";
 import { hasHeaderContent } from "./resumeHeader";
-import { formatDateRange } from "./sectionDetails";
-
-type PreviewSection = SectionFields & { id: number };
 
 interface SectionPreviewProps {
-  header?: ResumeHeader;
-  sections: PreviewSection[];
+  document: ResumeDocument;
   emptyMessage?: string;
 }
 
 const HeaderPreview = ({ header }: { header: ResumeHeader }) => {
-  const contact = [header.email, header.phone, header.location].map((value) => value.trim()).filter(Boolean);
-  const links = header.links.filter((link) => link.url.trim());
+  const contact = [header.email, header.phone, header.location].filter(Boolean);
 
   return (
     <header className="space-y-1 border-b border-border pb-5">
-      {header.name.trim() && <h1 className="text-2xl font-bold">{header.name}</h1>}
-      {header.headline.trim() && <p className="text-muted-foreground">{header.headline}</p>}
+      {header.name && <h1 className="text-2xl font-bold">{header.name}</h1>}
+      {header.headline && <p className="text-muted-foreground">{header.headline}</p>}
       {contact.length > 0 && <p>{contact.join(" · ")}</p>}
-      {links.length > 0 && (
+      {header.links.length > 0 && (
         <p className="flex flex-wrap gap-x-3">
-          {links.map((link) => (
+          {header.links.map((link) => (
             <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="underline">
-              {link.label.trim() || link.url.replace(/^(https?:\/\/|mailto:)/, "")}
+              {link.label || link.url.replace(/^(https?:\/\/|mailto:)/, "")}
             </a>
           ))}
         </p>
@@ -35,56 +30,44 @@ const HeaderPreview = ({ header }: { header: ResumeHeader }) => {
   );
 };
 
-const SectionDetailsLine = ({ section }: { section: PreviewSection }) => {
-  const heading = [section.role, section.organization].map((value) => value?.trim()).filter(Boolean);
-  const meta = [formatDateRange(section), section.location?.trim()].filter(Boolean);
-  if (heading.length === 0 && meta.length === 0) return null;
+const SectionDetailsLine = ({ section }: { section: ExportSection }) => {
+  if (!section.subtitle && !section.meta) return null;
 
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-      <p className="font-medium">{heading.join(" · ")}</p>
-      <p className="text-muted-foreground">{meta.join(" · ")}</p>
+      <p className="font-medium">{section.subtitle}</p>
+      <p className="text-muted-foreground">{section.meta}</p>
     </div>
   );
 };
 
+/** An unstyled rendering of exactly what the resume exports. */
 const SectionPreview = ({
-  header,
-  sections,
+  document,
   emptyMessage = "Hidden text stays in the document on the left. This preview only shows what would export.",
 }: SectionPreviewProps) => {
-  const visible = sections.filter(
-    (section) =>
-      section.title.trim() ||
-      section.section_type.trim() ||
-      section.description?.trim() ||
-      hasVisibleText(section.content)
-  );
+  const showHeader = hasHeaderContent(document.header);
 
-  const showHeader = header !== undefined && hasHeaderContent(header);
-
-  if (visible.length === 0 && !showHeader) {
+  if (document.sections.length === 0 && !showHeader) {
     return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (
     <div className="space-y-8 text-sm leading-relaxed">
-      {showHeader && <HeaderPreview header={header} />}
-      {visible.map((section) => (
+      {showHeader && <HeaderPreview header={document.header} />}
+      {document.sections.map((section) => (
         <section key={section.id} className="space-y-2">
-          {section.section_type.trim() && (
+          {section.heading && (
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {section.section_type}
+              {section.heading}
             </p>
           )}
-          {section.title.trim() && <h2 className="text-lg font-semibold">{section.title}</h2>}
+          {section.title && <h2 className="text-lg font-semibold">{section.title}</h2>}
           <SectionDetailsLine section={section} />
-          {section.description?.trim() && (
-            <p className="text-muted-foreground">{section.description}</p>
-          )}
+          {section.summary && <p className="text-muted-foreground">{section.summary}</p>}
           <div
             className="space-y-2 [&_strong]:font-semibold [&_em]:italic [&_s]:line-through [&_a]:underline [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:mt-1 [&_h1]:text-base [&_h2]:text-base [&_h3]:text-base [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground"
-            dangerouslySetInnerHTML={{ __html: stripHiddenHtml(section.content) }}
+            dangerouslySetInnerHTML={{ __html: section.html }}
           />
         </section>
       ))}

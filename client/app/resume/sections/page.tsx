@@ -14,6 +14,7 @@ import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
 import HeaderDocument from "@/components/resume/HeaderDocument";
 import SectionDocument from "@/components/resume/SectionDocument";
 import SectionPreview from "@/components/resume/SectionPreview";
+import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import { ResumeHeader, SectionTemplate } from "@/lib/types";
 import { ArrowLeftIcon } from "lucide-react";
 import NextLink from "next/link";
@@ -91,7 +92,9 @@ const SectionLibraryPage = () => {
           </Description>
         </>
       }
-      preview={<SectionPreview header={profile} sections={templates} />}
+      preview={
+        <SectionPreview document={buildResumeDocument({ title: "Library", header: profile, sections: templates })} />
+      }
     >
       <HeaderDocument
         value={profile}

@@ -13,6 +13,7 @@ import HeaderDocument from "@/components/resume/HeaderDocument";
 import { resolveHeader } from "@/components/resume/resumeHeader";
 import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import SectionPreview from "@/components/resume/SectionPreview";
+import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import InlineInput from "@/components/ui/InlineInput";
 import { Curriculum, CurriculumSection, ResumeHeader } from "@/lib/types";
 import { move } from "@dnd-kit/helpers";
@@ -163,8 +164,11 @@ const ResumePage = ({ params }: ResumePageProps) => {
       }
       preview={
         <SectionPreview
-          header={resolveHeader(profile, curriculum.header)}
-          sections={sections.filter((section) => !section.hidden)}
+          document={buildResumeDocument({
+            title: curriculum.title,
+            header: resolveHeader(profile, curriculum.header),
+            sections,
+          })}
           emptyMessage="Add sections from your library. Hidden sections and hidden text are left out here."
         />
       }
