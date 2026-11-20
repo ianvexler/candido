@@ -1,5 +1,4 @@
 import { hasVisibleText, stripHiddenHtml } from "@/components/resume/documentContent";
-import { hasHeaderContent } from "@/components/resume/resumeHeader";
 import { formatDateRange } from "@/components/resume/sectionDetails";
 import { ResumeHeader, ResumeHeaderTextFields, SectionFields } from "@/lib/types";
 
@@ -72,8 +71,8 @@ export const buildResumeDocument = ({
   sections: sections.filter((section) => !section.hidden).map(toExportSection).filter(hasContent),
 });
 
-export const isEmptyDocument = (doc: ResumeDocument) =>
-  doc.sections.length === 0 && !hasHeaderContent(doc.header);
+/** Nothing worth printing: a header alone isn't a resume. */
+export const isEmptyDocument = (doc: ResumeDocument) => doc.sections.length === 0;
 
 /** Browsers use the page title as the suggested PDF file name. */
 export const pdfFileName = (doc: ResumeDocument) =>

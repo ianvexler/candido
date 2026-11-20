@@ -14,7 +14,7 @@ import { resolveHeader } from "@/components/resume/resumeHeader";
 import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import SectionPreview from "@/components/resume/SectionPreview";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
-import { waitForSaves } from "@/lib/resume/saveTracker";
+import { trackSave, waitForSaves } from "@/lib/resume/saveTracker";
 import { Button } from "@/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import InlineInput from "@/components/ui/InlineInput";
@@ -90,7 +90,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
     if (next === curriculum.title) return;
 
     try {
-      const response = await updateCurriculum(curriculum.id, { title: next });
+      const response = await trackSave("title", updateCurriculum(curriculum.id, { title: next }));
       setCurriculum(response.curriculum);
       setTitle(response.curriculum.title);
     } catch (error) {
@@ -133,9 +133,12 @@ const ResumePage = ({ params }: ResumePageProps) => {
     if (next.every((section, index) => section.id === previous[index].id)) return;
 
     setSections(next);
-    void reorderCurriculumSections(
-      curriculum.id,
-      next.map((section) => section.id)
+    void trackSave(
+      "order",
+      reorderCurriculumSections(
+        curriculum.id,
+        next.map((section) => section.id)
+      )
     ).catch((error) => {
       console.error(error);
       toast.error("Failed to save the new order");

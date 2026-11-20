@@ -108,8 +108,8 @@ describe("isEmptyDocument", () => {
     expect(isEmptyDocument(build([], emptyHeader()))).toBe(true);
   });
 
-  it("is false when the header has content", () => {
-    expect(isEmptyDocument(build([], header()))).toBe(false);
+  it("is true when no section is visible, even with a header", () => {
+    expect(isEmptyDocument(build([section(1, { hidden: true })], header()))).toBe(true);
   });
 
   it("is false when a section is visible", () => {

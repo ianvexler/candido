@@ -17,7 +17,7 @@ import { BlockToolbar, FormatBubble } from "./EditorControls";
 import HiddenMark from "./HiddenMark";
 import IconAction from "./IconAction";
 import { normalizeContent } from "./documentContent";
-import { markPending, markSettled } from "@/lib/resume/saveTracker";
+import { markPending, markSettled, trackSave } from "@/lib/resume/saveTracker";
 import { ghostInput } from "./styles";
 import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
 
@@ -128,17 +128,12 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     onUpdate: markDirty,
   });
 
-  // Export waits on these: unsaved edits, then the request carrying them.
+  // Export waits on unsaved edits (this key) and on save requests (trackSave).
   const editKey = `section-${section.id}:edit`;
-  const saveKey = `section-${section.id}:save`;
 
-  useEffect(
-    () => () => {
-      markSettled(editKey);
-      markSettled(saveKey);
-    },
-    [editKey, saveKey]
-  );
+  // Unmounting cancels the debounce, so the edit will never be saved; requests
+  // already sent settle on their own.
+  useEffect(() => () => markSettled(editKey), [editKey]);
 
   useEffect(() => {
     if (dirty === 0) {
@@ -185,21 +180,20 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
         return;
       }
 
-      markPending(saveKey);
+      const request = trackSave(`section-${section.id}`, save(fields));
       markSettled(editKey);
-      void save(fields)
+      void request
         .then(onSaved)
         .catch((error) => {
           console.error(error);
           toast.error(error?.response?.data?.error ?? "Couldn't save this section. Check your connection and try again.");
-        })
-        .finally(() => markSettled(saveKey));
+        });
     }, SAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
   }, [
     dirty, editor, title, sectionType, description, role, organization, location,
-    startMonth, endMonth, current, endBeforeStart, section, save, onSaved, editKey, saveKey,
+    startMonth, endMonth, current, endBeforeStart, section, save, onSaved, editKey,
   ]);
 
   const onConfirmDelete = async () => {
