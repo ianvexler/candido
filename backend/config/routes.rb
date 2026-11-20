@@ -31,6 +31,15 @@ Rails.application.routes.draw do
     post "feedback_entries", to: "feedback_entries#create"
     get "feedback_entries", to: "feedback_entries#index"
 
+    get "section_templates", to: "section_templates#index"
+    post "section_templates", to: "section_templates#create"
+    get "section_templates/:id", to: "section_templates#show"
+    put "section_templates/:id", to: "section_templates#update"
+    delete "section_templates/:id", to: "section_templates#destroy"
+    post "section_templates/:section_template_id/items", to: "section_template_items#create"
+    put "section_templates/:section_template_id/items/:id", to: "section_template_items#update"
+    delete "section_templates/:section_template_id/items/:id", to: "section_template_items#destroy"
+
     get "uploads/:filename",
       to: "uploads#show",
       constraints: { filename: /[^\/]+/ },

@@ -1,3 +1,24 @@
+# == Schema Information
+#
+# Table name: sessions
+#
+#  id         :integer          not null, primary key
+#  expires_at :datetime         not null
+#  token      :text             not null
+#  created_at :datetime         not null
+#  updated_at :datetime         not null
+#  user_id    :integer          not null
+#
+# Indexes
+#
+#  Session_token_idx   (token)
+#  Session_token_key   (token) UNIQUE
+#  Session_userId_idx  (user_id)
+#
+# Foreign Keys
+#
+#  Session_userId_fkey  (user_id => users.id) ON DELETE => restrict ON UPDATE => cascade
+#
 class Session < ApplicationRecord
   belongs_to :user
 

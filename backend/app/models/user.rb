@@ -1,3 +1,24 @@
+# == Schema Information
+#
+# Table name: users
+#
+#  id                      :integer          not null, primary key
+#  admin                   :boolean          default(FALSE), not null
+#  email                   :text             not null
+#  last_login_at           :datetime
+#  name                    :text
+#  password_digest         :text
+#  setup_completed         :boolean          default(FALSE), not null
+#  verification_expires_at :datetime
+#  verification_token      :text
+#  verified                :boolean          default(FALSE), not null
+#  created_at              :datetime         not null
+#  updated_at              :datetime         not null
+#
+# Indexes
+#
+#  User_email_key  (email) UNIQUE
+#
 class User < ApplicationRecord
   has_secure_password
 
@@ -6,6 +27,8 @@ class User < ApplicationRecord
   has_many :job_board_tags, dependent: :destroy
   has_many :job_board_entry_notes, dependent: :destroy
   has_many :feedback_entries, dependent: :destroy
+  has_many :curriculums, dependent: :destroy
+  has_many :section_templates, dependent: :destroy
 
   validates :email, presence: true, uniqueness: true
 
