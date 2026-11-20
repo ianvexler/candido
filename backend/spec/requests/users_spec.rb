@@ -39,4 +39,65 @@ RSpec.describe "Users" do
       expect(response.parsed_body).to eq("error" => "You are not authorized to access this resource")
     end
   end
+
+  describe "POST /api/v1/users/:id/resend_verification" do
+    it "regenerates the token and emails the user" do
+      admin = create(:user, :admin)
+      member = create(:user, :unverified, verification_expires_at: 1.hour.ago)
+      old_token = member.verification_token
+
+      expect do
+        post "/api/v1/users/#{member.id}/resend_verification", headers: auth_headers(admin)
+      end.to change { ActionMailer::Base.deliveries.count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      member.reload
+      expect(member.verification_token).to be_present
+      expect(member.verification_token).not_to eq(old_token)
+      expect(member.verification_expires_at).to be > Time.current
+      expect(ActionMailer::Base.deliveries.last.to).to eq([ member.email ])
+    end
+
+    it "rejects already verified users" do
+      admin = create(:user, :admin)
+      member = create(:user)
+
+      post "/api/v1/users/#{member.id}/resend_verification", headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body).to eq("error" => "User is already verified")
+    end
+
+    it "forbids non-admins" do
+      member = create(:user, :unverified)
+
+      post "/api/v1/users/#{member.id}/resend_verification", headers: auth_headers(create(:user))
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "POST /api/v1/users/:id/verify" do
+    it "marks the user as verified" do
+      admin = create(:user, :admin)
+      member = create(:user, :unverified)
+
+      post "/api/v1/users/#{member.id}/verify", headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["user"]).to include("verified" => true)
+      member.reload
+      expect(member).to be_verified
+      expect(member.verification_token).to be_nil
+    end
+
+    it "forbids non-admins" do
+      member = create(:user, :unverified)
+
+      post "/api/v1/users/#{member.id}/verify", headers: auth_headers(create(:user))
+
+      expect(response).to have_http_status(:forbidden)
+      expect(member.reload).not_to be_verified
+    end
+  end
 end
