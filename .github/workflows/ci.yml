@@ -80,6 +80,7 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - name: Production build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
