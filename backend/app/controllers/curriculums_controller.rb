@@ -28,6 +28,7 @@ class CurriculumsController < ApplicationController
     Curriculum.transaction do
       @curriculum.update!(curriculum_params)
       @curriculum.update_header!(params[:header]) if params.key?(:header)
+      @curriculum.update!(styles: @curriculum.styles.merge(style_params)) if style_params.present?
     end
     render_curriculum(@curriculum)
   end
@@ -46,5 +47,10 @@ class CurriculumsController < ApplicationController
 
   def curriculum_params
     params.permit(:title, :description, :layout)
+  end
+
+  # Merged into the existing styles so unrelated settings survive.
+  def style_params
+    params.fetch(:styles, {}).permit(:paper).to_h
   end
 end

@@ -1,5 +1,5 @@
 import apiClient from "@/api/apiClient";
-import { Curriculum, CurriculumLayout, ResumeHeader } from "@/lib/types";
+import { Curriculum, CurriculumLayout, PaperSize, ResumeHeader } from "@/lib/types";
 
 export type UpdateCurriculumPayload = {
   title?: string;
@@ -7,6 +7,8 @@ export type UpdateCurriculumPayload = {
   layout?: CurriculumLayout;
   /** Replaces this resume's header overrides. Blank fields fall back to the profile. */
   header?: Partial<ResumeHeader>;
+  /** Merged into the resume's existing styles. */
+  styles?: { paper?: PaperSize };
 };
 
 export const updateCurriculum = async (

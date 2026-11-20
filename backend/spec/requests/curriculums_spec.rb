@@ -151,3 +151,36 @@ RSpec.describe "Curriculum headers" do
     expect(curriculum.reload.header).to eq("headline" => "Keep me")
   end
 end
+
+RSpec.describe "Curriculum paper size" do
+  let(:user) { create(:user) }
+  let(:headers) { auth_headers(user) }
+
+  it "stores the paper size" do
+    curriculum = create(:curriculum, user: user)
+
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { paper: "letter" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(curriculum.reload.styles["paper"]).to eq("letter")
+    expect(response.parsed_body["curriculum"]["styles"]).to include("paper" => "letter")
+  end
+
+  it "keeps other style settings when the paper changes" do
+    curriculum = create(:curriculum, user: user, styles: { "accent" => "x" })
+
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { paper: "a4" } }, headers: headers, as: :json
+
+    expect(curriculum.reload.styles).to eq("accent" => "x", "paper" => "a4")
+  end
+
+  it "rejects an unknown paper size" do
+    curriculum = create(:curriculum, user: user)
+
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { paper: "a3" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body["error"]).to match(/Paper/)
+    expect(curriculum.reload.styles).to eq({})
+  end
+end
