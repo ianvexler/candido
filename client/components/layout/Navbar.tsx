@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/NavigationMenu";
 import ImportJobsModal from "@/components/common/ImportJobsModal";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { isBareRoute } from "@/lib/routes";
 
 const navLinks = [
   { href: "/dashboard", icon: HomeIcon, label: "Dashboard" },
@@ -27,8 +29,9 @@ const Navbar = () => {
   const { isAuthenticated, isAdmin, handleLogout } = useAuth();
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState("");
+  const pathname = usePathname();
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || isBareRoute(pathname)) {
     return null;
   }
 
