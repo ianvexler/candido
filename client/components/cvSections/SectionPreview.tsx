@@ -1,62 +1,11 @@
 "use client";
 
-import { SectionTemplate, SectionTemplateItem } from "@/lib/types";
-import { ReactNode } from "react";
-import { visibleItemHtml } from "./documentContent";
+import { SectionTemplate } from "@/lib/types";
+import { hasVisibleText, stripHiddenHtml } from "./documentContent";
 
 interface SectionPreviewProps {
   templates: SectionTemplate[];
 }
-
-const renderItems = (items: SectionTemplateItem[]) => {
-  const nodes: ReactNode[] = [];
-  let listItems: { id: number; html: string }[] = [];
-  let listKind: "bullet" | "ordered" | null = null;
-
-  const flushList = () => {
-    if (listItems.length === 0 || !listKind) return;
-    const Tag = listKind === "ordered" ? "ol" : "ul";
-    const listClass =
-      listKind === "ordered"
-        ? "list-decimal pl-5 space-y-1"
-        : "list-disc pl-5 space-y-1";
-    nodes.push(
-      <Tag key={`list-${listItems[0].id}`} className={listClass}>
-        {listItems.map((item) => (
-          <li key={item.id} dangerouslySetInnerHTML={{ __html: item.html }} />
-        ))}
-      </Tag>
-    );
-    listItems = [];
-    listKind = null;
-  };
-
-  items.forEach((item) => {
-    const html = visibleItemHtml(item).trim();
-    if (!html) return;
-
-    if (item.kind === "bullet" || item.kind === "ordered") {
-      if (listKind && listKind !== item.kind) flushList();
-      listKind = item.kind;
-      listItems.push({ id: item.id, html });
-      return;
-    }
-
-    flushList();
-    if (item.kind === "heading") {
-      nodes.push(
-        <h3 key={item.id} className="font-semibold text-base" dangerouslySetInnerHTML={{ __html: html }} />
-      );
-    } else {
-      nodes.push(
-        <p key={item.id} dangerouslySetInnerHTML={{ __html: html }} />
-      );
-    }
-  });
-  flushList();
-
-  return nodes;
-};
 
 const SectionPreview = ({ templates }: SectionPreviewProps) => {
   const visible = templates.filter(
@@ -64,7 +13,7 @@ const SectionPreview = ({ templates }: SectionPreviewProps) => {
       template.title.trim() ||
       template.section_type.trim() ||
       template.description?.trim() ||
-      template.items.some((item) => visibleItemHtml(item).trim())
+      hasVisibleText(template.content)
   );
 
   if (visible.length === 0) {
@@ -76,7 +25,7 @@ const SectionPreview = ({ templates }: SectionPreviewProps) => {
   }
 
   return (
-    <div className="space-y-8 text-sm leading-relaxed **:data-cv-hidden:hidden [&_strong]:font-semibold [&_em]:italic [&_s]:line-through [&_a]:underline [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5">
+    <div className="space-y-8 text-sm leading-relaxed">
       {visible.map((template) => (
         <section key={template.id} className="space-y-2">
           {template.section_type.trim() && (
@@ -88,7 +37,10 @@ const SectionPreview = ({ templates }: SectionPreviewProps) => {
           {template.description?.trim() && (
             <p className="text-muted-foreground">{template.description}</p>
           )}
-          <div className="space-y-2">{renderItems(template.items)}</div>
+          <div
+            className="space-y-2 [&_strong]:font-semibold [&_em]:italic [&_s]:line-through [&_a]:underline [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:mt-1 [&_h1]:text-base [&_h2]:text-base [&_h3]:text-base [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground"
+            dangerouslySetInnerHTML={{ __html: stripHiddenHtml(template.content) }}
+          />
         </section>
       ))}
     </div>

@@ -3,6 +3,7 @@
 # Table name: curriculum_sections
 #
 #  id                  :bigint           not null, primary key
+#  content             :text             default(""), not null
 #  description         :text
 #  hidden              :boolean          default(FALSE), not null
 #  position            :integer          default(0), not null
@@ -26,22 +27,11 @@
 #  fk_rails_...  (section_template_id => section_templates.id)
 #
 class CurriculumSection < ApplicationRecord
+  include SectionContent
+
   belongs_to :curriculum, inverse_of: :curriculum_sections
   belongs_to :section_template, optional: true
-  has_many :curriculum_section_items, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum_section
 
   validates :title, :section_type, presence: true
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-
-  def next_item_position
-    (curriculum_section_items.maximum(:position) || -1) + 1
-  end
-
-  def add_item!(attributes = {})
-    curriculum_section_items.create!(attributes.merge(position: next_item_position))
-  end
-
-  def visible_items
-    curriculum_section_items.reject(&:hidden?)
-  end
 end

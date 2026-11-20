@@ -5,18 +5,17 @@ RSpec.describe "Section templates" do
   let(:headers) { auth_headers(user) }
 
   describe "GET /api/v1/section_templates" do
-    it "returns the current user's templates with items" do
-      template = create(:section_template, user: user, title: "Acme")
-      create(:section_template_item, section_template: template, body: "Led a team", position: 0)
+    it "returns the current user's templates oldest first, with content" do
+      create(:section_template, user: user, title: "First", content: "<ul><li><p>Led a team</p></li></ul>")
+      create(:section_template, user: user, title: "Second")
       create(:section_template, title: "Other user")
 
       get "/api/v1/section_templates", headers: headers
 
       expect(response).to have_http_status(:ok)
-      titles = response.parsed_body["section_templates"].map { |item| item["title"] }
-      expect(titles).to eq([ "Acme" ])
-      expect(response.parsed_body["section_templates"].first["items"].map { |item| item["body"] })
-        .to eq([ "Led a team" ])
+      templates = response.parsed_body["section_templates"]
+      expect(templates.map { |item| item["title"] }).to eq([ "First", "Second" ])
+      expect(templates.first["content"]).to eq("<ul><li><p>Led a team</p></li></ul>")
     end
 
     it "requires authentication" do
@@ -27,26 +26,28 @@ RSpec.describe "Section templates" do
   end
 
   describe "POST /api/v1/section_templates" do
-    it "creates a template with items" do
+    it "creates a template with content" do
       post "/api/v1/section_templates",
         params: {
           title: "Skills",
           section_type: "Skills",
           description: "Core stack",
-          items: [
-            { kind: "bullet", body: "Ruby" },
-            { kind: "bullet", body: "  " },
-            { kind: "paragraph", body: "Comfortable with Rails" }
-          ]
+          content: "<p>Ruby</p>"
         },
         headers: headers,
         as: :json
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["section_template"]
-      expect(body).to include("title" => "Skills", "section_type" => "Skills", "user_id" => user.id)
-      expect(body["items"].map { |item| item["body"] }).to eq([ "Ruby", "Comfortable with Rails" ])
-      expect(body["items"].map { |item| item["kind"] }).to eq([ "bullet", "paragraph" ])
+      expect(body).to include(
+        "title" => "Skills", "section_type" => "Skills", "user_id" => user.id, "content" => "<p>Ruby</p>"
+      )
+    end
+
+    it "defaults content to empty" do
+      post "/api/v1/section_templates", params: { title: "Blank", section_type: "Section" }, headers: headers, as: :json
+
+      expect(response.parsed_body["section_template"]["content"]).to eq("")
     end
   end
 
@@ -64,27 +65,35 @@ RSpec.describe "Section templates" do
       expect(template.reload.title).to eq("New")
     end
 
-    it "replaces items when items are provided" do
+    it "keeps hidden spans and formatting in content" do
       template = create(:section_template, user: user)
-      create(:section_template_item, section_template: template, body: "Old")
+      html = '<h3>Impact</h3><ul><li><p><strong>Shipped</strong> Rails <span data-cv-hidden="true">at night</span></p></li></ul>'
+
+      put "/api/v1/section_templates/#{template.id}", params: { content: html }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(template.reload.content).to eq(html)
+    end
+
+    it "strips scripts and event handlers from content" do
+      template = create(:section_template, user: user)
 
       put "/api/v1/section_templates/#{template.id}",
-        params: {
-          items: [
-            { kind: "heading", body: "Impact" },
-            { kind: "bullet", body: "Shipped Rails", hidden: true }
-          ]
-        },
+        params: { content: '<p onclick="alert(1)">Hi<script>alert(1)</script></p><a href="javascript:alert(1)">x</a>' },
         headers: headers,
         as: :json
 
-      expect(response).to have_http_status(:ok)
-      bodies = response.parsed_body["section_template"]["items"].map { |item| item.slice("kind", "body", "hidden") }
-      expect(bodies).to eq([
-        { "kind" => "heading", "body" => "Impact", "hidden" => false },
-        { "kind" => "bullet", "body" => "Shipped Rails", "hidden" => true }
-      ])
-      expect(template.section_template_items.count).to eq(2)
+      content = template.reload.content
+      expect(content).to include("<p>Hi")
+      expect(content).not_to include("script", "onclick", "javascript:")
+    end
+
+    it "stores whitespace-only content as empty" do
+      template = create(:section_template, user: user, content: "<p>Old</p>")
+
+      put "/api/v1/section_templates/#{template.id}", params: { content: "<p> &nbsp; </p>" }, headers: headers, as: :json
+
+      expect(template.reload.content).to eq("")
     end
 
     it "forbids another user's template" do
@@ -107,48 +116,6 @@ RSpec.describe "Section templates" do
 
       expect(response).to have_http_status(:ok)
       expect(SectionTemplate.find_by(id: template.id)).to be_nil
-    end
-  end
-
-  describe "POST /api/v1/section_templates/:section_template_id/items" do
-    it "adds an item to an owned template" do
-      template = create(:section_template, user: user)
-
-      post "/api/v1/section_templates/#{template.id}/items",
-        params: { kind: "heading", body: "Impact" },
-        headers: headers,
-        as: :json
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["item"]).to include("kind" => "heading", "body" => "Impact", "position" => 0)
-    end
-  end
-
-  describe "PUT /api/v1/section_templates/:section_template_id/items/:id" do
-    it "updates an owned item" do
-      template = create(:section_template, user: user)
-      item = create(:section_template_item, section_template: template, hidden: false)
-
-      put "/api/v1/section_templates/#{template.id}/items/#{item.id}",
-        params: { hidden: true, body: "Updated" },
-        headers: headers,
-        as: :json
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["item"]).to include("hidden" => true, "body" => "Updated")
-      expect(item.reload).to have_attributes(hidden: true, body: "Updated")
-    end
-  end
-
-  describe "DELETE /api/v1/section_templates/:section_template_id/items/:id" do
-    it "deletes an owned item" do
-      template = create(:section_template, user: user)
-      item = create(:section_template_item, section_template: template)
-
-      delete "/api/v1/section_templates/#{template.id}/items/#{item.id}", headers: headers
-
-      expect(response).to have_http_status(:ok)
-      expect(SectionTemplateItem.find_by(id: item.id)).to be_nil
     end
   end
 end

@@ -36,9 +36,6 @@ Rails.application.routes.draw do
     get "section_templates/:id", to: "section_templates#show"
     put "section_templates/:id", to: "section_templates#update"
     delete "section_templates/:id", to: "section_templates#destroy"
-    post "section_templates/:section_template_id/items", to: "section_template_items#create"
-    put "section_templates/:section_template_id/items/:id", to: "section_template_items#update"
-    delete "section_templates/:section_template_id/items/:id", to: "section_template_items#destroy"
 
     get "uploads/:filename",
       to: "uploads#show",

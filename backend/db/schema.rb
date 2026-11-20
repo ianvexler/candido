@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_20_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -19,18 +19,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
   create_enum "FeedbackStatus", ["PENDING", "REVIEWED", "IMPLEMENTED", "CLOSED"]
   create_enum "FeedbackType", ["BUG", "SUGGESTION", "OTHER"]
   create_enum "JobStatus", ["PENDING", "APPLIED", "ASSESSMENT", "INTERVIEW", "OFFERED", "REJECTED", "ACCEPTED", "ARCHIVED"]
-
-  create_table "curriculum_section_items", force: :cascade do |t|
-    t.bigint "curriculum_section_id", null: false
-    t.string "kind", default: "bullet", null: false
-    t.text "body", null: false
-    t.integer "position", default: 0, null: false
-    t.boolean "hidden", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["curriculum_section_id", "position"], name: "idx_on_curriculum_section_id_position_f30cbb70b8"
-    t.index ["curriculum_section_id"], name: "index_curriculum_section_items_on_curriculum_section_id"
-  end
 
   create_table "curriculum_sections", force: :cascade do |t|
     t.bigint "curriculum_id", null: false
@@ -43,6 +31,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
     t.jsonb "styles", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "content", default: "", null: false
     t.index ["curriculum_id", "position"], name: "index_curriculum_sections_on_curriculum_id_and_position"
     t.index ["curriculum_id"], name: "index_curriculum_sections_on_curriculum_id"
     t.index ["section_template_id"], name: "index_curriculum_sections_on_section_template_id"
@@ -117,18 +106,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
     t.index ["user_id", "name"], name: "JobBoardTag_userId_name_key", unique: true
   end
 
-  create_table "section_template_items", force: :cascade do |t|
-    t.bigint "section_template_id", null: false
-    t.string "kind", default: "bullet", null: false
-    t.text "body", null: false
-    t.integer "position", default: 0, null: false
-    t.boolean "hidden", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["section_template_id", "position"], name: "idx_on_section_template_id_position_a62369f2ca"
-    t.index ["section_template_id"], name: "index_section_template_items_on_section_template_id"
-  end
-
   create_table "section_templates", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "title", null: false
@@ -137,6 +114,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
     t.jsonb "styles", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "content", default: "", null: false
     t.index ["user_id", "section_type"], name: "index_section_templates_on_user_id_and_section_type"
     t.index ["user_id", "title"], name: "index_section_templates_on_user_id_and_title"
     t.index ["user_id"], name: "index_section_templates_on_user_id"
@@ -168,7 +146,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
     t.index ["email"], name: "User_email_key", unique: true
   end
 
-  add_foreign_key "curriculum_section_items", "curriculum_sections"
   add_foreign_key "curriculum_sections", "curriculums"
   add_foreign_key "curriculum_sections", "section_templates"
   add_foreign_key "curriculums", "users"
@@ -179,7 +156,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_161120) do
   add_foreign_key "job_board_entry_notes", "job_board_entries", name: "JobBoardEntryNotes_jobBoardEntryId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entry_notes", "users", name: "JobBoardEntryNotes_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_tags", "users", name: "JobBoardTag_userId_fkey", on_update: :cascade, on_delete: :restrict
-  add_foreign_key "section_template_items", "section_templates"
   add_foreign_key "section_templates", "users"
   add_foreign_key "sessions", "users", name: "Session_userId_fkey", on_update: :cascade, on_delete: :restrict
 end

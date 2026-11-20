@@ -112,28 +112,15 @@ export type Note = {
   content: string;
 }
 
-export const SectionTemplateItemKinds = ["bullet", "ordered", "paragraph", "heading"] as const;
-export type SectionTemplateItemKind = (typeof SectionTemplateItemKinds)[number];
-
-export type SectionTemplateItem = {
-  id: number;
-  section_template_id: number;
-  kind: SectionTemplateItemKind;
-  body: string;
-  position: number;
-  hidden: boolean;
-  created_at: Date;
-  updated_at: Date;
-}
-
 export type SectionTemplate = {
   id: number;
   user_id: number;
   title: string;
   section_type: string;
   description: string | null;
+  /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
+  content: string;
   styles: Record<string, unknown>;
-  items: SectionTemplateItem[];
   created_at: Date;
   updated_at: Date;
 }

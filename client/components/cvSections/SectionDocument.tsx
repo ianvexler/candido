@@ -18,7 +18,6 @@ import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import HiddenMark from "./HiddenMark";
-import { itemsFromEditor, itemsToHtml } from "./documentContent";
 
 const SAVE_DELAY_MS = 600;
 
@@ -46,7 +45,7 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
       HiddenMark,
     ],
     immediatelyRender: false,
-    content: itemsToHtml(template.items),
+    content: template.content || "<p></p>",
     editorProps: {
       attributes: {
         class:
@@ -65,7 +64,7 @@ const SectionDocument = ({ template, onChange, onDelete }: SectionDocumentProps)
         title: title.trim() || "Untitled",
         section_type: sectionType.trim() || "Section",
         description: description.trim() || null,
-        items: itemsFromEditor(editor),
+        content: editor.getHTML(),
       })
         .then((response) => onChange(response.section_template))
         .catch((error) => {

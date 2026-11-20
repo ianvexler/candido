@@ -41,26 +41,16 @@ class Curriculum < ApplicationRecord
       templates.map do |template|
         raise ArgumentError, "template must belong to curriculum owner" if template.user_id != user_id
 
-        section = curriculum_sections.create!(
+        curriculum_sections.create!(
           section_template: template,
           title: template.title,
           section_type: template.section_type,
           description: template.description,
+          content: template.content,
           styles: template.styles.deep_dup,
           position: next_section_position,
           hidden: false
         )
-
-        template.section_template_items.each do |item|
-          section.curriculum_section_items.create!(
-            kind: item.kind,
-            body: item.body,
-            position: item.position,
-            hidden: item.hidden
-          )
-        end
-
-        section
       end
     end
   end

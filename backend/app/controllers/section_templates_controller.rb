@@ -9,7 +9,7 @@ class SectionTemplatesController < ApplicationController
   }.freeze
 
   def index
-    templates = current_user.section_templates.includes(:section_template_items).order(created_at: :desc)
+    templates = current_user.section_templates.order(:created_at, :id)
     render json: { section_templates: serialize(templates, with: SectionTemplateBlueprint) }
   end
 
@@ -18,20 +18,13 @@ class SectionTemplatesController < ApplicationController
   end
 
   def create
-    template = SectionTemplate.create_for_user!(
-      current_user,
-      template_params,
-      items: item_params
-    )
+    template = current_user.section_templates.create!(template_params)
     render json: { section_template: serialize(template, with: SectionTemplateBlueprint) }
   end
 
   def update
-    SectionTemplate.transaction do
-      @section_template.update!(template_params)
-      @section_template.replace_items!(item_params) if params.key?(:items)
-    end
-    render json: { section_template: serialize(@section_template.reload, with: SectionTemplateBlueprint) }
+    @section_template.update!(template_params)
+    render json: { section_template: serialize(@section_template, with: SectionTemplateBlueprint) }
   end
 
   def destroy
@@ -51,10 +44,6 @@ class SectionTemplatesController < ApplicationController
   end
 
   def template_params
-    params.permit(:title, :section_type, :description)
-  end
-
-  def item_params
-    Array(params.permit(items: [ :kind, :body, :hidden ])[:items]).map { |item| item.to_h.symbolize_keys }
+    params.permit(:title, :section_type, :description, :content)
   end
 end
