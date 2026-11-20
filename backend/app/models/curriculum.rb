@@ -23,12 +23,15 @@
 #
 class Curriculum < ApplicationRecord
   LAYOUTS = %w[single_column two_column].freeze
+  # Paper the resume is printed on; stored as styles["paper"], nil means A4.
+  PAPER_SIZES = %w[a4 letter].freeze
 
   belongs_to :user
   has_many :curriculum_sections, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum
 
   validates :title, presence: true
   validates :layout, inclusion: { in: LAYOUTS }
+  validate :paper_size_is_known
 
   def self.find_owned!(user, id)
     curriculum = find_by(id: id)
@@ -96,5 +99,14 @@ class Curriculum < ApplicationRecord
 
   def visible_sections
     curriculum_sections.reject(&:hidden?)
+  end
+
+  private
+
+  def paper_size_is_known
+    paper = styles&.dig("paper")
+    return if paper.nil? || PAPER_SIZES.include?(paper)
+
+    errors.add(:base, "Paper size must be A4 or Letter")
   end
 end
