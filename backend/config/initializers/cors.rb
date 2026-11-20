@@ -5,9 +5,14 @@
 
 # Read more: https://github.com/cyu/rack-cors
 
+allowed_origins = ENV.fetch("CORS_ORIGIN", "http://localhost:3000").split(",").map(&:strip)
+if Rails.env.local?
+  allowed_origins |= %w[http://localhost:3000 http://127.0.0.1:3000]
+end
+
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins ENV.fetch("CORS_ORIGIN", "http://localhost:3000")
+    origins(*allowed_origins)
 
     resource "*",
       headers: :any,

@@ -3,6 +3,7 @@
 set -e
 
 COMMAND=$1
+shift || true
 
 case "$COMMAND" in
   stack)
@@ -31,8 +32,8 @@ case "$COMMAND" in
     ;;
 
   rails)
-    echo "Running rails command inside backend container: ${*:2}"
-    docker compose run --rm backend bin/rails "${*:2}"
+    echo "Running rails command inside backend container: $*"
+    docker compose run --rm backend bin/rails "$@"
     ;;
 
   lint)
@@ -56,13 +57,13 @@ case "$COMMAND" in
     ;;
 
   npm)
-    echo "Running npm command inside client container: ${*:2}"
-    docker compose run --rm client npm "${*:2}"
+    echo "Running npm command inside client container: $*"
+    docker compose run --rm client npm "$@"
     ;;
 
   npx)
-    echo "Running npx command inside client container: ${*:2}"
-    docker compose run --rm client npx "${*:2}"
+    echo "Running npx command inside client container: $*"
+    docker compose run --rm client npx "$@"
     ;;
 
   rspec)
@@ -71,8 +72,8 @@ case "$COMMAND" in
     ;;
 
   client)
-    echo "Running command in client..."
-    docker compose run --rm client "${*:2}"
+    echo "Running command in client: $*"
+    docker compose run --rm client "$@"
     ;;
 
   *)

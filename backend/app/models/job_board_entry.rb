@@ -1,3 +1,36 @@
+# == Schema Information
+#
+# Table name: job_board_entries
+#
+#  id                    :integer          not null, primary key
+#  closing_date          :datetime
+#  company               :text             not null
+#  cover_letter_filename :text
+#  cover_letter_key      :text
+#  cover_letter_text     :text
+#  cv_filename           :text
+#  cv_key                :text
+#  cv_text               :text
+#  description           :text
+#  location              :text
+#  number                :integer          not null
+#  salary                :text
+#  status                :enum             default("PENDING"), not null
+#  title                 :text             not null
+#  url                   :text
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
+#  user_id               :integer          not null
+#
+# Indexes
+#
+#  JobBoardEntry_title_idx                 (title)
+#  JobBoardEntry_userId_status_number_key  (user_id,status,number) UNIQUE
+#
+# Foreign Keys
+#
+#  JobBoardEntry_userId_fkey  (user_id => users.id) ON DELETE => restrict ON UPDATE => cascade
+#
 class JobBoardEntry < ApplicationRecord
   STATUSES = %w[PENDING APPLIED ASSESSMENT INTERVIEW OFFERED REJECTED ACCEPTED ARCHIVED].freeze
 

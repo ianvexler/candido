@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
 import Logo from "@/lib/images/SmallLogo.png";
-import { FileTextIcon, HomeIcon, KanbanIcon, LogOutIcon, MenuIcon, SettingsIcon, SheetIcon, ShieldIcon, UploadIcon } from "lucide-react";
+import { FileTextIcon, HomeIcon, KanbanIcon, LayersIcon, LogOutIcon, MenuIcon, SettingsIcon, SheetIcon, ShieldIcon, UploadIcon } from "lucide-react";
 import NavbarLink from "./NavbarLink";
 import {
   NavigationMenu,
@@ -20,6 +20,7 @@ const navLinks = [
   { href: "/dashboard", icon: HomeIcon, label: "Dashboard" },
   { href: "/board", icon: KanbanIcon, label: "Board" },
   { href: "/sheet", icon: SheetIcon, label: "Sheet" },
+  { href: "/resume", icon: LayersIcon, label: "Resume" },
 ];
 
 const Navbar = () => {

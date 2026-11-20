@@ -33,6 +33,26 @@ Rails.application.routes.draw do
     post "feedback_entries", to: "feedback_entries#create"
     get "feedback_entries", to: "feedback_entries#index"
 
+    get "section_templates", to: "section_templates#index"
+    post "section_templates", to: "section_templates#create"
+    get "section_templates/:id", to: "section_templates#show"
+    put "section_templates/:id", to: "section_templates#update"
+    delete "section_templates/:id", to: "section_templates#destroy"
+
+    get "resume_profile", to: "resume_profiles#show"
+    put "resume_profile", to: "resume_profiles#update"
+
+    get "curriculums", to: "curriculums#index"
+    post "curriculums", to: "curriculums#create"
+    get "curriculums/:id", to: "curriculums#show"
+    put "curriculums/:id", to: "curriculums#update"
+    delete "curriculums/:id", to: "curriculums#destroy"
+    post "curriculums/:curriculum_id/sections", to: "curriculum_sections#create"
+    put "curriculums/:curriculum_id/sections/order", to: "curriculum_sections#reorder"
+    put "curriculums/:curriculum_id/sections/:id", to: "curriculum_sections#update"
+    delete "curriculums/:curriculum_id/sections/:id", to: "curriculum_sections#destroy"
+    post "curriculums/:curriculum_id/sections/:id/sync", to: "curriculum_sections#sync"
+
     get "uploads/:filename",
       to: "uploads#show",
       constraints: { filename: /[^\/]+/ },

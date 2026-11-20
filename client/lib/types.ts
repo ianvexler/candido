@@ -112,3 +112,86 @@ export type Note = {
   updated_at: Date;
   content: string;
 }
+
+export type SectionTemplate = SectionFields & {
+  id: number;
+  user_id: number;
+  styles: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** Fields every resume section has, whether in the library or inside a CV. */
+export type SectionFields = {
+  title: string;
+  section_type: string;
+  description: string | null;
+  /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
+  content: string;
+} & SectionDetails
+
+/** Optional details for experience/education-style sections. */
+export type SectionDetails = {
+  /** Job title, degree, etc. */
+  role: string | null;
+  /** Employer, school, etc. */
+  organization: string | null;
+  location: string | null;
+  /** "YYYY-MM-01"; month precision. */
+  start_date: string | null;
+  end_date: string | null;
+  /** Ongoing; shown as "Present" and has no end date. */
+  current: boolean;
+}
+
+export type ResumeLink = {
+  label: string;
+  url: string;
+}
+
+/** Name and contact details at the top of a resume. */
+export type ResumeHeader = {
+  name: string;
+  headline: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: ResumeLink[];
+}
+
+export const ResumeHeaderTextFields = ["name", "headline", "email", "phone", "location"] as const;
+export type ResumeHeaderTextField = (typeof ResumeHeaderTextFields)[number];
+
+export const CurriculumLayouts = ["single_column", "two_column"] as const;
+export type CurriculumLayout = (typeof CurriculumLayouts)[number];
+
+export type CurriculumSection = SectionFields & {
+  id: number;
+  curriculum_id: number;
+  section_template_id: number | null;
+  styles: Record<string, unknown>;
+  position: number;
+  hidden: boolean;
+  synced_at: Date | null;
+  /** The library section was edited after this copy was last synced. */
+  library_updated: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type Curriculum = {
+  id: number;
+  user_id: number;
+  title: string;
+  description: string | null;
+  layout: CurriculumLayout;
+  styles: Record<string, unknown>;
+  section_count: number;
+  /** Fields this resume overrides; anything missing comes from the profile. Full view only. */
+  header?: Partial<ResumeHeader>;
+  /** Profile with this resume's overrides applied. Full view only. */
+  resolved_header?: ResumeHeader;
+  sections?: CurriculumSection[];
+  created_at: Date;
+  updated_at: Date;
+}

@@ -1,3 +1,25 @@
+# == Schema Information
+#
+# Table name: users
+#
+#  id                      :integer          not null, primary key
+#  admin                   :boolean          default(FALSE), not null
+#  email                   :text             not null
+#  last_login_at           :datetime
+#  name                    :text
+#  password_digest         :text
+#  resume_profile          :jsonb            not null
+#  setup_completed         :boolean          default(FALSE), not null
+#  verification_expires_at :datetime
+#  verification_token      :text
+#  verified                :boolean          default(FALSE), not null
+#  created_at              :datetime         not null
+#  updated_at              :datetime         not null
+#
+# Indexes
+#
+#  User_email_key  (email) UNIQUE
+#
 class User < ApplicationRecord
   has_secure_password
 
@@ -6,8 +28,18 @@ class User < ApplicationRecord
   has_many :job_board_tags, dependent: :destroy
   has_many :job_board_entry_notes, dependent: :destroy
   has_many :feedback_entries, dependent: :destroy
+  has_many :curriculums, dependent: :destroy
+  has_many :section_templates, dependent: :destroy
 
   validates :email, presence: true, uniqueness: true
+
+  def resume_header_profile
+    ResumeHeader.profile_for(self)
+  end
+
+  def update_resume_profile!(raw)
+    update!(resume_profile: ResumeHeader.normalize_profile(raw))
+  end
 
   def self.authenticate_for_login!(email, password)
     user = find_by(email: email.to_s.strip)
