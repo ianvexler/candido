@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_20_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_20_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -46,6 +46,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_20_130000) do
     t.jsonb "styles", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "header", default: {}, null: false
     t.index ["user_id", "title"], name: "index_curriculums_on_user_id_and_title"
     t.index ["user_id"], name: "index_curriculums_on_user_id"
   end
@@ -144,6 +145,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_20_130000) do
     t.datetime "last_login_at", precision: 3
     t.datetime "created_at", precision: 3, default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.datetime "updated_at", precision: 3, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.jsonb "resume_profile", default: {}, null: false
     t.index ["email"], name: "User_email_key", unique: true
   end
 

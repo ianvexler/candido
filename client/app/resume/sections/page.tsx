@@ -1,5 +1,7 @@
 "use client";
 
+import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile";
+import { updateResumeProfile } from "@/api/resources/resumeProfile/updateResumeProfile";
 import { createSectionTemplate } from "@/api/resources/sectionTemplates/createSectionTemplate";
 import { deleteSectionTemplate } from "@/api/resources/sectionTemplates/deleteSectionTemplate";
 import { getSectionTemplates } from "@/api/resources/sectionTemplates/getSectionTemplates";
@@ -9,9 +11,10 @@ import Loader from "@/components/common/Loader";
 import Title from "@/components/common/Title";
 import AddSheetButton from "@/components/resume/AddSheetButton";
 import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
+import HeaderDocument from "@/components/resume/HeaderDocument";
 import SectionDocument from "@/components/resume/SectionDocument";
 import SectionPreview from "@/components/resume/SectionPreview";
-import { SectionTemplate } from "@/lib/types";
+import { ResumeHeader, SectionTemplate } from "@/lib/types";
 import { ArrowLeftIcon } from "lucide-react";
 import NextLink from "next/link";
 import { useEffect, useState } from "react";
@@ -19,12 +22,16 @@ import toast from "react-hot-toast";
 
 const SectionLibraryPage = () => {
   const [templates, setTemplates] = useState<SectionTemplate[]>([]);
+  const [profile, setProfile] = useState<ResumeHeader | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    void getSectionTemplates()
-      .then((response) => setTemplates(response.section_templates))
+    void Promise.all([getSectionTemplates(), getResumeProfile()])
+      .then(([templatesResponse, profileResponse]) => {
+        setTemplates(templatesResponse.section_templates);
+        setProfile(profileResponse.profile);
+      })
       .catch((error) => {
         console.error(error);
         toast.error("Failed to load your section library");
@@ -59,7 +66,7 @@ const SectionLibraryPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading || !profile) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
@@ -80,12 +87,17 @@ const SectionLibraryPage = () => {
           </NextLink>
           <Title>Section library</Title>
           <Description className="mt-1">
-            Write reusable sections here, then add them to a resume. Highlight text to hide or show it.
+            Your header and reusable sections. Add sections to a resume from there. Highlight text to hide or show it.
           </Description>
         </>
       }
-      preview={<SectionPreview sections={templates} />}
+      preview={<SectionPreview header={profile} sections={templates} />}
     >
+      <HeaderDocument
+        value={profile}
+        save={async (draft) => setProfile((await updateResumeProfile(draft)).profile)}
+      />
+
       {templates.map((template) => (
         <SectionDocument
           key={template.id}

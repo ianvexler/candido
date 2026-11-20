@@ -4,14 +4,17 @@ import { addCurriculumSections } from "@/api/resources/curriculums/addCurriculum
 import { getCurriculum } from "@/api/resources/curriculums/getCurriculum";
 import { reorderCurriculumSections } from "@/api/resources/curriculums/reorderCurriculumSections";
 import { updateCurriculum } from "@/api/resources/curriculums/updateCurriculum";
+import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile";
 import Loader from "@/components/common/Loader";
 import AddSheetButton from "@/components/resume/AddSheetButton";
 import CurriculumSectionCard from "@/components/resume/CurriculumSectionCard";
 import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
+import HeaderDocument from "@/components/resume/HeaderDocument";
+import { resolveHeader } from "@/components/resume/resumeHeader";
 import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import SectionPreview from "@/components/resume/SectionPreview";
 import InlineInput from "@/components/ui/InlineInput";
-import { Curriculum, CurriculumSection } from "@/lib/types";
+import { Curriculum, CurriculumSection, ResumeHeader } from "@/lib/types";
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { ArrowLeftIcon, LayersIcon } from "lucide-react";
@@ -28,6 +31,7 @@ interface ResumePageProps {
 const ResumePage = ({ params }: ResumePageProps) => {
   const { id } = use(params);
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
+  const [profile, setProfile] = useState<ResumeHeader | null>(null);
   const [sections, setSections] = useState<CurriculumSection[]>([]);
   const [title, setTitle] = useState("");
   const [loadError, setLoadError] = useState(false);
@@ -36,9 +40,10 @@ const ResumePage = ({ params }: ResumePageProps) => {
   useEffect(() => {
     let cancelled = false;
 
-    void getCurriculum(id)
-      .then((response) => {
+    void Promise.all([getCurriculum(id), getResumeProfile()])
+      .then(([response, profileResponse]) => {
         if (cancelled) return;
+        setProfile(profileResponse.profile);
         setCurriculum(response.curriculum);
         setSections(response.curriculum.sections ?? []);
         setTitle(response.curriculum.title);
@@ -64,7 +69,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
     );
   }
 
-  if (!curriculum) {
+  if (!curriculum || !profile) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
@@ -158,11 +163,18 @@ const ResumePage = ({ params }: ResumePageProps) => {
       }
       preview={
         <SectionPreview
+          header={resolveHeader(profile, curriculum.header)}
           sections={sections.filter((section) => !section.hidden)}
           emptyMessage="Add sections from your library. Hidden sections and hidden text are left out here."
         />
       }
     >
+      <HeaderDocument
+        value={curriculum.header ?? {}}
+        fallback={profile}
+        save={async (draft) => setCurriculum((await updateCurriculum(curriculum.id, { header: draft })).curriculum)}
+      />
+
       <DragDropProvider onDragEnd={onDragEnd}>
         <div className="space-y-8">
           {sections.map((section, index) => (

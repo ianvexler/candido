@@ -1,16 +1,41 @@
 "use client";
 
-import { SectionFields } from "@/lib/types";
+import { ResumeHeader, SectionFields } from "@/lib/types";
 import { hasVisibleText, stripHiddenHtml } from "./documentContent";
+import { hasHeaderContent } from "./resumeHeader";
 
 type PreviewSection = SectionFields & { id: number };
 
 interface SectionPreviewProps {
+  header?: ResumeHeader;
   sections: PreviewSection[];
   emptyMessage?: string;
 }
 
+const HeaderPreview = ({ header }: { header: ResumeHeader }) => {
+  const contact = [header.email, header.phone, header.location].map((value) => value.trim()).filter(Boolean);
+  const links = header.links.filter((link) => link.url.trim());
+
+  return (
+    <header className="space-y-1 border-b border-border pb-5">
+      {header.name.trim() && <h1 className="text-2xl font-bold">{header.name}</h1>}
+      {header.headline.trim() && <p className="text-muted-foreground">{header.headline}</p>}
+      {contact.length > 0 && <p>{contact.join(" · ")}</p>}
+      {links.length > 0 && (
+        <p className="flex flex-wrap gap-x-3">
+          {links.map((link) => (
+            <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="underline">
+              {link.label.trim() || link.url.replace(/^(https?:\/\/|mailto:)/, "")}
+            </a>
+          ))}
+        </p>
+      )}
+    </header>
+  );
+};
+
 const SectionPreview = ({
+  header,
   sections,
   emptyMessage = "Hidden text stays in the document on the left. This preview only shows what would export.",
 }: SectionPreviewProps) => {
@@ -22,12 +47,15 @@ const SectionPreview = ({
       hasVisibleText(section.content)
   );
 
-  if (visible.length === 0) {
+  const showHeader = header !== undefined && hasHeaderContent(header);
+
+  if (visible.length === 0 && !showHeader) {
     return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (
     <div className="space-y-8 text-sm leading-relaxed">
+      {showHeader && <HeaderPreview header={header} />}
       {visible.map((section) => (
         <section key={section.id} className="space-y-2">
           {section.section_type.trim() && (

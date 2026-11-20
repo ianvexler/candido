@@ -7,6 +7,10 @@ class CurriculumBlueprint < ApplicationBlueprint
   end
 
   view :full do
+    field :header
+    field :resolved_header do |curriculum, _options|
+      curriculum.resolved_header
+    end
     association :curriculum_sections, blueprint: CurriculumSectionBlueprint, name: :sections
   end
 end

@@ -37,6 +37,9 @@ Rails.application.routes.draw do
     put "section_templates/:id", to: "section_templates#update"
     delete "section_templates/:id", to: "section_templates#destroy"
 
+    get "resume_profile", to: "resume_profiles#show"
+    put "resume_profile", to: "resume_profiles#update"
+
     get "curriculums", to: "curriculums#index"
     post "curriculums", to: "curriculums#create"
     get "curriculums/:id", to: "curriculums#show"

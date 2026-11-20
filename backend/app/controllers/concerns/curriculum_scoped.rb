@@ -4,7 +4,7 @@ module CurriculumScoped
   private
 
   def render_curriculum(curriculum)
-    curriculum = Curriculum.includes(curriculum_sections: :section_template).find(curriculum.id)
+    curriculum = Curriculum.includes(:user, curriculum_sections: :section_template).find(curriculum.id)
     render json: { curriculum: serialize(curriculum, with: CurriculumBlueprint, view: :full) }
   end
 

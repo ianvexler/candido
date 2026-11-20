@@ -100,3 +100,54 @@ RSpec.describe "Curriculums" do
     end
   end
 end
+
+RSpec.describe "Curriculum headers" do
+  let(:user) { create(:user, name: "Ada Lovelace", email: "ada@example.com") }
+  let(:headers) { auth_headers(user) }
+  let(:curriculum) { create(:curriculum, user: user) }
+
+  before do
+    user.update_resume_profile!(
+      name: "Ada Lovelace", headline: "Engineer", email: "ada@example.com",
+      phone: "", location: "London", links: [ { label: "GitHub", url: "https://github.com/ada" } ]
+    )
+  end
+
+  it "shows the profile when the resume overrides nothing" do
+    get "/api/v1/curriculums/#{curriculum.id}", headers: headers
+
+    body = response.parsed_body["curriculum"]
+    expect(body["header"]).to eq({})
+    expect(body["resolved_header"]).to include("headline" => "Engineer", "location" => "London")
+  end
+
+  it "stores only overridden fields and layers them on the profile" do
+    put "/api/v1/curriculums/#{curriculum.id}",
+      params: { header: { headline: "Backend engineer", location: "  ", links: [] } },
+      headers: headers,
+      as: :json
+
+    expect(response).to have_http_status(:ok)
+    body = response.parsed_body["curriculum"]
+    expect(body["header"]).to eq("headline" => "Backend engineer", "links" => [])
+    expect(body["resolved_header"]).to include(
+      "name" => "Ada Lovelace", "headline" => "Backend engineer", "location" => "London", "links" => []
+    )
+  end
+
+  it "clears overrides when sent an empty header" do
+    curriculum.update_header!(headline: "Old override")
+
+    put "/api/v1/curriculums/#{curriculum.id}", params: { header: {} }, headers: headers, as: :json
+
+    expect(curriculum.reload.header).to eq({})
+  end
+
+  it "leaves overrides alone when header isn't sent" do
+    curriculum.update_header!(headline: "Keep me")
+
+    put "/api/v1/curriculums/#{curriculum.id}", params: { title: "Renamed" }, headers: headers, as: :json
+
+    expect(curriculum.reload.header).to eq("headline" => "Keep me")
+  end
+end

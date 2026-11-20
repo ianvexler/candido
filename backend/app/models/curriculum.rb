@@ -4,6 +4,7 @@
 #
 #  id          :bigint           not null, primary key
 #  description :text
+#  header      :jsonb            not null
 #  layout      :string           default("single_column"), not null
 #  styles      :jsonb            not null
 #  title       :string           not null
@@ -81,6 +82,15 @@ class Curriculum < ApplicationRecord
       touch
     end
     curriculum_sections.reset
+  end
+
+  # The header this resume shows: the owner's profile with this resume's overrides on top.
+  def resolved_header
+    ResumeHeader.resolve(user.resume_header_profile, header)
+  end
+
+  def update_header!(raw)
+    update!(header: ResumeHeader.normalize_overrides(raw))
   end
 
   def visible_sections

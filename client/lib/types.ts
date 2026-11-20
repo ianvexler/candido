@@ -134,6 +134,24 @@ export type SectionFields = {
   content: string;
 }
 
+export type ResumeLink = {
+  label: string;
+  url: string;
+}
+
+/** Name and contact details at the top of a resume. */
+export type ResumeHeader = {
+  name: string;
+  headline: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: ResumeLink[];
+}
+
+export const ResumeHeaderTextFields = ["name", "headline", "email", "phone", "location"] as const;
+export type ResumeHeaderTextField = (typeof ResumeHeaderTextFields)[number];
+
 export const CurriculumLayouts = ["single_column", "two_column"] as const;
 export type CurriculumLayout = (typeof CurriculumLayouts)[number];
 
@@ -159,6 +177,10 @@ export type Curriculum = {
   layout: CurriculumLayout;
   styles: Record<string, unknown>;
   section_count: number;
+  /** Fields this resume overrides; anything missing comes from the profile. Full view only. */
+  header?: Partial<ResumeHeader>;
+  /** Profile with this resume's overrides applied. Full view only. */
+  resolved_header?: ResumeHeader;
   sections?: CurriculumSection[];
   created_at: Date;
   updated_at: Date;

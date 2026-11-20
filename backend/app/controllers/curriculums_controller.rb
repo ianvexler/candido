@@ -23,8 +23,12 @@ class CurriculumsController < ApplicationController
     render_curriculum(curriculum)
   end
 
+  # `header`, when sent, replaces this resume's overrides wholesale.
   def update
-    @curriculum.update!(curriculum_params)
+    Curriculum.transaction do
+      @curriculum.update!(curriculum_params)
+      @curriculum.update_header!(params[:header]) if params.key?(:header)
+    end
     render_curriculum(@curriculum)
   end
 

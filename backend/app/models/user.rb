@@ -8,6 +8,7 @@
 #  last_login_at           :datetime
 #  name                    :text
 #  password_digest         :text
+#  resume_profile          :jsonb            not null
 #  setup_completed         :boolean          default(FALSE), not null
 #  verification_expires_at :datetime
 #  verification_token      :text
@@ -31,6 +32,14 @@ class User < ApplicationRecord
   has_many :section_templates, dependent: :destroy
 
   validates :email, presence: true, uniqueness: true
+
+  def resume_header_profile
+    ResumeHeader.profile_for(self)
+  end
+
+  def update_resume_profile!(raw)
+    update!(resume_profile: ResumeHeader.normalize_profile(raw))
+  end
 
   def self.authenticate_for_login!(email, password)
     user = find_by(email: email.to_s.strip)
