@@ -112,14 +112,9 @@ export type Note = {
   content: string;
 }
 
-export type SectionTemplate = {
+export type SectionTemplate = SectionFields & {
   id: number;
   user_id: number;
-  title: string;
-  section_type: string;
-  description: string | null;
-  /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
-  content: string;
   styles: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
@@ -132,6 +127,20 @@ export type SectionFields = {
   description: string | null;
   /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
   content: string;
+} & SectionDetails
+
+/** Optional details for experience/education-style sections. */
+export type SectionDetails = {
+  /** Job title, degree, etc. */
+  role: string | null;
+  /** Employer, school, etc. */
+  organization: string | null;
+  location: string | null;
+  /** "YYYY-MM-01"; month precision. */
+  start_date: string | null;
+  end_date: string | null;
+  /** Ongoing; shown as "Present" and has no end date. */
+  current: boolean;
 }
 
 export type ResumeLink = {

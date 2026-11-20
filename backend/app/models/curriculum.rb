@@ -58,6 +58,7 @@ class Curriculum < ApplicationRecord
           section_type: template.section_type,
           description: template.description,
           content: template.content,
+          **template.slice(*SectionContent::DETAIL_FIELDS).symbolize_keys,
           styles: template.styles.deep_dup,
           position: next_section_position,
           hidden: false,

@@ -20,6 +20,16 @@ RSpec.describe Curriculum do
       expect(sections.first.reload.content).to include("quietly")
     end
 
+    it "copies section details" do
+      template = create(:section_template, user: user, role: "Engineer", organization: "Acme",
+        location: "London", start_date: Date.new(2022, 3, 1), current: true)
+
+      section = curriculum.import_section_templates!(template).first
+
+      expect(section).to have_attributes(role: "Engineer", organization: "Acme", location: "London",
+        start_date: Date.new(2022, 3, 1), end_date: nil, current: true)
+    end
+
     it "rejects another user's template" do
       foreign = create(:section_template)
 

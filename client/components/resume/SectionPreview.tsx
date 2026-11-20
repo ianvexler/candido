@@ -3,6 +3,7 @@
 import { ResumeHeader, SectionFields } from "@/lib/types";
 import { hasVisibleText, stripHiddenHtml } from "./documentContent";
 import { hasHeaderContent } from "./resumeHeader";
+import { formatDateRange } from "./sectionDetails";
 
 type PreviewSection = SectionFields & { id: number };
 
@@ -31,6 +32,19 @@ const HeaderPreview = ({ header }: { header: ResumeHeader }) => {
         </p>
       )}
     </header>
+  );
+};
+
+const SectionDetailsLine = ({ section }: { section: PreviewSection }) => {
+  const heading = [section.role, section.organization].map((value) => value?.trim()).filter(Boolean);
+  const meta = [formatDateRange(section), section.location?.trim()].filter(Boolean);
+  if (heading.length === 0 && meta.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+      <p className="font-medium">{heading.join(" · ")}</p>
+      <p className="text-muted-foreground">{meta.join(" · ")}</p>
+    </div>
   );
 };
 
@@ -64,6 +78,7 @@ const SectionPreview = ({
             </p>
           )}
           {section.title.trim() && <h2 className="text-lg font-semibold">{section.title}</h2>}
+          <SectionDetailsLine section={section} />
           {section.description?.trim() && (
             <p className="text-muted-foreground">{section.description}</p>
           )}

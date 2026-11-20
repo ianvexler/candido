@@ -4,10 +4,16 @@
 #
 #  id                  :bigint           not null, primary key
 #  content             :text             default(""), not null
+#  current             :boolean          default(FALSE), not null
 #  description         :text
+#  end_date            :date
 #  hidden              :boolean          default(FALSE), not null
+#  location            :string
+#  organization        :string
 #  position            :integer          default(0), not null
+#  role                :string
 #  section_type        :string           default("custom"), not null
+#  start_date          :date
 #  styles              :jsonb            not null
 #  synced_at           :datetime
 #  title               :string           not null
@@ -36,7 +42,7 @@ class CurriculumSection < ApplicationRecord
   validates :title, :section_type, presence: true
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
-  SYNCED_FIELDS = %i[title section_type description content styles].freeze
+  SYNCED_FIELDS = (%i[title section_type description content styles] + SectionContent::DETAIL_FIELDS).freeze
 
   # True when the library section was edited after this copy was last synced.
   def library_updated?

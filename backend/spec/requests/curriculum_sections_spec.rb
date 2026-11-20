@@ -92,7 +92,7 @@ RSpec.describe "Curriculum sections" do
   describe "POST /api/v1/curriculums/:curriculum_id/sections/:id/sync" do
     it "flags library edits and pulls them in on request" do
       travel 1.minute do
-        template.update!(content: "<p>Improved</p>")
+        template.update!(content: "<p>Improved</p>", role: "Lead engineer")
       end
 
       get "/api/v1/curriculums/#{curriculum.id}", headers: headers
@@ -103,7 +103,9 @@ RSpec.describe "Curriculum sections" do
       end
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["section"]).to include("content" => "<p>Improved</p>", "library_updated" => false)
+      expect(response.parsed_body["section"]).to include(
+        "content" => "<p>Improved</p>", "role" => "Lead engineer", "library_updated" => false
+      )
     end
 
     it "explains when the library section was deleted" do

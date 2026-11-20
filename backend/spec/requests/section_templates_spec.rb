@@ -107,6 +107,44 @@ RSpec.describe "Section templates" do
       expect(template.reload.content).to eq("<ul><li><p>Ruby</p></li></ul>")
     end
 
+    it "saves role, organization, location and a month range" do
+      template = create(:section_template, user: user)
+
+      put "/api/v1/section_templates/#{template.id}",
+        params: {
+          role: " Senior  engineer ", organization: "Acme", location: "",
+          start_date: "2022-03-17", end_date: "2024-01-05"
+        },
+        headers: headers,
+        as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["section_template"]).to include(
+        "role" => "Senior engineer", "organization" => "Acme", "location" => nil,
+        "start_date" => "2022-03-01", "end_date" => "2024-01-01", "current" => false
+      )
+    end
+
+    it "drops the end date for a current role" do
+      template = create(:section_template, user: user, start_date: "2022-03-01", end_date: "2023-01-01")
+
+      put "/api/v1/section_templates/#{template.id}", params: { current: true }, headers: headers, as: :json
+
+      expect(template.reload).to have_attributes(current: true, end_date: nil)
+    end
+
+    it "rejects an end date before the start date" do
+      template = create(:section_template, user: user)
+
+      put "/api/v1/section_templates/#{template.id}",
+        params: { start_date: "2024-01-01", end_date: "2023-01-01" },
+        headers: headers,
+        as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body["error"]).to match(/before the start date/)
+    end
+
     it "forbids another user's template" do
       template = create(:section_template)
 

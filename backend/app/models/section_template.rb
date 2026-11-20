@@ -4,8 +4,14 @@
 #
 #  id           :bigint           not null, primary key
 #  content      :text             default(""), not null
+#  current      :boolean          default(FALSE), not null
 #  description  :text
+#  end_date     :date
+#  location     :string
+#  organization :string
+#  role         :string
 #  section_type :string           default("custom"), not null
+#  start_date   :date
 #  styles       :jsonb            not null
 #  title        :string           not null
 #  created_at   :datetime         not null

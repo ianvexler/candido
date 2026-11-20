@@ -44,6 +44,6 @@ class SectionTemplatesController < ApplicationController
   end
 
   def template_params
-    params.permit(:title, :section_type, :description, :content)
+    params.permit(:title, :section_type, :description, :content, *SectionContent::DETAIL_FIELDS)
   end
 end
