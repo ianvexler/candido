@@ -4,13 +4,13 @@ import { deleteCurriculumSection } from "@/api/resources/curriculums/deleteCurri
 import { syncCurriculumSection } from "@/api/resources/curriculums/syncCurriculumSection";
 import { updateCurriculumSection } from "@/api/resources/curriculums/updateCurriculumSection";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import { Button } from "@/components/ui/Button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { CurriculumSection } from "@/lib/types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { EyeIcon, EyeOffIcon, GripVerticalIcon, RefreshCwIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, GripVerticalIcon, RotateCcwIcon } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import IconAction from "./IconAction";
 import SectionDocument from "./SectionDocument";
 
 interface CurriculumSectionCardProps {
@@ -58,21 +58,27 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
   };
 
   const notice = (section.library_updated || section.hidden) && (
-    <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
       {section.hidden && (
-        <span className="rounded-sm bg-muted px-2 py-1 font-medium text-muted-foreground">Hidden from this resume</span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+          <EyeOffIcon className="size-3" />
+          Left out of this resume
+        </span>
       )}
       {section.library_updated && (
-        <span className="inline-flex items-center gap-2 rounded-sm bg-sky-50 px-2 py-1 text-sky-900">
-          The library version changed since you added this.
-          <button
-            type="button"
-            className="font-medium underline underline-offset-2"
-            onClick={() => setConfirmSync(true)}
-          >
-            Pull changes
-          </button>
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setConfirmSync(true)}
+              className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-sky-900 transition-colors hover:bg-sky-100"
+            >
+              <RotateCcwIcon className="size-3" />
+              Newer version in library
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>You edited this section in your library after adding it. Click to use that version here.</TooltipContent>
+        </Tooltip>
       )}
     </div>
   );
@@ -90,50 +96,33 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
         save={async (fields) => (await updateCurriculumSection(curriculumId, section.id, fields)).section}
         onSaved={onChange}
         onDelete={remove}
+        deleteLabel="Remove from this resume"
         deleteTitle="Remove this section from the resume?"
         deleteDescription="Only this resume's copy is removed. The section stays in your library."
+        handle={
+          <IconAction
+            label="Drag to reorder"
+            side="left"
+            buttonRef={handleRef}
+            className="cursor-grab active:cursor-grabbing"
+          >
+            <GripVerticalIcon />
+          </IconAction>
+        }
         actions={
           <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => void toggleHidden()}
-                  aria-label={section.hidden ? "Show section in this resume" : "Hide section from this resume"}
-                >
-                  {section.hidden ? <EyeIcon /> : <EyeOffIcon />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{section.hidden ? "Show in this resume" : "Hide from this resume"}</TooltipContent>
-            </Tooltip>
-            {section.section_template_id && !section.library_updated && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setConfirmSync(true)}
-                    aria-label="Reset to library version"
-                  >
-                    <RefreshCwIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Reset to library version</TooltipContent>
-              </Tooltip>
-            )}
-            <Button
-              ref={handleRef}
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="cursor-grab active:cursor-grabbing"
-              aria-label="Drag to reorder"
+            <IconAction
+              label={section.hidden ? "Show in this resume" : "Leave out of this resume"}
+              active={section.hidden}
+              onClick={() => void toggleHidden()}
             >
-              <GripVerticalIcon />
-            </Button>
+              {section.hidden ? <EyeOffIcon /> : <EyeIcon />}
+            </IconAction>
+            {section.section_template_id && !section.library_updated && (
+              <IconAction label="Reset to the library version" onClick={() => setConfirmSync(true)}>
+                <RotateCcwIcon />
+              </IconAction>
+            )}
           </>
         }
       />

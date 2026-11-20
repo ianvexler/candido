@@ -87,7 +87,7 @@ const SectionLibraryPage = () => {
           </NextLink>
           <Title>Section library</Title>
           <Description className="mt-1">
-            Your header and reusable sections. Add sections to a resume from there. Highlight text to hide or show it.
+            Write each section once, then reuse it in any resume.
           </Description>
         </>
       }
@@ -105,6 +105,7 @@ const SectionLibraryPage = () => {
           save={async (fields) => (await updateSectionTemplate(template.id, fields)).section_template}
           onSaved={replaceTemplate}
           onDelete={() => removeTemplate(template.id)}
+          deleteLabel="Delete from library"
           deleteTitle="Delete this section?"
           deleteDescription="This removes the reusable section from your library. Resumes that already use it keep their copy."
         />

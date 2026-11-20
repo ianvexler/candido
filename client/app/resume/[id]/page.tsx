@@ -157,7 +157,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
             className="border-0 py-0 text-4xl font-bold tracking-tight"
           />
           <p className="mt-1 text-base font-light text-muted-foreground">
-            Edits here only change this resume. Drag the handle to reorder; hide a section to leave it out.
+            Changes here only affect this resume, not your library.
           </p>
         </>
       }

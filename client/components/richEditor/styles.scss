@@ -199,3 +199,24 @@
     text-decoration: line-through;
   }
 }
+
+/* Resume sections: the editor reads as part of the page, not a form field. */
+.cv-document-body .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground, #9ca3af);
+  opacity: 0.7;
+}
+
+/* Month pickers in resume sections: show the calendar icon only when needed. */
+.cv-month::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms;
+}
+.cv-month:hover::-webkit-calendar-picker-indicator,
+.cv-month:focus::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}

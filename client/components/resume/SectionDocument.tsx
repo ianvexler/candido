@@ -1,27 +1,27 @@
 "use client";
 
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import SimpleMenuBar from "@/components/richEditor/simpleEditor/SimpleMenuBar";
 import "@/components/richEditor/styles.scss";
-import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
-import InlineInput from "@/components/ui/InlineInput";
-import { Textarea } from "@/components/ui/Textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
 import { SectionFields } from "@/lib/types";
 import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
+import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
-import { CalendarIcon, EyeIcon, EyeOffIcon, Trash2Icon, XIcon } from "lucide-react";
+import { CalendarMinusIcon, CalendarPlusIcon, Trash2Icon } from "lucide-react";
 import { ReactNode, Ref, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { BlockToolbar, FormatBubble } from "./EditorControls";
 import HiddenMark from "./HiddenMark";
+import IconAction from "./IconAction";
 import { normalizeContent } from "./documentContent";
+import { ghostInput } from "./styles";
 import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
 
 const SAVE_DELAY_MS = 600;
+
 
 interface SectionDocumentProps<T extends SectionFields> {
   section: T;
@@ -30,10 +30,13 @@ interface SectionDocumentProps<T extends SectionFields> {
   onSaved: (next: T) => void;
   /** Deletes the record. Rejecting keeps the section on screen. */
   onDelete: () => Promise<void>;
+  deleteLabel: string;
   deleteTitle: string;
   deleteDescription: string;
-  /** Extra controls at the top right, shown before the delete button. */
+  /** Extra icon actions at the top right, shown on hover before the built-in ones. */
   actions?: ReactNode;
+  /** Shown in the left margin on hover, e.g. a drag handle. */
+  handle?: ReactNode;
   /** Shown above the section, e.g. a "library changed" notice. */
   notice?: ReactNode;
   /** Fades the page, e.g. when the section is hidden from a CV. */
@@ -43,7 +46,8 @@ interface SectionDocumentProps<T extends SectionFields> {
 }
 
 /**
- * A paper-style editor for one section. Edits autosave after a short pause.
+ * A paper-style editor for one section. Controls stay out of the way until the
+ * section is hovered, focused or text is selected. Edits autosave after a pause.
  * The editor is uncontrolled: remount it (change its key) to load new content.
  */
 const SectionDocument = <T extends SectionFields>({
@@ -51,9 +55,11 @@ const SectionDocument = <T extends SectionFields>({
   save,
   onSaved,
   onDelete,
+  deleteLabel,
   deleteTitle,
   deleteDescription,
   actions,
+  handle,
   notice,
   dimmed = false,
   articleRef,
@@ -73,6 +79,10 @@ const SectionDocument = <T extends SectionFields>({
   // Bumped on every edit; a non-zero value means there are unsaved changes.
   const [dirty, setDirty] = useState(0);
   const markDirty = () => setDirty((count) => count + 1);
+  const edit = (setter: (value: string) => void) => (event: { target: { value: string } }) => {
+    setter(event.target.value);
+    markDirty();
+  };
 
   const details = {
     role: role.trim() || null,
@@ -103,13 +113,15 @@ const SectionDocument = <T extends SectionFields>({
       StarterKit,
       Link.configure({ openOnClick: false }),
       HiddenMark,
+      Placeholder.configure({ placeholder: "Write here. Start a line with - for bullets." }),
     ],
     immediatelyRender: false,
     content: section.content || "<p></p>",
     editorProps: {
       attributes: {
+        "aria-label": "Section content",
         class:
-          "cv-document-editor outline-none min-h-40 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
+          "cv-document-editor outline-none min-h-16 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
       },
     },
     onUpdate: markDirty,
@@ -153,7 +165,7 @@ const SectionDocument = <T extends SectionFields>({
         .then(onSaved)
         .catch((error) => {
           console.error(error);
-          toast.error(error?.response?.data?.error ?? "Failed to save section");
+          toast.error(error?.response?.data?.error ?? "Couldn't save this section. Check your connection and try again.");
         });
     }, SAVE_DELAY_MS);
 
@@ -173,189 +185,151 @@ const SectionDocument = <T extends SectionFields>({
       <article
         ref={articleRef}
         className={cn(
-          "group relative mx-auto w-full max-w-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] px-10 py-10 sm:px-14 transition-opacity",
+          "group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-10 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14 transition-opacity",
           dimmed && "opacity-55",
           className
         )}
       >
-        <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {handle && (
+          <div className="absolute left-2 top-9 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100 sm:left-4">
+            {handle}
+          </div>
+        )}
+
+        <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
           {actions}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setDeleteOpen(true)}
-            aria-label="Delete section"
-          >
+          {showDetails && !suggestsDetails(sectionType) ? (
+            <IconAction label="Remove role and dates" onClick={clearDetails}>
+              <CalendarMinusIcon />
+            </IconAction>
+          ) : !showDetails ? (
+            <IconAction label="Add role and dates" onClick={() => setDetailsOpen(true)}>
+              <CalendarPlusIcon />
+            </IconAction>
+          ) : null}
+          <IconAction label={deleteLabel} onClick={() => setDeleteOpen(true)}>
             <Trash2Icon />
-          </Button>
+          </IconAction>
         </div>
 
         {notice}
 
-        <InlineInput
+        <input
           value={sectionType}
-          onChange={(event) => {
-            setSectionType(event.target.value);
-            markDirty();
-          }}
-          placeholder="Section type"
-          className="border-0 py-0 pr-28 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
+          onChange={edit(setSectionType)}
+          placeholder="Section type, e.g. Experience"
+          aria-label="Section type"
+          className={cn(ghostInput, "block w-full max-w-[calc(100%-9rem)] py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal")}
         />
-        <InlineInput
+        <input
           value={title}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            markDirty();
-          }}
+          onChange={edit(setTitle)}
           placeholder="Title"
-          className="border-0 py-1 text-xl font-semibold"
+          aria-label="Title"
+          className={cn(ghostInput, "mt-1 block w-full py-0.5 text-xl font-semibold")}
         />
-        {showDetails ? (
-          <div className="mb-1 mt-1 space-y-1 rounded-md bg-muted/40 px-3 py-2">
-            <div className="grid gap-x-4 sm:grid-cols-3">
-              <InlineInput
+
+        {showDetails && (
+          <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 text-sm">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <input
                 value={role}
-                onChange={(event) => {
-                  setRole(event.target.value);
-                  markDirty();
-                }}
+                onChange={edit(setRole)}
                 placeholder="Role or degree"
                 aria-label="Role or degree"
-                className="border-0 py-1 text-sm font-medium"
+                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5 font-medium")}
               />
-              <InlineInput
+              <span aria-hidden className="text-muted-foreground/60">at</span>
+              <input
                 value={organization}
-                onChange={(event) => {
-                  setOrganization(event.target.value);
-                  markDirty();
-                }}
+                onChange={edit(setOrganization)}
                 placeholder="Organisation"
                 aria-label="Organisation or school"
-                className="border-0 py-1 text-sm"
-              />
-              <InlineInput
-                value={location}
-                onChange={(event) => {
-                  setLocation(event.target.value);
-                  markDirty();
-                }}
-                placeholder="Location"
-                aria-label="Location"
-                className="border-0 py-1 text-sm"
+                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              <CalendarIcon className="size-3.5" />
-              <InlineInput
+            <div className="flex flex-wrap items-baseline gap-x-1.5 text-muted-foreground">
+              <input
                 type="month"
                 value={startMonth}
-                onChange={(event) => {
-                  setStartMonth(event.target.value);
-                  markDirty();
-                }}
+                onChange={edit(setStartMonth)}
                 aria-label="Start month"
-                className="w-36 border-0 py-1 text-sm"
+                className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5")}
               />
-              <span>–</span>
+              <span aria-hidden>–</span>
               {current ? (
-                <span className="w-36 py-1 text-foreground">Present</span>
+                <span className="px-1 py-0.5 text-foreground">Present</span>
               ) : (
-                <InlineInput
+                <input
                   type="month"
                   value={endMonth}
                   min={startMonth || undefined}
-                  onChange={(event) => {
-                    setEndMonth(event.target.value);
-                    markDirty();
-                  }}
+                  onChange={edit(setEndMonth)}
                   aria-label="End month"
-                  className="w-36 border-0 py-1 text-sm"
+                  aria-invalid={endBeforeStart || undefined}
+                  className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5", endBeforeStart && "text-destructive")}
                 />
               )}
-              <label className="inline-flex cursor-pointer items-center gap-1.5">
-                <Checkbox
-                  checked={current}
-                  onCheckedChange={(checked) => {
-                    setCurrent(checked === true);
-                    markDirty();
-                  }}
-                />
-                Current
-              </label>
-              {endBeforeStart && (
-                <span role="alert" className="text-xs text-destructive">
-                  End is before start; not saved
-                </span>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="ml-auto"
-                onClick={clearDetails}
-              >
-                <XIcon />
-                Clear
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-pressed={current}
+                    onClick={() => {
+                      setCurrent((value) => !value);
+                      markDirty();
+                    }}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-xs transition-colors",
+                      current
+                        ? "border-transparent bg-muted text-foreground"
+                        : "border-dashed border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Current
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{current ? "Set an end date instead" : "Still here? Show the end date as Present"}</TooltipContent>
+              </Tooltip>
+              <input
+                value={location}
+                onChange={edit(setLocation)}
+                placeholder="Location"
+                aria-label="Location"
+                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
+              />
             </div>
+            {endBeforeStart && (
+              <p role="alert" className="w-full text-xs text-destructive">
+                The end month is before the start month, so this isn&apos;t saved yet.
+              </p>
+            )}
           </div>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className="-ml-2 text-muted-foreground"
-            onClick={() => setDetailsOpen(true)}
-          >
-            <CalendarIcon />
-            Add role and dates
-          </Button>
         )}
 
-        <Textarea
+        <textarea
           value={description}
-          onChange={(event) => {
-            setDescription(event.target.value);
-            markDirty();
-          }}
-          placeholder="Optional summary"
+          onChange={edit(setDescription)}
+          placeholder="Add a one-line summary"
+          aria-label="Summary"
           rows={1}
-          className="min-h-0 resize-none border-0 bg-transparent px-0 py-1 shadow-none focus-visible:ring-0 text-sm text-muted-foreground"
+          className={cn(
+            ghostInput,
+            "field-sizing-content mt-1 block w-full resize-none py-0.5 text-sm text-muted-foreground",
+            // Only suggest a summary when the section is being looked at or edited.
+            "placeholder:opacity-0 group-hover/section:placeholder:opacity-100 group-focus-within/section:placeholder:opacity-100"
+          )}
         />
 
-        <div className="simple-editor-wrapper mt-4 rounded-lg border border-border bg-background overflow-hidden">
-          {editor && <SimpleMenuBar editor={editor} />}
+        <div className="relative mt-4">
+          {editor && <FormatBubble editor={editor} />}
+          <EditorContent editor={editor} className="cv-document-body" />
           {editor && (
-            <BubbleMenu
+            <BlockToolbar
               editor={editor}
-              shouldShow={({ from, to }) => from !== to}
-              options={{ placement: "top" }}
-              className="flex items-center gap-1 rounded-md border border-border bg-background p-1 shadow-md"
-            >
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => editor.chain().focus().setHidden().run()}
-              >
-                <EyeOffIcon />
-                Hide
-              </Button>
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => editor.chain().focus().unsetHidden().run()}
-              >
-                <EyeIcon />
-                Show
-              </Button>
-            </BubbleMenu>
+              className="pointer-events-none absolute -bottom-9 left-0 opacity-0 transition-opacity group-focus-within/section:pointer-events-auto group-focus-within/section:opacity-100"
+            />
           )}
-          <EditorContent editor={editor} />
         </div>
       </article>
 
