@@ -7,6 +7,7 @@ import { InfoIcon, LinkIcon, PencilIcon, PlusIcon, RotateCcwIcon, XIcon } from "
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import IconAction from "./IconAction";
+import { markPending, markSettled } from "@/lib/resume/saveTracker";
 import { ghostInput } from "./styles";
 
 const SAVE_DELAY_MS = 600;
@@ -45,15 +46,32 @@ const HeaderDocument = <T extends HeaderDraft>({ value, fallback, save }: Header
     setDirty((count) => count + 1);
   };
 
+  // Export waits on these: unsaved edits, then the request carrying them.
+  useEffect(
+    () => () => {
+      markSettled("header:edit");
+      markSettled("header:save");
+    },
+    []
+  );
+
   useEffect(() => {
-    if (dirty === 0) return;
+    if (dirty === 0) {
+      markSettled("header:edit");
+      return;
+    }
+    markPending("header:edit");
 
     const timer = setTimeout(() => {
       setDirty(0);
-      void save(draft).catch((error) => {
-        console.error(error);
-        toast.error(error?.response?.data?.error ?? "Failed to save header");
-      });
+      markPending("header:save");
+      markSettled("header:edit");
+      void save(draft)
+        .catch((error) => {
+          console.error(error);
+          toast.error(error?.response?.data?.error ?? "Couldn't save the header. Check your connection and try again.");
+        })
+        .finally(() => markSettled("header:save"));
     }, SAVE_DELAY_MS);
 
     return () => clearTimeout(timer);

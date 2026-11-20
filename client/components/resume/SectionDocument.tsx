@@ -17,13 +17,14 @@ import { BlockToolbar, FormatBubble } from "./EditorControls";
 import HiddenMark from "./HiddenMark";
 import IconAction from "./IconAction";
 import { normalizeContent } from "./documentContent";
+import { markPending, markSettled } from "@/lib/resume/saveTracker";
 import { ghostInput } from "./styles";
 import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
 
 const SAVE_DELAY_MS = 600;
 
 
-interface SectionDocumentProps<T extends SectionFields> {
+interface SectionDocumentProps<T extends SectionFields & { id: number }> {
   section: T;
   /** Persists the fields and resolves with the saved record. */
   save: (fields: SectionFields) => Promise<T>;
@@ -50,7 +51,7 @@ interface SectionDocumentProps<T extends SectionFields> {
  * section is hovered, focused or text is selected. Edits autosave after a pause.
  * The editor is uncontrolled: remount it (change its key) to load new content.
  */
-const SectionDocument = <T extends SectionFields>({
+const SectionDocument = <T extends SectionFields & { id: number }>({
   section,
   save,
   onSaved,
@@ -127,13 +128,33 @@ const SectionDocument = <T extends SectionFields>({
     onUpdate: markDirty,
   });
 
+  // Export waits on these: unsaved edits, then the request carrying them.
+  const editKey = `section-${section.id}:edit`;
+  const saveKey = `section-${section.id}:save`;
+
+  useEffect(
+    () => () => {
+      markSettled(editKey);
+      markSettled(saveKey);
+    },
+    [editKey, saveKey]
+  );
+
   useEffect(() => {
-    if (dirty === 0 || !editor) return;
+    if (dirty === 0) {
+      markSettled(editKey);
+      return;
+    }
+    markPending(editKey);
+    if (!editor) return;
 
     const timer = setTimeout(() => {
       setDirty(0);
       // Shown inline; the server would reject it anyway.
-      if (endBeforeStart) return;
+      if (endBeforeStart) {
+        markSettled(editKey);
+        return;
+      }
       const fields: SectionFields = {
         title: title.trim() || "Untitled",
         section_type: sectionType.trim() || "Section",
@@ -159,20 +180,26 @@ const SectionDocument = <T extends SectionFields>({
         fields.start_date === section.start_date &&
         fields.end_date === section.end_date &&
         fields.current === section.current;
-      if (unchanged) return;
+      if (unchanged) {
+        markSettled(editKey);
+        return;
+      }
 
+      markPending(saveKey);
+      markSettled(editKey);
       void save(fields)
         .then(onSaved)
         .catch((error) => {
           console.error(error);
           toast.error(error?.response?.data?.error ?? "Couldn't save this section. Check your connection and try again.");
-        });
+        })
+        .finally(() => markSettled(saveKey));
     }, SAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
   }, [
     dirty, editor, title, sectionType, description, role, organization, location,
-    startMonth, endMonth, current, endBeforeStart, section, save, onSaved,
+    startMonth, endMonth, current, endBeforeStart, section, save, onSaved, editKey, saveKey,
   ]);
 
   const onConfirmDelete = async () => {
