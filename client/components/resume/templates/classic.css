@@ -3,17 +3,13 @@
   color: #1a1a1a;
   font-size: 10.5pt;
   line-height: 1.35;
+  /* Long URLs and unbroken words wrap instead of running off the page. */
+  overflow-wrap: anywhere;
 }
 
 .resume-classic a {
   color: inherit;
   text-decoration: none;
-}
-
-.resume-classic .rc-header,
-.resume-classic .rc-links,
-.resume-classic .rc-body {
-  overflow-wrap: anywhere;
 }
 
 .resume-classic .rc-name {
@@ -64,6 +60,11 @@
   flex-wrap: wrap;
   justify-content: space-between;
   column-gap: 12pt;
+}
+
+/* Let flex items shrink so long role or organisation names can wrap. */
+.resume-classic .rc-entry-line > * {
+  min-width: 0;
 }
 
 .resume-classic .rc-subtitle {
@@ -135,11 +136,13 @@
   color: #444;
 }
 
-/* Keep headings with what follows, and don't split a line item across pages. */
-.resume-classic .rc-heading,
-.resume-classic .rc-entry-head {
-  break-after: avoid;
+/*
+ * Keep a section's headings together and with what follows. break-inside on the
+ * grouped head works in every browser; break-after is honoured by Chromium.
+ */
+.resume-classic .rc-section-head {
   break-inside: avoid;
+  break-after: avoid;
 }
 
 .resume-classic .rc-body li,

@@ -40,8 +40,8 @@ export const ClassicTemplate = ({ document, paper }: ClassicTemplateProps) => {
 
       {sections.map((section) => (
         <section key={section.id} className="rc-section">
-          {section.heading && <h2 className="rc-heading">{section.heading}</h2>}
-          <div className="rc-entry-head">
+          <div className="rc-section-head">
+            {section.heading && <h2 className="rc-heading">{section.heading}</h2>}
             {section.title && <h3 className="rc-title">{section.title}</h3>}
             {(section.subtitle || section.meta) && (
               <div className="rc-entry-line">
@@ -49,8 +49,8 @@ export const ClassicTemplate = ({ document, paper }: ClassicTemplateProps) => {
                 <span className="rc-meta">{section.meta}</span>
               </div>
             )}
+            {section.summary && <p className="rc-summary">{section.summary}</p>}
           </div>
-          {section.summary && <p className="rc-summary">{section.summary}</p>}
           {section.html && <div className="rc-body" dangerouslySetInnerHTML={{ __html: section.html }} />}
         </section>
       ))}

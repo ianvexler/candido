@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markPending, markSettled, waitForSaves } from "./saveTracker";
+import { markPending, markSettled, trackSave, waitForSaves } from "./saveTracker";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -39,6 +39,32 @@ describe("waitForSaves", () => {
   it("ignores settling a key that was never pending", async () => {
     markSettled("never-pending");
 
+    await expect(waitForSaves()).resolves.toBe(true);
+  });
+});
+
+describe("trackSave", () => {
+  it("waits for every overlapping save on the same key", async () => {
+    let finishFirst!: () => void;
+    let finishSecond!: () => void;
+    void trackSave("section-1", new Promise<void>((resolve) => (finishFirst = resolve)));
+    void trackSave("section-1", new Promise<void>((resolve) => (finishSecond = resolve)));
+    const waiting = waitForSaves();
+    let done = false;
+    void waiting.then(() => (done = true));
+
+    finishFirst();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(done).toBe(false);
+
+    finishSecond();
+    await expect(waiting).resolves.toBe(true);
+  });
+
+  it("settles when the save fails and passes the failure on", async () => {
+    const failing = trackSave("title", Promise.reject(new Error("offline")));
+
+    await expect(failing).rejects.toThrow("offline");
     await expect(waitForSaves()).resolves.toBe(true);
   });
 });

@@ -11,6 +11,7 @@ import { EyeIcon, EyeOffIcon, GripVerticalIcon, RotateCcwIcon } from "lucide-rea
 import { useState } from "react";
 import toast from "react-hot-toast";
 import IconAction from "./IconAction";
+import { trackSave } from "@/lib/resume/saveTracker";
 import SectionDocument from "./SectionDocument";
 
 interface CurriculumSectionCardProps {
@@ -28,7 +29,10 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
 
   const toggleHidden = async () => {
     try {
-      const response = await updateCurriculumSection(curriculumId, section.id, { hidden: !section.hidden });
+      const response = await trackSave(
+        `section-${section.id}`,
+        updateCurriculumSection(curriculumId, section.id, { hidden: !section.hidden })
+      );
       onChange(response.section);
     } catch (error) {
       console.error(error);
