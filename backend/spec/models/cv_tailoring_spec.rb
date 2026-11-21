@@ -14,6 +14,14 @@ RSpec.describe CvTailoring do
       create(:cv_tailoring, user: user, created_at: 25.hours.ago)
       expect(described_class.limit_reached?(user)).to be(false)
     end
+
+    it "keeps counting runs whose CV was deleted" do
+      runs = create_list(:cv_tailoring, 10, user: user)
+      runs.map(&:curriculum).each(&:destroy!)
+
+      expect(described_class.where(id: runs.map(&:id)).pluck(:curriculum_id)).to all(be_nil)
+      expect(described_class.limit_reached?(user)).to be(true)
+    end
   end
 
   describe ".expire_stale!" do

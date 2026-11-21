@@ -37,7 +37,8 @@ class Curriculum < ApplicationRecord
 
   belongs_to :user
   has_many :curriculum_sections, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum
-  has_many :cv_tailorings, dependent: :destroy
+  # Runs outlive the CV so they keep counting toward the daily limit.
+  has_many :cv_tailorings, dependent: :nullify
   # Set on a copy made for one job; the links clear if either is deleted.
   belongs_to :job_board_entry, optional: true
   belongs_to :source_curriculum, class_name: "Curriculum", optional: true

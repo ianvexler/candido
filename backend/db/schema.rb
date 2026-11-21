@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_22_100200) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_22_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,7 +98,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_22_100200) do
 
   create_table "cv_tailorings", force: :cascade do |t|
     t.integer "user_id", null: false
-    t.bigint "curriculum_id", null: false
+    t.bigint "curriculum_id"
     t.integer "job_board_entry_id"
     t.string "job_title", null: false
     t.string "company", null: false
@@ -238,7 +238,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_22_100200) do
   add_foreign_key "cv_imports", "users"
   add_foreign_key "cv_tailoring_suggestions", "curriculum_sections", on_delete: :cascade
   add_foreign_key "cv_tailoring_suggestions", "cv_tailorings", on_delete: :cascade
-  add_foreign_key "cv_tailorings", "curriculums", on_delete: :cascade
+  add_foreign_key "cv_tailorings", "curriculums", on_delete: :nullify
   add_foreign_key "cv_tailorings", "job_board_entries", on_delete: :nullify
   add_foreign_key "cv_tailorings", "users"
   add_foreign_key "feedback_entries", "users", name: "FeedbackEntry_userId_fkey", on_update: :cascade, on_delete: :restrict

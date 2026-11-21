@@ -13,7 +13,7 @@
 #  used_posting       :boolean          default(FALSE), not null
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
-#  curriculum_id      :bigint           not null
+#  curriculum_id      :bigint
 #  job_board_entry_id :integer
 #  user_id            :integer          not null
 #
@@ -27,7 +27,7 @@
 #
 # Foreign Keys
 #
-#  fk_rails_...  (curriculum_id => curriculums.id) ON DELETE => cascade
+#  fk_rails_...  (curriculum_id => curriculums.id) ON DELETE => nullify
 #  fk_rails_...  (job_board_entry_id => job_board_entries.id) ON DELETE => nullify
 #  fk_rails_...  (user_id => users.id)
 #
@@ -41,7 +41,8 @@ class CvTailoring < ApplicationRecord
   STALE_MESSAGE = "Something went wrong reviewing this CV. Try again later.".freeze
 
   belongs_to :user
-  belongs_to :curriculum
+  # Nil once the reviewed CV is deleted; the run still counts toward the limit.
+  belongs_to :curriculum, optional: true
   belongs_to :job_board_entry, optional: true
   has_many :suggestions, -> { order(:position) }, class_name: "CvTailoringSuggestion", dependent: :destroy
 
