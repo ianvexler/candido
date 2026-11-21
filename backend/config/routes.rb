@@ -51,6 +51,11 @@ Rails.application.routes.draw do
     get "cv_imports/:id", to: "cv_imports#show"
     post "cv_imports/:id/apply", to: "cv_imports#apply"
 
+    post "job_board_entries/:job_board_entry_id/tailorings", to: "cv_tailorings#create_for_job"
+    post "curriculums/:curriculum_id/tailorings", to: "cv_tailorings#create"
+    get "curriculums/:curriculum_id/tailoring", to: "cv_tailorings#show"
+    put "cv_tailoring_suggestions/:id", to: "cv_tailorings#update_suggestion"
+
     get "curriculums", to: "curriculums#index"
     post "curriculums", to: "curriculums#create"
     get "curriculums/:id", to: "curriculums#show"

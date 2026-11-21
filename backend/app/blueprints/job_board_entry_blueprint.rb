@@ -5,4 +5,8 @@ class JobBoardEntryBlueprint < ApplicationBlueprint
     :cover_letter_text, :cover_letter_key, :cover_letter_filename
 
   association :job_board_tags, blueprint: JobBoardTagBlueprint
+
+  field :tailored_curriculums do |entry, _options|
+    entry.tailored_curriculums.order(:id).map { |curriculum| curriculum.slice(:id, :title, :updated_at) }
+  end
 end
