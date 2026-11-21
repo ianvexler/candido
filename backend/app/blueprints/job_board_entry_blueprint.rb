@@ -6,7 +6,10 @@ class JobBoardEntryBlueprint < ApplicationBlueprint
 
   association :job_board_tags, blueprint: JobBoardTagBlueprint
 
-  field :tailored_curriculums do |entry, _options|
-    entry.tailored_curriculums.order(:id).map { |curriculum| curriculum.slice(:id, :title, :updated_at) }
+  # One query per entry, so only for responses that return a single entry.
+  view :with_tailored do
+    field :tailored_curriculums do |entry, _options|
+      entry.tailored_curriculums.order(:id).map { |curriculum| curriculum.slice(:id, :title, :updated_at) }
+    end
   end
 end

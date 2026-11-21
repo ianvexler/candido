@@ -21,6 +21,14 @@ RSpec.describe "Job board entries" do
         .to eq([ "Remote" ])
     end
 
+    it "leaves out tailored CVs, which would cost a query per entry" do
+      create(:job_board_entry, user: user, number: 1)
+
+      get "/api/v1/job_board_entries", headers: headers
+
+      expect(response.parsed_body["job_board_entries"].first).not_to have_key("tailored_curriculums")
+    end
+
     it "requires authentication" do
       get "/api/v1/job_board_entries"
 
@@ -36,6 +44,7 @@ RSpec.describe "Job board entries" do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["job_board_entry"]["title"]).to eq("Engineer")
+      expect(response.parsed_body["job_board_entry"]["tailored_curriculums"]).to eq([])
     end
 
     it "forbids another user's entry" do
@@ -134,6 +143,7 @@ RSpec.describe "Job board entries" do
       body = response.parsed_body["job_board_entry"]
       expect(body["title"]).to eq("Staff Engineer")
       expect(body["job_board_tags"].map { |item| item["name"] }).to eq([ "New" ])
+      expect(body["tailored_curriculums"]).to eq([])
     end
 
     it "reorders within a status" do
@@ -237,6 +247,7 @@ RSpec.describe "Job board entries" do
       expect(body["cv_text"]).to eq("Cover of skills")
       expect(body["cv_key"]).to be_nil
       expect(body["cv_filename"]).to be_nil
+      expect(body["tailored_curriculums"]).to eq([])
     end
 
     it "stores a PDF file and serves it from /uploads" do
@@ -294,6 +305,7 @@ RSpec.describe "Job board entries" do
       body = response.parsed_body["job_board_entry"]
       expect(body["cover_letter_filename"]).to eq("letter.pdf")
       expect(body["cover_letter_key"]).to end_with(".pdf")
+      expect(body["tailored_curriculums"]).to eq([])
     end
   end
 

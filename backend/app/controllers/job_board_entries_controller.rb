@@ -19,7 +19,7 @@ class JobBoardEntriesController < ApplicationController
   end
 
   def show
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
   end
 
   def create
@@ -39,7 +39,7 @@ class JobBoardEntriesController < ApplicationController
 
   def update
     @job_board_entry.update_for_user!(entry_attributes, tag_names: params[:tag_names])
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
   end
 
   def destroy
@@ -54,12 +54,12 @@ class JobBoardEntriesController < ApplicationController
 
   def upload_cv
     @job_board_entry.upload_cv!(text: params[:cv_text], file: params[:file])
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
   end
 
   def upload_cover_letter
     @job_board_entry.upload_cover_letter!(text: params[:cover_letter_text], file: params[:file])
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
   end
 
   private
