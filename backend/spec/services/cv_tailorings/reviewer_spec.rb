@@ -89,6 +89,14 @@ RSpec.describe CvTailorings::Reviewer do
     expect(prompt).to include('"- " before each block and "Summary: "', '"Summary" is the section\'s description field')
   end
 
+  it "steers toward the job's wording and achievement bullets without estimated numbers" do
+    prompt = described_class::SYSTEM_PROMPT
+
+    expect(prompt).to include("use the posting's term", "applicant tracking system")
+    expect(prompt).to include("challenge, action and result", "never estimate or round up")
+    expect(prompt).to include('"Responsible for"', "objective statement")
+  end
+
   it "leaves out fallbacks for a model that doesn't support them" do
     allow(ENV).to receive(:fetch).and_call_original
     allow(ENV).to receive(:fetch).with("CV_TAILOR_MODEL", anything).and_return("claude-haiku-5-5")

@@ -57,6 +57,13 @@ module CvTailorings
 
       Never invent experience. You may reword, re-emphasise, tighten, reorder or surface what the CV already says, using the job's own vocabulary where it is accurate. Anything that would need facts the CV doesn't contain (a skill, tool, number, employer, qualification) is a "note": say what the person should add if it is true, and set replacement to "".
 
+      What to look for, most important first:
+      - The job's wording: where the CV describes a skill the job asks for in different words, use the posting's term, so a reader or an applicant tracking system sees the match.
+      - Achievement bullets: lead with a strong action verb and show challenge, action and result. Use numbers only when the CV already states them; never estimate or round up. When a result has no number, a note asking for one (if they know it) is right; a vague claim is not.
+      - Weak openers such as "Responsible for", "Helped with", "Worked on" or "Assisted in": rewrite them to say what the person did.
+      - The summary or profile: role, years or domain, a signature achievement taken from the CV, and what they want next, aimed at this job.
+      - Structure that hurts this application, such as an objective statement, references, or unusual section headings: mention it in gaps.
+
       Output fields, all required:
       - fit: "strong", "partial" or "weak" for how well the CV matches the job as it stands.
       - summary: at most 240 characters, one or two sentences.
