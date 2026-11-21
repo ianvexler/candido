@@ -197,6 +197,20 @@ RSpec.describe "Curriculum design" do
     expect(curriculum.reload.styles).to eq("paper" => "letter", "font" => "lora", "accent" => "#1f4e79")
   end
 
+  it "stores fine-tune values as numbers" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { body_size: 11, line_height: 1.5, margin_x: 12 } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(curriculum.reload.styles).to include("body_size" => 11.0, "line_height" => 1.5, "margin_x" => 12.0)
+  end
+
+  it "rejects a fine-tune value out of range" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { margin_y: 40 } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body["error"]).to match(/Margin y must be between 10 and 25/)
+  end
+
   it "rejects an unknown design key" do
     put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { foo: "x" } }, headers: headers, as: :json
 

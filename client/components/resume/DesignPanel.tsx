@@ -7,21 +7,25 @@ import { updateResumeDesign } from "@/api/resources/resumeDesigns/updateResumeDe
 import { Button } from "@/components/ui/Button";
 import {
   ACCENT_SWATCHES,
+  applyPreset,
   contrastWithWhite,
   DATE_OPTIONS,
   DESIGN_DEFAULTS,
   DesignSettings,
   DESIGN_KEYS,
+  FINE_TUNE,
+  FineTuneKey,
   FONT_OPTIONS,
   HEADING_OPTIONS,
   headingColor,
+  matchingPreset,
   resolveDesign,
   SIZE_OPTIONS,
   SPACING_OPTIONS,
 } from "@/lib/resume/design";
 import { ResumeDesign } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { CheckIcon, RotateCcwIcon, StarIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, RotateCcwIcon, StarIcon, Trash2Icon } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { FONT_FAMILIES } from "./templates/ClassicTemplate";
@@ -175,12 +179,21 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
         </div>
       </Group>
 
+      {/* A preset shows as picked only while none of its values is fine-tuned. */}
       <Group label="Text size">
-        <Segmented options={SIZE_OPTIONS} value={design.size} onChange={(value) => set("size", value)} />
+        <Segmented
+          options={SIZE_OPTIONS}
+          value={matchingPreset(design, "size")}
+          onChange={(value) => onChange(applyPreset(design, "size", value))}
+        />
       </Group>
 
       <Group label="Spacing">
-        <Segmented options={SPACING_OPTIONS} value={design.spacing} onChange={(value) => set("spacing", value)} />
+        <Segmented
+          options={SPACING_OPTIONS}
+          value={matchingPreset(design, "spacing")}
+          onChange={(value) => onChange(applyPreset(design, "spacing", value))}
+        />
       </Group>
 
       <Group label="Accent colour">
@@ -234,6 +247,24 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
         <Segmented options={DATE_OPTIONS} value={design.date_position} onChange={(value) => set("date_position", value)} />
       </Group>
 
+      <details className="group/fine border-t border-border pt-4">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+          <ChevronRightIcon className="size-3.5 transition-transform group-open/fine:rotate-90" aria-hidden />
+          Fine-tune
+        </summary>
+        <div className="mt-4 space-y-5">
+          {FINE_TUNE_GROUPS.map((group) => (
+            <Group key={group.label} label={group.label}>
+              <div className="space-y-3">
+                {group.keys.map((key) => (
+                  <FineTuneSlider key={key} fineKey={key} value={design[key]} onChange={(value) => set(key, value)} />
+                ))}
+              </div>
+            </Group>
+          ))}
+        </div>
+      </details>
+
       <Button
         type="button"
         variant="ghost"
@@ -245,6 +276,51 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
         <RotateCcwIcon />
         Reset to the default look
       </Button>
+    </div>
+  );
+};
+
+const FINE_TUNE_GROUPS: { label: string; keys: FineTuneKey[] }[] = [
+  { label: "Text sizes", keys: ["body_size", "name_size", "heading_size", "title_size", "meta_size"] },
+  { label: "Spacing", keys: ["line_height", "section_gap", "heading_gap", "paragraph_gap"] },
+  { label: "Page margins", keys: ["margin_y", "margin_x"] },
+];
+
+// Range inputs can report float noise such as 1.2000000000000002; snap to the step.
+const snap = (key: FineTuneKey, value: number) => {
+  const { min, step } = FINE_TUNE[key];
+  return Number((min + Math.round((value - min) / step) * step).toFixed(2));
+};
+
+const FineTuneSlider = ({
+  fineKey,
+  value,
+  onChange,
+}: {
+  fineKey: FineTuneKey;
+  value: number;
+  onChange: (value: number) => void;
+}) => {
+  const { label, min, max, step, unit } = FINE_TUNE[fineKey];
+  const id = `fine-tune-${fineKey}`;
+  const shown = unit ? `${value} ${unit}` : value.toFixed(2);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={id}>{label}</label>
+        <span className="text-xs tabular-nums text-muted-foreground">{shown}</span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-valuetext={shown}
+        onChange={(event) => onChange(snap(fineKey, Number(event.target.value)))}
+        className="w-full accent-foreground"
+      />
     </div>
   );
 };
@@ -287,7 +363,8 @@ const Segmented = <T extends string>({
   onChange,
 }: {
   options: readonly { value: T; label: string }[];
-  value: T;
+  /** null when no option matches, e.g. a preset after fine-tuning. */
+  value: T | null;
   onChange: (value: T) => void;
 }) => (
   <div className="flex rounded-md border border-border p-0.5">

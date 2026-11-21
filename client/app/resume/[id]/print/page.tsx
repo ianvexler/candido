@@ -9,7 +9,7 @@ import DesignPanel from "@/components/resume/DesignPanel";
 import { resolveHeader } from "@/components/resume/resumeHeader";
 import { ClassicTemplate } from "@/components/resume/templates/ClassicTemplate";
 import { Button } from "@/components/ui/Button";
-import { DESIGN_DEFAULTS, DesignSettings, resolveDesign } from "@/lib/resume/design";
+import { DESIGN_DEFAULTS, DesignSettings, pageMargin, resolveDesign } from "@/lib/resume/design";
 import { buildResumeDocument, isEmptyDocument, pdfFileName, ResumeDocument } from "@/lib/resume/exportDocument";
 import { createSerialQueue } from "@/lib/serialQueue";
 import { cn } from "@/lib/utils";
@@ -19,8 +19,6 @@ import NextLink from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-// Print margins; the on-screen sheet uses the same padding so it matches the PDF.
-const PAGE_MARGIN = "16mm 18mm";
 const SHEET_WIDTH: Record<PaperSize, string> = { a4: "210mm", letter: "8.5in" };
 const PAPER_LABEL: Record<PaperSize, string> = { a4: "A4", letter: "Letter" };
 const DESIGN_SAVE_DELAY_MS = 500;
@@ -189,7 +187,8 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
 
   return (
     <div className="min-h-screen bg-muted/60 print:bg-white">
-      <style>{`@page { size: ${paper === "letter" ? "letter" : "A4"}; margin: ${PAGE_MARGIN}; }`}</style>
+      {/* Print margins; the on-screen sheet uses the same padding so it matches the PDF. */}
+      <style>{`@page { size: ${paper === "letter" ? "letter" : "A4"}; margin: ${pageMargin(design)}; }`}</style>
 
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-2 print:hidden">
         <Button variant="ghost" size="sm" asChild>
@@ -247,7 +246,7 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
           <div className="min-w-0 flex-1 overflow-x-auto px-4 py-8 print:overflow-visible print:p-0">
             <div
               className="mx-auto bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.08)] print:w-auto! print:p-0! print:shadow-none"
-              style={{ width: SHEET_WIDTH[paper], padding: PAGE_MARGIN }}
+              style={{ width: SHEET_WIDTH[paper], padding: pageMargin(design) }}
             >
               <ClassicTemplate document={resume} paper={paper} design={design} />
             </div>

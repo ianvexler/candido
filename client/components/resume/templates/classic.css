@@ -1,13 +1,23 @@
 /*
  * Classic resume template. Sizes are in points so screen and print match.
- * The design comes in as custom properties (see lib/resume/design.ts):
- *   --rc-font, --rc-size (base text size), --rc-gap (spacing multiplier),
- *   --rc-line (line height), --rc-accent
+ * The design comes in as custom properties (see designStyle in
+ * lib/resume/design.ts):
+ *   --rc-font, --rc-accent, --rc-line (line height)
+ *   --rc-size (body text), --rc-name-size, --rc-heading-size,
+ *   --rc-title-size, --rc-meta-size (roles and dates)
+ *   --rc-section-gap, --rc-heading-gap (under headings),
+ *   --rc-gap (multiplier for the small gaps between paragraphs and lines)
  * plus data-heading-style and data-date-position on the root. The fallbacks
  * below are the original Classic look.
  */
 .resume-classic {
   --rc-size: 10.5pt;
+  --rc-name-size: 22pt;
+  --rc-heading-size: 9pt;
+  --rc-title-size: 11.5pt;
+  --rc-meta-size: 10.5pt;
+  --rc-section-gap: 14pt;
+  --rc-heading-gap: 6pt;
   --rc-gap: 1;
   --rc-line: 1.35;
   --rc-accent: #1a1a1a;
@@ -25,7 +35,7 @@
 }
 
 .resume-classic .rc-name {
-  font-size: calc(var(--rc-size) * 22 / 10.5);
+  font-size: var(--rc-name-size);
   font-weight: 700;
   line-height: 1.1;
   color: var(--rc-accent);
@@ -49,11 +59,11 @@
 }
 
 .resume-classic .rc-section {
-  margin-top: calc(14pt * var(--rc-gap));
+  margin-top: var(--rc-section-gap);
 }
 
 .resume-classic .rc-heading {
-  font-size: calc(var(--rc-size) * 9 / 10.5);
+  font-size: var(--rc-heading-size);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -61,11 +71,12 @@
   color: color-mix(in srgb, var(--rc-accent) 82%, white);
   border-bottom: 1px solid color-mix(in srgb, var(--rc-accent) 22%, white);
   padding-bottom: 2pt;
-  margin-bottom: calc(6pt * var(--rc-gap));
+  margin-bottom: var(--rc-heading-gap);
 }
 
+/* Mixed case reads smaller than capitals, so bold headings sit a third larger. */
 .resume-classic[data-heading-style="bold"] .rc-heading {
-  font-size: calc(var(--rc-size) * 12 / 10.5);
+  font-size: calc(var(--rc-heading-size) * 4 / 3);
   font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
@@ -82,11 +93,12 @@
 }
 
 .resume-classic .rc-title {
-  font-size: calc(var(--rc-size) * 11.5 / 10.5);
+  font-size: var(--rc-title-size);
   font-weight: 600;
 }
 
 .resume-classic .rc-entry-line {
+  font-size: var(--rc-meta-size);
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;

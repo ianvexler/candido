@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { contrastWithWhite, DESIGN_DEFAULTS, designStyle, headingColor, resolveDesign } from "./design";
+import {
+  applyPreset,
+  contrastWithWhite,
+  DESIGN_DEFAULTS,
+  designStyle,
+  headingColor,
+  matchingPreset,
+  pageMargin,
+  resolveDesign,
+} from "./design";
 
 const fonts = { source_sans: "SourceSans", plex_sans: "Plex", source_serif: "SourceSerif", lora: "Lora" };
 
@@ -21,24 +30,104 @@ describe("resolveDesign", () => {
   });
 });
 
+describe("resolveDesign fine-tune values", () => {
+  it("matches the original Classic look by default", () => {
+    expect(resolveDesign({})).toMatchObject({
+      body_size: 10.5,
+      name_size: 22,
+      heading_size: 9,
+      title_size: 11.5,
+      meta_size: 10.5,
+      line_height: 1.35,
+      section_gap: 14,
+      heading_gap: 6,
+      paragraph_gap: 3,
+      margin_y: 16,
+      margin_x: 18,
+    });
+  });
+
+  it("takes values from the size and spacing presets of a resume saved before fine-tuning", () => {
+    expect(resolveDesign({ size: "large", spacing: "compact" })).toMatchObject({
+      body_size: 11.5,
+      name_size: 24,
+      heading_size: 10,
+      title_size: 12.5,
+      meta_size: 11.5,
+      line_height: 1.25,
+      section_gap: 10,
+      heading_gap: 4,
+      paragraph_gap: 2,
+    });
+  });
+
+  it("prefers a stored value over the preset's", () => {
+    const design = resolveDesign({ size: "large", body_size: 11, line_height: 1.5 });
+    expect(design.body_size).toBe(11);
+    expect(design.name_size).toBe(24);
+    expect(design.line_height).toBe(1.5);
+  });
+
+  it("falls back to the preset's value for one out of range, off its step or not a number", () => {
+    const design = resolveDesign({ body_size: 30, name_size: 22.3, title_size: "12", margin_x: null });
+    expect(design).toMatchObject({ body_size: 10.5, name_size: 22, title_size: 11.5, margin_x: 18 });
+  });
+});
+
+describe("presets", () => {
+  it("sets every size the preset covers, overwriting fine-tuned ones", () => {
+    const tuned = { ...DESIGN_DEFAULTS, body_size: 11, name_size: 28 };
+    expect(applyPreset(tuned, "size", "small")).toMatchObject({
+      size: "small",
+      body_size: 9.5,
+      name_size: 20,
+      heading_size: 8,
+      title_size: 10.5,
+      meta_size: 9.5,
+    });
+  });
+
+  it("leaves values outside the preset alone", () => {
+    const tuned = { ...DESIGN_DEFAULTS, margin_x: 12, body_size: 11 };
+    expect(applyPreset(tuned, "spacing", "relaxed")).toMatchObject({ spacing: "relaxed", margin_x: 12, body_size: 11, line_height: 1.45 });
+  });
+
+  it("names the preset the current values match, or none once one is fine-tuned", () => {
+    expect(matchingPreset(DESIGN_DEFAULTS, "size")).toBe("medium");
+    expect(matchingPreset(applyPreset(DESIGN_DEFAULTS, "spacing", "compact"), "spacing")).toBe("compact");
+    expect(matchingPreset({ ...DESIGN_DEFAULTS, body_size: 11 }, "size")).toBeNull();
+  });
+});
+
 describe("designStyle", () => {
-  it("maps size, spacing, accent and font to CSS variables", () => {
-    const style = designStyle(
-      { ...DESIGN_DEFAULTS, size: "large", spacing: "compact", accent: "#2f6f4f", font: "lora" },
-      fonts
-    ) as Record<string, string>;
+  it("maps the design to CSS variables", () => {
+    const design = { ...applyPreset(applyPreset(DESIGN_DEFAULTS, "size", "large"), "spacing", "compact"), accent: "#2f6f4f", font: "lora" as const };
+    const style = designStyle(design, fonts) as Record<string, string>;
 
     expect(style).toMatchObject({
       "--rc-size": "11.5pt",
-      "--rc-gap": "0.7",
+      "--rc-name-size": "24pt",
+      "--rc-heading-size": "10pt",
+      "--rc-title-size": "12.5pt",
+      "--rc-meta-size": "11.5pt",
       "--rc-line": "1.25",
+      "--rc-section-gap": "10pt",
+      "--rc-heading-gap": "4pt",
+      "--rc-gap": "0.6667",
       "--rc-accent": "#2f6f4f",
       "--rc-font": "Lora",
     });
   });
 
   it("matches the original look by default", () => {
-    expect(designStyle(DESIGN_DEFAULTS, fonts)).toMatchObject({ "--rc-size": "10.5pt", "--rc-gap": "1", "--rc-line": "1.35" });
+    expect(designStyle(DESIGN_DEFAULTS, fonts)).toMatchObject({ "--rc-size": "10.5pt", "--rc-gap": "1", "--rc-line": "1.35", "--rc-section-gap": "14pt" });
+  });
+});
+
+describe("pageMargin", () => {
+  it("is top-and-bottom then sides, in millimetres", () => {
+    expect(pageMargin(DESIGN_DEFAULTS)).toBe("16mm 18mm");
+    expect(pageMargin({ ...DESIGN_DEFAULTS, margin_y: 12, margin_x: 10 })).toBe("12mm 10mm");
   });
 });
 
