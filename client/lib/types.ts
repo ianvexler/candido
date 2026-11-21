@@ -199,3 +199,13 @@ export type Curriculum = {
   created_at: Date;
   updated_at: Date;
 }
+
+/** A saved resume look. Applying it copies these settings into a resume. */
+export type ResumeDesign = {
+  id: number;
+  name: string;
+  settings: Partial<import("@/lib/resume/design").DesignSettings>;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
