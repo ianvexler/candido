@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_21_150000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_22_100200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -56,6 +56,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_150000) do
     t.jsonb "header", default: {}, null: false
     t.string "styles_writer"
     t.integer "styles_seq", default: 0, null: false
+    t.integer "job_board_entry_id"
+    t.bigint "source_curriculum_id"
+    t.string "tailored_for"
+    t.index ["job_board_entry_id"], name: "index_curriculums_on_job_board_entry_id"
+    t.index ["source_curriculum_id"], name: "index_curriculums_on_source_curriculum_id"
     t.index ["user_id", "title"], name: "index_curriculums_on_user_id_and_title"
     t.index ["user_id"], name: "index_curriculums_on_user_id"
   end
@@ -73,6 +78,41 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_150000) do
     t.datetime "updated_at", null: false
     t.index ["user_id", "created_at"], name: "index_cv_imports_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_cv_imports_on_user_id"
+  end
+
+  create_table "cv_tailoring_suggestions", force: :cascade do |t|
+    t.bigint "cv_tailoring_id", null: false
+    t.bigint "curriculum_section_id", null: false
+    t.string "kind", null: false
+    t.string "field"
+    t.text "quote", null: false
+    t.text "replacement"
+    t.string "reason", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "position"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_section_id"], name: "index_cv_tailoring_suggestions_on_curriculum_section_id"
+    t.index ["cv_tailoring_id"], name: "index_cv_tailoring_suggestions_on_cv_tailoring_id"
+  end
+
+  create_table "cv_tailorings", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.bigint "curriculum_id", null: false
+    t.integer "job_board_entry_id"
+    t.string "job_title", null: false
+    t.string "company", null: false
+    t.string "status", default: "pending", null: false
+    t.jsonb "report"
+    t.string "error_message"
+    t.boolean "used_posting", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_id", "created_at"], name: "index_cv_tailorings_on_curriculum_id_and_created_at"
+    t.index ["curriculum_id"], name: "index_cv_tailorings_on_curriculum_id"
+    t.index ["job_board_entry_id"], name: "index_cv_tailorings_on_job_board_entry_id"
+    t.index ["user_id", "created_at"], name: "index_cv_tailorings_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_cv_tailorings_on_user_id"
   end
 
   create_table "feedback_entries", id: :serial, force: :cascade do |t|
@@ -192,8 +232,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_150000) do
 
   add_foreign_key "curriculum_sections", "curriculums"
   add_foreign_key "curriculum_sections", "section_templates"
+  add_foreign_key "curriculums", "curriculums", column: "source_curriculum_id", on_delete: :nullify
+  add_foreign_key "curriculums", "job_board_entries", on_delete: :nullify
   add_foreign_key "curriculums", "users"
   add_foreign_key "cv_imports", "users"
+  add_foreign_key "cv_tailoring_suggestions", "curriculum_sections", on_delete: :cascade
+  add_foreign_key "cv_tailoring_suggestions", "cv_tailorings", on_delete: :cascade
+  add_foreign_key "cv_tailorings", "curriculums", on_delete: :cascade
+  add_foreign_key "cv_tailorings", "job_board_entries", on_delete: :nullify
+  add_foreign_key "cv_tailorings", "users"
   add_foreign_key "feedback_entries", "users", name: "FeedbackEntry_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entries", "users", name: "JobBoardEntry_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entries_tags", "job_board_entries", name: "_JobBoardEntryToJobBoardTag_A_fkey", on_update: :cascade, on_delete: :cascade

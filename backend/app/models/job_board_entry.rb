@@ -36,6 +36,7 @@ class JobBoardEntry < ApplicationRecord
 
   belongs_to :user
   has_many :job_board_entry_notes, dependent: :destroy
+  has_many :tailored_curriculums, class_name: "Curriculum", dependent: :nullify
   has_and_belongs_to_many :job_board_tags
 
   enum :status, STATUSES.index_by(&:itself), default: "PENDING", validate: true
