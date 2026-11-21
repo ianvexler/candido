@@ -97,6 +97,20 @@ class Curriculum < ApplicationRecord
     update!(header: ResumeHeader.normalize_overrides(raw))
   end
 
+  # Merges into the stored styles in one statement, so two requests changing
+  # different keys (paper and design, say) can't overwrite each other.
+  def merge_styles!(changes)
+    changes = changes.to_h.stringify_keys
+    if changes.key?("paper") && !PAPER_SIZES.include?(changes["paper"])
+      raise ApiError.new("Paper size must be A4 or Letter", status: :unprocessable_content)
+    end
+
+    self.class.where(id: id).update_all([ "styles = styles || ?::jsonb, updated_at = ?", changes.to_json, Time.current ])
+    self.styles = self.class.where(id: id).pick(:styles)
+    clear_attribute_changes([ :styles ])
+    self
+  end
+
   def visible_sections
     curriculum_sections.reject(&:hidden?)
   end

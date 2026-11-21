@@ -1,5 +1,6 @@
 "use client";
 
+import apiClient from "@/api/apiClient";
 import { getCurriculum } from "@/api/resources/curriculums/getCurriculum";
 import { updateCurriculum } from "@/api/resources/curriculums/updateCurriculum";
 import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile";
@@ -10,6 +11,7 @@ import { ClassicTemplate } from "@/components/resume/templates/ClassicTemplate";
 import { Button } from "@/components/ui/Button";
 import { DESIGN_DEFAULTS, DesignSettings, resolveDesign } from "@/lib/resume/design";
 import { buildResumeDocument, isEmptyDocument, pdfFileName, ResumeDocument } from "@/lib/resume/exportDocument";
+import { createSerialQueue } from "@/lib/serialQueue";
 import { cn } from "@/lib/utils";
 import { PaperSize, PaperSizes } from "@/lib/types";
 import { ArrowLeftIcon, DownloadIcon, PaletteIcon } from "lucide-react";
@@ -39,6 +41,10 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
   const [panelOpen, setPanelOpen] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const printed = useRef(false);
+  // Style saves go out one at a time, so the last change sent is the last applied.
+  const [saves] = useState(createSerialQueue);
+  // The design change waiting for the debounce, sent early if the page goes away.
+  const pendingDesign = useRef<DesignSettings | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,18 +92,51 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
   }, [print, resume, empty]);
 
   useEffect(() => {
-    if (designEdits === 0) return;
-    const timer = setTimeout(() => {
-      void updateCurriculum(Number(id), { styles: design }).catch((error) => {
+    const saveDesign = (next: DesignSettings) =>
+      saves.run(() => updateCurriculum(Number(id), { styles: next })).catch((error) => {
         console.error(error);
         toast.error("Couldn't save the design. Try again.");
       });
-    }, DESIGN_SAVE_DELAY_MS);
+    const flush = () => {
+      const next = pendingDesign.current;
+      pendingDesign.current = null;
+      if (next) void saveDesign(next);
+    };
+
+    if (designEdits === 0) return;
+    const timer = setTimeout(flush, DESIGN_SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [designEdits, design, id]);
+  }, [designEdits, id, saves]);
+
+  // Leaving within the debounce: send the last change now. In-app navigation
+  // keeps the page's JavaScript alive long enough for a normal request; a tab
+  // close or reload gets a keepalive request instead.
+  useEffect(() => {
+    const sendWithKeepalive = () => {
+      const next = pendingDesign.current;
+      if (!next) return;
+      pendingDesign.current = null;
+      void fetch(`${apiClient.defaults.baseURL}/curriculums/${id}`, {
+        method: "PUT",
+        keepalive: true,
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ styles: next }),
+      }).catch(() => undefined);
+    };
+    window.addEventListener("pagehide", sendWithKeepalive);
+
+    return () => {
+      window.removeEventListener("pagehide", sendWithKeepalive);
+      const next = pendingDesign.current;
+      pendingDesign.current = null;
+      if (next) void saves.run(() => updateCurriculum(Number(id), { styles: next })).catch(() => undefined);
+    };
+  }, [id, saves]);
 
   const changeDesign = (next: DesignSettings) => {
     setDesign(next);
+    pendingDesign.current = next;
     setDesignEdits((count) => count + 1);
   };
 
@@ -105,7 +144,7 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
     const previous = paper;
     setPaper(next);
     try {
-      await updateCurriculum(Number(id), { styles: { paper: next } });
+      await saves.run(() => updateCurriculum(Number(id), { styles: { paper: next } }));
     } catch (error) {
       console.error(error);
       setPaper(previous);

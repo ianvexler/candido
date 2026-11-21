@@ -39,3 +39,17 @@ RSpec.describe Curriculum do
     end
   end
 end
+
+RSpec.describe Curriculum, "#merge_styles!" do
+  it "keeps changes made by another request in the meantime" do
+    curriculum = create(:curriculum, styles: { "paper" => "a4" })
+    first = Curriculum.find(curriculum.id)
+    second = Curriculum.find(curriculum.id)
+
+    first.merge_styles!("paper" => "letter")
+    second.merge_styles!("font" => "lora")
+
+    expect(curriculum.reload.styles).to eq("paper" => "letter", "font" => "lora")
+    expect(second.styles).to eq("paper" => "letter", "font" => "lora")
+  end
+end

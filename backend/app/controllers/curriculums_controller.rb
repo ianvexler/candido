@@ -29,7 +29,7 @@ class CurriculumsController < ApplicationController
     Curriculum.transaction do
       @curriculum.update!(curriculum_params)
       @curriculum.update_header!(params[:header]) if params.key?(:header)
-      @curriculum.update!(styles: @curriculum.styles.merge(style_params)) if style_params.present?
+      @curriculum.merge_styles!(style_params) if style_params.present?
     end
     render_curriculum(@curriculum)
   end

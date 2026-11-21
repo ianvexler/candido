@@ -197,6 +197,13 @@ RSpec.describe "Curriculum design" do
     expect(curriculum.reload.styles).to eq("paper" => "letter", "font" => "lora", "accent" => "#1f4e79")
   end
 
+  it "rejects an unknown design key" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { foo: "x" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(curriculum.reload.styles).to eq("paper" => "letter")
+  end
+
   it "rejects an unknown value" do
     put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { size: "huge" } }, headers: headers, as: :json
 

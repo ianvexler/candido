@@ -48,6 +48,16 @@ RSpec.describe "Resume designs" do
     expect(second.reload.is_default).to be(true)
   end
 
+  it "can make a new design the default straight away" do
+    old_default = create(:resume_design, user: user, is_default: true)
+
+    post "/api/v1/resume_designs", params: { name: "New default", settings: {}, is_default: true }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:created)
+    expect(old_default.reload.is_default).to be(false)
+    expect(user.resume_designs.find_by(is_default: true).name).to eq("New default")
+  end
+
   it "leaves no default once the default is deleted" do
     design = create(:resume_design, user: user, is_default: true)
 
