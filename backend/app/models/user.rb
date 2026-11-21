@@ -31,6 +31,7 @@ class User < ApplicationRecord
   has_many :curriculums, dependent: :destroy
   has_many :section_templates, dependent: :destroy
   has_many :resume_designs, dependent: :destroy
+  has_many :cv_imports, dependent: :destroy
 
   validates :email, presence: true, uniqueness: true
 

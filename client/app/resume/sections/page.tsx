@@ -12,11 +12,13 @@ import Title from "@/components/common/Title";
 import AddSheetButton from "@/components/resume/AddSheetButton";
 import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
 import HeaderDocument from "@/components/resume/HeaderDocument";
+import ImportCvDialog from "@/components/resume/ImportCvDialog";
+import { Button } from "@/components/ui/Button";
 import SectionDocument from "@/components/resume/SectionDocument";
 import SectionPreview from "@/components/resume/SectionPreview";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import { ResumeHeader, SectionTemplate } from "@/lib/types";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, FileUpIcon } from "lucide-react";
 import NextLink from "next/link";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -26,6 +28,9 @@ const SectionLibraryPage = () => {
   const [profile, setProfile] = useState<ResumeHeader | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  // The header editor is uncontrolled; bump this to reload it after an import fills the profile.
+  const [headerVersion, setHeaderVersion] = useState(0);
 
   useEffect(() => {
     void Promise.all([getSectionTemplates(), getResumeProfile()])
@@ -86,10 +91,29 @@ const SectionLibraryPage = () => {
             <ArrowLeftIcon className="size-4" />
             Resumes
           </NextLink>
-          <Title>Section library</Title>
-          <Description className="mt-1">
-            Write each section once, then reuse it in any resume.
-          </Description>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <Title>Section library</Title>
+              <Description className="mt-1">
+                Write each section once, then reuse it in any resume.
+              </Description>
+            </div>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <FileUpIcon />
+              Import from CV
+            </Button>
+          </div>
+          <ImportCvDialog
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            onApplied={({ section_templates, profile: nextProfile }) => {
+              setTemplates((current) => [...current, ...section_templates]);
+              setProfile(nextProfile);
+              setHeaderVersion((version) => version + 1);
+              const count = section_templates.length;
+              toast.success(count > 0 ? `Added ${count} ${count === 1 ? "section" : "sections"} from your CV` : "Profile updated");
+            }}
+          />
         </>
       }
       preview={
@@ -97,6 +121,7 @@ const SectionLibraryPage = () => {
       }
     >
       <HeaderDocument
+        key={headerVersion}
         value={profile}
         save={async (draft) => setProfile((await updateResumeProfile(draft)).profile)}
       />
