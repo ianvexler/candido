@@ -199,3 +199,19 @@ export type Curriculum = {
   created_at: Date;
   updated_at: Date;
 }
+
+export const CvImportStatuses = ["pending", "processing", "succeeded", "failed"] as const;
+export type CvImportStatus = (typeof CvImportStatuses)[number];
+
+/** A section found in an uploaded CV, ready to add to the library. */
+export type CvImportSection = SectionFields;
+
+export type CvImport = {
+  id: number;
+  status: CvImportStatus;
+  filename: string;
+  error_message: string | null;
+  result: { header: ResumeHeader; sections: CvImportSection[] } | null;
+  applied_at: string | null;
+  created_at: string;
+}
