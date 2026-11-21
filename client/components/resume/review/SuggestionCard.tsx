@@ -81,6 +81,7 @@ const SuggestionCard = ({ suggestion, anchor, onResolve, onClose }: SuggestionCa
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 aria-label="Replacement text"
+                maxLength={2000}
                 rows={2}
                 className="field-sizing-content block w-full resize-none rounded-md bg-muted/60 px-2 py-1 outline-none focus:ring-2 focus:ring-ring/40"
               />
