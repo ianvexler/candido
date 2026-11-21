@@ -27,7 +27,11 @@ class CvTailoringJob < ApplicationJob
     )
     normalized = CvTailorings::Normalizer.call(result[:output], sections)
     finish(cv_tailoring, status: "succeeded", report: normalized[:report], used_posting: result[:used_posting]) do
-      normalized[:suggestions].each { |attributes| cv_tailoring.suggestions.create!(attributes) }
+      # The user can keep editing during the review: skip sections removed meanwhile.
+      remaining = CurriculumSection.where(id: normalized[:suggestions].pluck(:curriculum_section_id)).pluck(:id).to_set
+      normalized[:suggestions].each do |attributes|
+        cv_tailoring.suggestions.create!(attributes) if remaining.include?(attributes[:curriculum_section_id])
+      end
     end
   rescue CvTailorings::ReviewError => error
     finish(cv_tailoring, status: "failed", error_message: error.message) if cv_tailoring

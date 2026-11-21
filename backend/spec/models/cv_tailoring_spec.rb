@@ -65,10 +65,20 @@ RSpec.describe CvTailoringSuggestion do
 
   describe "#resolve!" do
     it "accepts, edits and rejects" do
-      expect(suggestion.resolve!(status: "accepted").status).to eq("accepted")
-      edited = suggestion.resolve!(status: "edited", replacement: "My own words")
-      expect(edited).to have_attributes(status: "edited", replacement: "My own words")
-      expect(suggestion.resolve!(status: "rejected").status).to eq("rejected")
+      accepted, edited, rejected = create_list(:cv_tailoring_suggestion, 3, cv_tailoring: suggestion.cv_tailoring)
+      expect(accepted.resolve!(status: "accepted").status).to eq("accepted")
+      expect(edited.resolve!(status: "edited", replacement: "My own words"))
+        .to have_attributes(status: "edited", replacement: "My own words")
+      expect(rejected.resolve!(status: "rejected").status).to eq("rejected")
+    end
+
+    it "only resolves a pending suggestion of the latest review" do
+      suggestion.resolve!(status: "accepted")
+      expect { suggestion.resolve!(status: "rejected") }.to raise_error(ApiError, "This suggestion was already handled.")
+
+      older = create(:cv_tailoring_suggestion)
+      create(:cv_tailoring, user: older.cv_tailoring.user, curriculum: older.cv_tailoring.curriculum, created_at: 1.minute.from_now)
+      expect { older.resolve!(status: "rejected") }.to raise_error(ApiError, "This review was replaced by a newer one.")
     end
 
     it "rejects an unknown status" do

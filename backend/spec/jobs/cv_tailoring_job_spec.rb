@@ -66,6 +66,22 @@ RSpec.describe CvTailoringJob do
     expect(tailoring.reload).to have_attributes(status: "failed", error_message: "This job was removed from your board.")
   end
 
+  it "keeps the review when a section is removed while it runs" do
+    other = curriculum.curriculum_sections.create!(title: "Skills", section_type: "skills", content: "<p>Ruby</p>")
+    output["suggestions"] << { "section_id" => other.id, "kind" => "note", "field" => "content", "quote" => "Ruby",
+                               "replacement" => "", "reason" => "Name the Ruby version" }
+    allow(reviewer).to receive(:call) do
+      other.destroy!
+      { output: output, used_posting: false }
+    end
+
+    described_class.perform_now(tailoring.id)
+
+    tailoring.reload
+    expect(tailoring.status).to eq("succeeded")
+    expect(tailoring.suggestions.pluck(:curriculum_section_id)).to eq([ section.id ])
+  end
+
   it "fails when the CV was deleted" do
     tailoring
     curriculum.destroy!

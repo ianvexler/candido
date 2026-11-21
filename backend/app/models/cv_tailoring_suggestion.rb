@@ -55,7 +55,14 @@ class CvTailoringSuggestion < ApplicationRecord
   end
 
   # Records the user's decision. An edit carries the text they wrote instead.
+  # Only an open suggestion of the CV's latest review can be decided, so a
+  # page showing an older review can't turn a superseded one into a decline.
   def resolve!(status:, replacement: nil)
+    raise ApiError.new("This suggestion was already handled.", status: :conflict) unless self.status == "pending"
+    if cv_tailoring.curriculum&.latest_tailoring != cv_tailoring
+      raise ApiError.new("This review was replaced by a newer one.", status: :conflict)
+    end
+
     unless RESOLUTIONS.include?(status)
       errors.add(:status, "must be accepted, edited or rejected")
       raise ActiveRecord::RecordInvalid, self

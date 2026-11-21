@@ -158,14 +158,35 @@ RSpec.describe "CV tailorings" do
     end
 
     it "records accepted / edited / rejected" do
-      resolve(status: "accepted")
+      accepted, edited, rejected = create_list(:cv_tailoring_suggestion, 3, cv_tailoring: tailoring)
+
+      resolve({ status: "accepted" }, accepted.id)
       expect(response.parsed_body["suggestion"]).to include("status" => "accepted")
 
-      resolve(status: "edited", replacement: "My own words")
+      resolve({ status: "edited", replacement: "My own words" }, edited.id)
       expect(response.parsed_body["suggestion"]).to include("status" => "edited", "replacement" => "My own words")
 
+      resolve({ status: "rejected" }, rejected.id)
+      expect(rejected.reload.status).to eq("rejected")
+    end
+
+    it "returns 409 for a suggestion that was already resolved" do
+      suggestion.update!(status: "superseded")
+
       resolve(status: "rejected")
-      expect(suggestion.reload.status).to eq("rejected")
+
+      expect(response).to have_http_status(:conflict)
+      expect(suggestion.reload.status).to eq("superseded")
+    end
+
+    it "returns 409 for a suggestion from a review that was replaced" do
+      suggestion
+      create(:cv_tailoring, user: user, curriculum: tailoring.curriculum, created_at: 1.minute.from_now)
+
+      resolve(status: "rejected")
+
+      expect(response).to have_http_status(:conflict)
+      expect(suggestion.reload.status).to eq("pending")
     end
 
     it "returns 422 for an edit without text" do
