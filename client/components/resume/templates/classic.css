@@ -1,0 +1,151 @@
+/* Classic resume template. Sizes are in points so screen and print match. */
+.resume-classic {
+  color: #1a1a1a;
+  font-size: 10.5pt;
+  line-height: 1.35;
+  /* Long URLs and unbroken words wrap instead of running off the page. */
+  overflow-wrap: anywhere;
+}
+
+.resume-classic a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.resume-classic .rc-name {
+  font-size: 22pt;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.resume-classic .rc-headline {
+  margin-top: 2pt;
+  font-size: 11.5pt;
+}
+
+.resume-classic .rc-contact,
+.resume-classic .rc-links {
+  margin-top: 4pt;
+  font-size: 9.5pt;
+  color: #555;
+}
+
+.resume-classic .rc-links a + a::before {
+  content: "·";
+  margin: 0 6pt;
+}
+
+.resume-classic .rc-section {
+  margin-top: 14pt;
+}
+
+.resume-classic .rc-heading {
+  font-size: 9pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #444;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 2pt;
+  margin-bottom: 6pt;
+}
+
+.resume-classic .rc-title {
+  font-size: 11.5pt;
+  font-weight: 600;
+}
+
+.resume-classic .rc-entry-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 12pt;
+}
+
+/* Let flex items shrink so long role or organisation names can wrap. */
+.resume-classic .rc-entry-line > * {
+  min-width: 0;
+}
+
+.resume-classic .rc-subtitle {
+  font-weight: 600;
+}
+
+.resume-classic .rc-meta {
+  color: #555;
+}
+
+.resume-classic .rc-summary {
+  margin-top: 2pt;
+  color: #444;
+}
+
+.resume-classic .rc-body {
+  margin-top: 4pt;
+}
+
+.resume-classic .rc-body p {
+  margin: 0 0 3pt;
+}
+
+.resume-classic .rc-body ul,
+.resume-classic .rc-body ol {
+  margin: 2pt 0 4pt;
+  padding-left: 14pt;
+}
+
+.resume-classic .rc-body ul {
+  list-style: disc;
+}
+
+.resume-classic .rc-body ol {
+  list-style: decimal;
+}
+
+.resume-classic .rc-body li {
+  margin-bottom: 2pt;
+}
+
+.resume-classic .rc-body li p {
+  margin: 0;
+}
+
+.resume-classic .rc-body h1,
+.resume-classic .rc-body h2,
+.resume-classic .rc-body h3 {
+  font-size: 10.5pt;
+  font-weight: 600;
+  margin: 6pt 0 2pt;
+}
+
+.resume-classic .rc-body strong {
+  font-weight: 600;
+}
+
+.resume-classic .rc-body em {
+  font-style: italic;
+}
+
+.resume-classic .rc-body s {
+  text-decoration: line-through;
+}
+
+.resume-classic .rc-body blockquote {
+  border-left: 2px solid #ccc;
+  padding-left: 8pt;
+  color: #444;
+}
+
+/*
+ * Keep a section's headings together and with what follows. break-inside on the
+ * grouped head works in every browser; break-after is honoured by Chromium.
+ */
+.resume-classic .rc-section-head {
+  break-inside: avoid;
+  break-after: avoid;
+}
+
+.resume-classic .rc-body li,
+.resume-classic .rc-body p {
+  break-inside: avoid;
+}

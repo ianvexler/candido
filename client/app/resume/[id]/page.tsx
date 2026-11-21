@@ -13,11 +13,15 @@ import HeaderDocument from "@/components/resume/HeaderDocument";
 import { resolveHeader } from "@/components/resume/resumeHeader";
 import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import SectionPreview from "@/components/resume/SectionPreview";
+import { buildResumeDocument } from "@/lib/resume/exportDocument";
+import { trackSave, waitForSaves } from "@/lib/resume/saveTracker";
+import { Button } from "@/components/ui/Button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import InlineInput from "@/components/ui/InlineInput";
 import { Curriculum, CurriculumSection, ResumeHeader } from "@/lib/types";
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
-import { ArrowLeftIcon, LayersIcon } from "lucide-react";
+import { ArrowLeftIcon, DownloadIcon, LayersIcon } from "lucide-react";
 import NextLink from "next/link";
 import { ComponentProps, use, useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -86,13 +90,26 @@ const ResumePage = ({ params }: ResumePageProps) => {
     if (next === curriculum.title) return;
 
     try {
-      const response = await updateCurriculum(curriculum.id, { title: next });
+      const response = await trackSave("title", updateCurriculum(curriculum.id, { title: next }));
       setCurriculum(response.curriculum);
       setTitle(response.curriculum.title);
     } catch (error) {
       console.error(error);
       toast.error("Failed to rename resume");
     }
+  };
+
+  // Open the tab right away (popup blockers allow it during the click), then
+  // point it at the print view once pending autosaves have reached the server.
+  const exportPdf = async () => {
+    const tab = window.open("", "_blank");
+    const saved = await waitForSaves();
+    if (!saved) {
+      toast("Your latest changes are still saving, so the PDF may not include them.");
+    }
+    const url = `/resume/${curriculum.id}/print?print=1`;
+    if (tab) tab.location.href = url;
+    else window.location.assign(url);
   };
 
   const replaceSection = (next: CurriculumSection) =>
@@ -116,9 +133,12 @@ const ResumePage = ({ params }: ResumePageProps) => {
     if (next.every((section, index) => section.id === previous[index].id)) return;
 
     setSections(next);
-    void reorderCurriculumSections(
-      curriculum.id,
-      next.map((section) => section.id)
+    void trackSave(
+      "order",
+      reorderCurriculumSections(
+        curriculum.id,
+        next.map((section) => section.id)
+      )
     ).catch((error) => {
       console.error(error);
       toast.error("Failed to save the new order");
@@ -138,13 +158,24 @@ const ResumePage = ({ params }: ResumePageProps) => {
               <ArrowLeftIcon className="size-4" />
               Resumes
             </NextLink>
-            <NextLink
-              href="/resume/sections"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <LayersIcon className="size-4" />
-              Section library
-            </NextLink>
+            <div className="flex items-center gap-4">
+              <NextLink
+                href="/resume/sections"
+                className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <LayersIcon className="size-4" />
+                Section library
+              </NextLink>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" onClick={() => void exportPdf()}>
+                    <DownloadIcon />
+                    Export PDF
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Opens a print view. Choose Save as PDF there.</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
           <InlineInput
             value={title}
@@ -163,8 +194,11 @@ const ResumePage = ({ params }: ResumePageProps) => {
       }
       preview={
         <SectionPreview
-          header={resolveHeader(profile, curriculum.header)}
-          sections={sections.filter((section) => !section.hidden)}
+          document={buildResumeDocument({
+            title: curriculum.title,
+            header: resolveHeader(profile, curriculum.header),
+            sections,
+          })}
           emptyMessage="Add sections from your library. Hidden sections and hidden text are left out here."
         />
       }

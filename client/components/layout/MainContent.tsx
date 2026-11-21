@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { isBareRoute } from "@/lib/routes";
 import { usePathname } from "next/navigation";
 
 interface MainContentProps {
@@ -10,6 +11,10 @@ interface MainContentProps {
 const MainContent = ({ children }: MainContentProps) => {
   const { isAuthenticated } = useAuth();
   const pathname = usePathname();
+
+  if (isBareRoute(pathname)) {
+    return <div className="flex flex-1 flex-col min-w-0">{children}</div>;
+  }
 
   const isLanding = pathname === "/";
   // Pages that manage their own scrolling panes.

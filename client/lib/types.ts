@@ -162,6 +162,10 @@ export type ResumeHeader = {
 export const ResumeHeaderTextFields = ["name", "headline", "email", "phone", "location"] as const;
 export type ResumeHeaderTextField = (typeof ResumeHeaderTextFields)[number];
 
+/** Paper a resume is printed on. Missing means "a4". */
+export const PaperSizes = ["a4", "letter"] as const;
+export type PaperSize = (typeof PaperSizes)[number];
+
 export const CurriculumLayouts = ["single_column", "two_column"] as const;
 export type CurriculumLayout = (typeof CurriculumLayouts)[number];
 
@@ -185,7 +189,7 @@ export type Curriculum = {
   title: string;
   description: string | null;
   layout: CurriculumLayout;
-  styles: Record<string, unknown>;
+  styles: { paper?: PaperSize } & Record<string, unknown>;
   section_count: number;
   /** Fields this resume overrides; anything missing comes from the profile. Full view only. */
   header?: Partial<ResumeHeader>;

@@ -7,6 +7,7 @@ import { InfoIcon, LinkIcon, PencilIcon, PlusIcon, RotateCcwIcon, XIcon } from "
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import IconAction from "./IconAction";
+import { markPending, markSettled, trackSave } from "@/lib/resume/saveTracker";
 import { ghostInput } from "./styles";
 
 const SAVE_DELAY_MS = 600;
@@ -45,14 +46,24 @@ const HeaderDocument = <T extends HeaderDraft>({ value, fallback, save }: Header
     setDirty((count) => count + 1);
   };
 
+  // Export waits on unsaved edits (this key) and on save requests (trackSave).
+  // Unmounting cancels the debounce; requests already sent settle on their own.
+  useEffect(() => () => markSettled("header:edit"), []);
+
   useEffect(() => {
-    if (dirty === 0) return;
+    if (dirty === 0) {
+      markSettled("header:edit");
+      return;
+    }
+    markPending("header:edit");
 
     const timer = setTimeout(() => {
       setDirty(0);
-      void save(draft).catch((error) => {
+      const request = trackSave("header", save(draft));
+      markSettled("header:edit");
+      void request.catch((error) => {
         console.error(error);
-        toast.error(error?.response?.data?.error ?? "Failed to save header");
+        toast.error(error?.response?.data?.error ?? "Couldn't save the header. Check your connection and try again.");
       });
     }, SAVE_DELAY_MS);
 
