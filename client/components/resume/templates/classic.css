@@ -1,8 +1,30 @@
-/* Classic resume template. Sizes are in points so screen and print match. */
+/*
+ * Classic resume template. Sizes are in points so screen and print match.
+ * The design comes in as custom properties (see designStyle in
+ * lib/resume/design.ts):
+ *   --rc-font, --rc-accent, --rc-line (line height)
+ *   --rc-size (body text), --rc-name-size, --rc-heading-size,
+ *   --rc-title-size, --rc-meta-size (roles and dates)
+ *   --rc-section-gap, --rc-heading-gap (under headings),
+ *   --rc-gap (multiplier for the small gaps between paragraphs and lines)
+ * plus data-heading-case, data-heading-rule and data-date-position on the root. The fallbacks
+ * below are the original Classic look.
+ */
 .resume-classic {
+  --rc-size: 10.5pt;
+  --rc-name-size: 22pt;
+  --rc-heading-size: 9pt;
+  --rc-title-size: 11.5pt;
+  --rc-meta-size: 10.5pt;
+  --rc-section-gap: 14pt;
+  --rc-heading-gap: 6pt;
+  --rc-gap: 1;
+  --rc-line: 1.35;
+  --rc-accent: #1a1a1a;
+  font-family: var(--rc-font, inherit);
   color: #1a1a1a;
-  font-size: 10.5pt;
-  line-height: 1.35;
+  font-size: var(--rc-size);
+  line-height: var(--rc-line);
   /* Long URLs and unbroken words wrap instead of running off the page. */
   overflow-wrap: anywhere;
 }
@@ -13,20 +35,21 @@
 }
 
 .resume-classic .rc-name {
-  font-size: 22pt;
+  font-size: var(--rc-name-size);
   font-weight: 700;
   line-height: 1.1;
+  color: var(--rc-accent);
 }
 
 .resume-classic .rc-headline {
-  margin-top: 2pt;
-  font-size: 11.5pt;
+  margin-top: calc(2pt * var(--rc-gap));
+  font-size: calc(var(--rc-size) * 11.5 / 10.5);
 }
 
 .resume-classic .rc-contact,
 .resume-classic .rc-links {
-  margin-top: 4pt;
-  font-size: 9.5pt;
+  margin-top: calc(4pt * var(--rc-gap));
+  font-size: calc(var(--rc-size) * 9.5 / 10.5);
   color: #555;
 }
 
@@ -36,30 +59,58 @@
 }
 
 .resume-classic .rc-section {
-  margin-top: 14pt;
+  margin-top: var(--rc-section-gap);
 }
 
 .resume-classic .rc-heading {
-  font-size: 9pt;
+  font-size: var(--rc-heading-size);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #444;
-  border-bottom: 1px solid #ccc;
+  /* With the default near-black accent these land on the original #444 / #ccc. */
+  color: color-mix(in srgb, var(--rc-accent) 82%, white);
+  border-bottom: 1px solid color-mix(in srgb, var(--rc-accent) 22%, white);
   padding-bottom: 2pt;
-  margin-bottom: 6pt;
+  margin-bottom: var(--rc-heading-gap);
+}
+
+/* Text as typed reads smaller than capitals, so it sits a third larger and bolder. */
+.resume-classic[data-heading-case="as_typed"] .rc-heading {
+  font-size: calc(var(--rc-heading-size) * 4 / 3);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--rc-accent);
+}
+
+.resume-classic[data-heading-rule="none"] .rc-heading {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* The text matches the bar, as the original Colour bar headings did. */
+.resume-classic[data-heading-rule="bar"] .rc-heading {
+  color: var(--rc-accent);
+  border-bottom: none;
+  border-left: 3pt solid var(--rc-accent);
+  padding: 1pt 0 1pt 6pt;
 }
 
 .resume-classic .rc-title {
-  font-size: 11.5pt;
+  font-size: var(--rc-title-size);
   font-weight: 600;
 }
 
 .resume-classic .rc-entry-line {
+  font-size: var(--rc-meta-size);
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   column-gap: 12pt;
+}
+
+.resume-classic[data-date-position="below"] .rc-entry-line {
+  flex-direction: column;
 }
 
 /* Let flex items shrink so long role or organisation names can wrap. */
@@ -76,21 +127,21 @@
 }
 
 .resume-classic .rc-summary {
-  margin-top: 2pt;
+  margin-top: calc(2pt * var(--rc-gap));
   color: #444;
 }
 
 .resume-classic .rc-body {
-  margin-top: 4pt;
+  margin-top: calc(4pt * var(--rc-gap));
 }
 
 .resume-classic .rc-body p {
-  margin: 0 0 3pt;
+  margin: 0 0 calc(3pt * var(--rc-gap));
 }
 
 .resume-classic .rc-body ul,
 .resume-classic .rc-body ol {
-  margin: 2pt 0 4pt;
+  margin: calc(2pt * var(--rc-gap)) 0 calc(4pt * var(--rc-gap));
   padding-left: 14pt;
 }
 
@@ -103,7 +154,7 @@
 }
 
 .resume-classic .rc-body li {
-  margin-bottom: 2pt;
+  margin-bottom: calc(2pt * var(--rc-gap));
 }
 
 .resume-classic .rc-body li p {
@@ -113,9 +164,9 @@
 .resume-classic .rc-body h1,
 .resume-classic .rc-body h2,
 .resume-classic .rc-body h3 {
-  font-size: 10.5pt;
+  font-size: var(--rc-size);
   font-weight: 600;
-  margin: 6pt 0 2pt;
+  margin: calc(6pt * var(--rc-gap)) 0 calc(2pt * var(--rc-gap));
 }
 
 .resume-classic .rc-body strong {

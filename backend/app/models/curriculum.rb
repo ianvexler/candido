@@ -2,15 +2,17 @@
 #
 # Table name: curriculums
 #
-#  id          :bigint           not null, primary key
-#  description :text
-#  header      :jsonb            not null
-#  layout      :string           default("single_column"), not null
-#  styles      :jsonb            not null
-#  title       :string           not null
-#  created_at  :datetime         not null
-#  updated_at  :datetime         not null
-#  user_id     :bigint           not null
+#  id            :bigint           not null, primary key
+#  description   :text
+#  header        :jsonb            not null
+#  layout        :string           default("single_column"), not null
+#  styles        :jsonb            not null
+#  styles_seq    :integer          default(0), not null
+#  styles_writer :string
+#  title         :string           not null
+#  created_at    :datetime         not null
+#  updated_at    :datetime         not null
+#  user_id       :bigint           not null
 #
 # Indexes
 #
@@ -95,6 +97,31 @@ class Curriculum < ApplicationRecord
 
   def update_header!(raw)
     update!(header: ResumeHeader.normalize_overrides(raw))
+  end
+
+  # Merges into the stored styles in one statement, so two requests changing
+  # different keys (paper and design, say) can't overwrite each other.
+  #
+  # A page may number its saves: `writer` identifies the open page and `seq`
+  # counts up with each save it sends. A save numbered at or below the last
+  # one applied from the same page arrived late and is skipped, so a slow
+  # earlier save can't undo a later one.
+  def merge_styles!(changes, writer: nil, seq: nil)
+    changes = changes.to_h.stringify_keys
+    if changes.key?("paper") && !PAPER_SIZES.include?(changes["paper"])
+      raise ApiError.new("Paper size must be A4 or Letter", status: :unprocessable_content)
+    end
+
+    scope = self.class.where(id: id)
+    if writer
+      scope.where("styles_writer IS DISTINCT FROM ? OR styles_seq < ?", writer, seq)
+        .update_all([ "styles = styles || ?::jsonb, styles_writer = ?, styles_seq = ?, updated_at = ?", changes.to_json, writer, seq, Time.current ])
+    else
+      scope.update_all([ "styles = styles || ?::jsonb, updated_at = ?", changes.to_json, Time.current ])
+    end
+    self.styles = scope.pick(:styles)
+    clear_attribute_changes([ :styles ])
+    self
   end
 
   def visible_sections

@@ -6,6 +6,7 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable
   rescue_from ActionController::ParameterMissing, with: :render_bad_request
+  rescue_from ActiveRecord::RecordNotUnique, with: :render_conflict
 
   private
 
@@ -23,6 +24,10 @@ class ApplicationController < ActionController::API
 
   def render_unprocessable(error)
     render json: { error: error.record.errors.full_messages.to_sentence }, status: :unprocessable_content
+  end
+
+  def render_conflict(_error)
+    render json: { error: "That changed in another tab or window. Reload and try again." }, status: :conflict
   end
 
   def render_bad_request(error)

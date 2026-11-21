@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_21_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_21_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -53,6 +53,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "header", default: {}, null: false
+    t.string "styles_writer"
+    t.integer "styles_seq", default: 0, null: false
     t.index ["user_id", "title"], name: "index_curriculums_on_user_id_and_title"
     t.index ["user_id"], name: "index_curriculums_on_user_id"
   end
@@ -129,6 +131,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_100000) do
     t.index ["user_id", "name"], name: "JobBoardTag_userId_name_key", unique: true
   end
 
+  create_table "resume_designs", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", null: false
+    t.jsonb "settings", default: {}, null: false
+    t.boolean "is_default", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_resume_designs_on_user_id"
+    t.index ["user_id"], name: "index_resume_designs_one_default_per_user", unique: true, where: "is_default"
+  end
+
   create_table "section_templates", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "title", null: false
@@ -187,6 +200,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_100000) do
   add_foreign_key "job_board_entry_notes", "job_board_entries", name: "JobBoardEntryNotes_jobBoardEntryId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entry_notes", "users", name: "JobBoardEntryNotes_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_tags", "users", name: "JobBoardTag_userId_fkey", on_update: :cascade, on_delete: :restrict
+  add_foreign_key "resume_designs", "users"
   add_foreign_key "section_templates", "users"
   add_foreign_key "sessions", "users", name: "Session_userId_fkey", on_update: :cascade, on_delete: :restrict
 end

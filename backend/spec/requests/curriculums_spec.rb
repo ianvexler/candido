@@ -184,3 +184,76 @@ RSpec.describe "Curriculum paper size" do
     expect(curriculum.reload.styles).to eq({})
   end
 end
+
+RSpec.describe "Curriculum design" do
+  let(:user) { create(:user) }
+  let(:headers) { auth_headers(user) }
+  let(:curriculum) { create(:curriculum, user: user, styles: { "paper" => "letter" }) }
+
+  it "stores design settings next to the paper size" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { font: "lora", accent: "#1F4E79" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(curriculum.reload.styles).to eq("paper" => "letter", "font" => "lora", "accent" => "#1f4e79")
+  end
+
+  it "stores fine-tune values as numbers" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { body_size: 11, line_height: 1.5, margin_x: 12 } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(curriculum.reload.styles).to include("body_size" => 11.0, "line_height" => 1.5, "margin_x" => 12.0)
+  end
+
+  it "rejects a fine-tune value out of range" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { margin_y: 40 } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body["error"]).to match(/Margin y must be between 10 and 25/)
+  end
+
+  it "rejects an unknown design key" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { foo: "x" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(curriculum.reload.styles).to eq("paper" => "letter")
+  end
+
+  it "rejects an unknown value" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { size: "huge" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(curriculum.reload.styles).to eq("paper" => "letter")
+  end
+  it "rejects a value that isn't a string" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { font: { name: "lora" } } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(curriculum.reload.styles).to eq("paper" => "letter")
+  end
+
+  it "rejects styles that aren't an object" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: "lora" }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(curriculum.reload.styles).to eq("paper" => "letter")
+  end
+
+  it "ignores a design save that arrives after a newer one from the same page" do
+    newer = { styles: { accent: "#111111" }, styles_writer: "page-1", styles_seq: 2 }
+    older = { styles: { accent: "#222222" }, styles_writer: "page-1", styles_seq: 1 }
+
+    put "/api/v1/curriculums/#{curriculum.id}", params: newer, headers: headers, as: :json
+    put "/api/v1/curriculums/#{curriculum.id}", params: older, headers: headers, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(curriculum.reload.styles).to eq("paper" => "letter", "accent" => "#111111")
+    expect(response.parsed_body["curriculum"]["styles"]).to include("accent" => "#111111")
+  end
+
+  it "rejects a save number that isn't a whole number" do
+    put "/api/v1/curriculums/#{curriculum.id}",
+        params: { styles: { accent: "#111111" }, styles_writer: "page-1", styles_seq: "soon" }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+end

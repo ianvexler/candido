@@ -42,6 +42,11 @@ Rails.application.routes.draw do
     get "resume_profile", to: "resume_profiles#show"
     put "resume_profile", to: "resume_profiles#update"
 
+    get "resume_designs", to: "resume_designs#index"
+    post "resume_designs", to: "resume_designs#create"
+    put "resume_designs/:id", to: "resume_designs#update"
+    delete "resume_designs/:id", to: "resume_designs#destroy"
+
     post "cv_imports", to: "cv_imports#create"
     get "cv_imports/:id", to: "cv_imports#show"
     post "cv_imports/:id/apply", to: "cv_imports#apply"

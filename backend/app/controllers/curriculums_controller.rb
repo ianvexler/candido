@@ -15,7 +15,8 @@ class CurriculumsController < ApplicationController
 
   def create
     curriculum = Curriculum.transaction do
-      record = current_user.curriculums.create!(curriculum_params)
+      default_design = current_user.resume_designs.find_by(is_default: true)
+      record = current_user.curriculums.create!(curriculum_params.merge(styles: default_design&.settings || {}))
       templates = owned_templates(params[:section_template_ids])
       record.import_section_templates!(templates) if templates.any?
       record
@@ -28,7 +29,8 @@ class CurriculumsController < ApplicationController
     Curriculum.transaction do
       @curriculum.update!(curriculum_params)
       @curriculum.update_header!(params[:header]) if params.key?(:header)
-      @curriculum.update!(styles: @curriculum.styles.merge(style_params)) if style_params.present?
+      styles = style_params
+      @curriculum.merge_styles!(styles, **style_ordering) if styles.present?
     end
     render_curriculum(@curriculum)
   end
@@ -49,8 +51,24 @@ class CurriculumsController < ApplicationController
     params.permit(:title, :description, :layout)
   end
 
-  # Merged into the existing styles so unrelated settings survive.
+  # Merged into the existing styles so unrelated settings survive. Design keys
+  # are validated here; paper is validated by the model.
   def style_params
-    params.fetch(:styles, {}).permit(:paper).to_h
+    raw = params[:styles]
+    return {} if raw.nil?
+    ResumeDesignSettings.invalid!("Styles must be an object") unless raw.is_a?(ActionController::Parameters)
+
+    styles = raw.to_unsafe_h
+    styles.slice("paper").merge(ResumeDesignSettings.normalize!(styles.except("paper")))
+  end
+
+  # Optional ordering for saves from one open page; see Curriculum#merge_styles!.
+  def style_ordering
+    return {} if params[:styles_writer].blank?
+
+    seq = Integer(params[:styles_seq].to_s, exception: false)
+    ResumeDesignSettings.invalid!("Save number must be a whole number") if seq.nil? || seq.negative?
+
+    { writer: params[:styles_writer].to_s.first(64), seq: seq }
   end
 end

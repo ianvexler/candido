@@ -39,3 +39,44 @@ RSpec.describe Curriculum do
     end
   end
 end
+
+RSpec.describe Curriculum, "#merge_styles!" do
+  it "keeps changes made by another request in the meantime" do
+    curriculum = create(:curriculum, styles: { "paper" => "a4" })
+    first = Curriculum.find(curriculum.id)
+    second = Curriculum.find(curriculum.id)
+
+    first.merge_styles!({ "paper" => "letter" })
+    second.merge_styles!({ "font" => "lora" })
+
+    expect(curriculum.reload.styles).to eq("paper" => "letter", "font" => "lora")
+    expect(second.styles).to eq("paper" => "letter", "font" => "lora")
+  end
+
+  it "ignores a save older than the last one applied from the same page" do
+    curriculum = create(:curriculum)
+
+    curriculum.merge_styles!({ "accent" => "#111111" }, writer: "page-1", seq: 2)
+    curriculum.merge_styles!({ "accent" => "#222222" }, writer: "page-1", seq: 1)
+
+    expect(curriculum.reload.styles).to eq("accent" => "#111111")
+  end
+
+  it "applies a save from another page whatever its number" do
+    curriculum = create(:curriculum)
+
+    curriculum.merge_styles!({ "accent" => "#111111" }, writer: "page-1", seq: 5)
+    curriculum.merge_styles!({ "accent" => "#222222" }, writer: "page-2", seq: 1)
+
+    expect(curriculum.reload.styles).to eq("accent" => "#222222")
+  end
+
+  it "always applies saves that carry no ordering" do
+    curriculum = create(:curriculum)
+
+    curriculum.merge_styles!({ "accent" => "#111111" }, writer: "page-1", seq: 5)
+    curriculum.merge_styles!({ "paper" => "letter" })
+
+    expect(curriculum.reload.styles).to eq("accent" => "#111111", "paper" => "letter")
+  end
+end
