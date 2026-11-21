@@ -4,7 +4,7 @@ import { deleteCurriculumSection } from "@/api/resources/curriculums/deleteCurri
 import { syncCurriculumSection } from "@/api/resources/curriculums/syncCurriculumSection";
 import { updateCurriculumSection } from "@/api/resources/curriculums/updateCurriculumSection";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import { CurriculumSection } from "@/lib/types";
+import { CurriculumSection, CvSuggestion } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { sectionColumn } from "@/lib/resume/exportDocument";
@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import IconAction from "./IconAction";
 import { trackSave } from "@/lib/resume/saveTracker";
 import SectionDocument from "./SectionDocument";
+import type { SuggestionAction } from "./review/SuggestionCard";
 
 interface CurriculumSectionCardProps {
   curriculumId: number;
@@ -23,10 +24,31 @@ interface CurriculumSectionCardProps {
   onRemoved: (id: number) => void;
   /** The resume uses a two-column template, so the section can move between columns. */
   twoColumn?: boolean;
+  /** The resume is a copy tailored to a job. */
+  tailored?: boolean;
+  /** This section's review suggestions; see SectionDocument. */
+  suggestions?: CvSuggestion[];
+  activeSuggestionId?: number | null;
+  onSuggestionClick?: (id: number) => void;
+  onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
+  onStaleChange?: (staleIds: number[]) => void;
 }
 
 /** One section of a resume: editable copy, draggable, hideable, and syncable with the library. */
-const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemoved, twoColumn = false }: CurriculumSectionCardProps) => {
+const CurriculumSectionCard = ({
+  curriculumId,
+  section,
+  index,
+  onChange,
+  onRemoved,
+  twoColumn = false,
+  tailored = false,
+  suggestions,
+  activeSuggestionId,
+  onSuggestionClick,
+  onSuggestionResolve,
+  onStaleChange,
+}: CurriculumSectionCardProps) => {
   const { ref, handleRef, isDragging } = useSortable({ id: section.id, index });
   const [confirmSync, setConfirmSync] = useState(false);
   const inSidebar = twoColumn && sectionColumn(section) === "sidebar";
@@ -127,6 +149,11 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
         deleteLabel="Remove from this resume"
         deleteTitle="Remove this section from the resume?"
         deleteDescription="Only this resume's copy is removed. The section stays in your library."
+        suggestions={suggestions}
+        activeSuggestionId={activeSuggestionId}
+        onSuggestionClick={onSuggestionClick}
+        onSuggestionResolve={onSuggestionResolve}
+        onStaleChange={onStaleChange}
         handle={
           <IconAction
             label="Drag to reorder"
@@ -169,7 +196,11 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
         onClose={() => setConfirmSync(false)}
         onConfirm={pullFromLibrary}
         title="Replace with the library version?"
-        description="This resume's copy of the section is overwritten. Edits you made only in this resume are lost."
+        description={
+          tailored
+            ? "This tailored copy's text is replaced by the library version. Suggestions you accepted here are lost."
+            : "This resume's copy of the section is overwritten. Edits you made only in this resume are lost."
+        }
         confirmLabel="Replace"
       />
     </>
