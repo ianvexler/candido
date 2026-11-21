@@ -24,11 +24,23 @@ export const SPACING_OPTIONS = [
   { value: "relaxed", label: "Relaxed" },
 ] as const;
 
-export const HEADING_OPTIONS = [
-  { value: "caps_rule", label: "Classic" },
-  { value: "bold", label: "Bold" },
-  { value: "accent_bar", label: "Colour bar" },
+export const HEADING_CASE_OPTIONS = [
+  { value: "caps", label: "Capitals" },
+  { value: "as_typed", label: "As typed" },
 ] as const;
+
+export const HEADING_RULE_OPTIONS = [
+  { value: "under", label: "Under" },
+  { value: "bar", label: "Side bar" },
+  { value: "none", label: "None" },
+] as const;
+
+// Older designs saved case and line as one setting.
+const LEGACY_HEADING_STYLES: Record<string, { heading_case: DesignHeadingCase; heading_rule: DesignHeadingRule }> = {
+  caps_rule: { heading_case: "caps", heading_rule: "under" },
+  bold: { heading_case: "as_typed", heading_rule: "none" },
+  accent_bar: { heading_case: "caps", heading_rule: "bar" },
+};
 
 export const DATE_OPTIONS = [
   { value: "right", label: "Right" },
@@ -49,7 +61,8 @@ type ValueOf<T extends readonly { value: string }[]> = T[number]["value"];
 export type DesignFont = ValueOf<typeof FONT_OPTIONS>;
 export type DesignSize = ValueOf<typeof SIZE_OPTIONS>;
 export type DesignSpacing = ValueOf<typeof SPACING_OPTIONS>;
-export type DesignHeadingStyle = ValueOf<typeof HEADING_OPTIONS>;
+export type DesignHeadingCase = ValueOf<typeof HEADING_CASE_OPTIONS>;
+export type DesignHeadingRule = ValueOf<typeof HEADING_RULE_OPTIONS>;
 export type DesignDatePosition = ValueOf<typeof DATE_OPTIONS>;
 
 /**
@@ -79,7 +92,8 @@ export type DesignSettings = {
   spacing: DesignSpacing;
   /** "#rrggbb" */
   accent: string;
-  heading_style: DesignHeadingStyle;
+  heading_case: DesignHeadingCase;
+  heading_rule: DesignHeadingRule;
   date_position: DesignDatePosition;
 } & Record<FineTuneKey, number>;
 
@@ -97,14 +111,15 @@ const SPACING_PRESETS: Record<DesignSpacing, Pick<DesignSettings, "line_height" 
 const PRESETS = { size: SIZE_PRESETS, spacing: SPACING_PRESETS };
 const MARGIN_DEFAULTS = { margin_y: 16, margin_x: 18 };
 
-export const DESIGN_KEYS = ["font", "size", "spacing", "accent", "heading_style", "date_position", ...FINE_TUNE_KEYS] as const;
+export const DESIGN_KEYS = ["font", "size", "spacing", "accent", "heading_case", "heading_rule", "date_position", ...FINE_TUNE_KEYS] as const;
 
 export const DESIGN_DEFAULTS: DesignSettings = {
   font: "source_sans",
   size: "medium",
   spacing: "normal",
   accent: "#1a1a1a",
-  heading_style: "caps_rule",
+  heading_case: "caps",
+  heading_rule: "under",
   date_position: "right",
   ...SIZE_PRESETS.medium,
   ...SPACING_PRESETS.normal,
@@ -135,6 +150,7 @@ export const resolveDesign = (styles: Record<string, unknown> | null | undefined
   const accent = typeof raw.accent === "string" && HEX.test(raw.accent) ? raw.accent.toLowerCase() : DESIGN_DEFAULTS.accent;
   const size = pick(SIZE_OPTIONS, raw.size, DESIGN_DEFAULTS.size);
   const spacing = pick(SPACING_OPTIONS, raw.spacing, DESIGN_DEFAULTS.spacing);
+  const legacyHeading = LEGACY_HEADING_STYLES[String(raw.heading_style)] ?? DESIGN_DEFAULTS;
   const fallbacks: Record<FineTuneKey, number> = { ...SIZE_PRESETS[size], ...SPACING_PRESETS[spacing], ...MARGIN_DEFAULTS };
   const fineTune = Object.fromEntries(
     FINE_TUNE_KEYS.map((key) => [key, validNumber(key, raw[key]) ? (raw[key] as number) : fallbacks[key]])
@@ -145,7 +161,8 @@ export const resolveDesign = (styles: Record<string, unknown> | null | undefined
     size,
     spacing,
     accent,
-    heading_style: pick(HEADING_OPTIONS, raw.heading_style, DESIGN_DEFAULTS.heading_style),
+    heading_case: pick(HEADING_CASE_OPTIONS, raw.heading_case, legacyHeading.heading_case),
+    heading_rule: pick(HEADING_RULE_OPTIONS, raw.heading_rule, legacyHeading.heading_rule),
     date_position: pick(DATE_OPTIONS, raw.date_position, DESIGN_DEFAULTS.date_position),
     ...fineTune,
   };
@@ -193,12 +210,12 @@ const channel = (value: number) => {
   return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
 };
 
-// Classic headings tint the accent toward white (see .rc-heading in classic.css).
+// Headings in capitals tint the accent toward white (see .rc-heading in classic.css).
 const CLASSIC_HEADING_MIX = 0.82;
 
 /** The "#rrggbb" colour section headings print in, which can be lighter than the accent. */
 export const headingColor = (design: DesignSettings) => {
-  if (design.heading_style !== "caps_rule") return design.accent;
+  if (design.heading_case !== "caps") return design.accent;
   return (
     "#" +
     [1, 3, 5]

@@ -6,6 +6,15 @@ RSpec.describe ResumeDesignSettings do
       .to eq("font" => "lora", "size" => "large", "heading_style" => "accent_bar")
   end
 
+  it "keeps the heading text and line as separate settings" do
+    expect(described_class.normalize!(heading_case: "as_typed", heading_rule: "bar"))
+      .to eq("heading_case" => "as_typed", "heading_rule" => "bar")
+  end
+
+  it "still accepts the combined heading style that older designs saved" do
+    expect(described_class.normalize!(heading_style: "bold")).to eq("heading_style" => "bold")
+  end
+
   it "accepts a hex accent and lowercases it" do
     expect(described_class.normalize!("accent" => "#1F4E79")).to eq("accent" => "#1f4e79")
   end
@@ -13,6 +22,8 @@ RSpec.describe ResumeDesignSettings do
   {
     { accent: "red" } => /Accent/,
     { font: "comic_sans" } => /Font/,
+    { heading_rule: "double" } => /Heading rule must be one of under, bar, none/,
+    { heading_case: "lower" } => /Heading case/,
     { unknown: 1 } => /unknown/
   }.each do |raw, message|
     it "rejects #{raw.inspect}" do

@@ -18,10 +18,23 @@ describe("resolveDesign", () => {
   });
 
   it("keeps valid values and replaces invalid ones per key", () => {
-    expect(resolveDesign({ paper: "a4", font: "lora", size: "huge", accent: "red", heading_style: "bold" })).toEqual({
+    expect(resolveDesign({ paper: "a4", font: "lora", size: "huge", accent: "red", heading_rule: "bar" })).toEqual({
       ...DESIGN_DEFAULTS,
       font: "lora",
-      heading_style: "bold",
+      heading_rule: "bar",
+    });
+  });
+
+  it("splits the combined heading style older designs saved into text and line", () => {
+    expect(resolveDesign({ heading_style: "caps_rule" })).toMatchObject({ heading_case: "caps", heading_rule: "under" });
+    expect(resolveDesign({ heading_style: "bold" })).toMatchObject({ heading_case: "as_typed", heading_rule: "none" });
+    expect(resolveDesign({ heading_style: "accent_bar" })).toMatchObject({ heading_case: "caps", heading_rule: "bar" });
+  });
+
+  it("prefers the separate heading settings over the old combined one", () => {
+    expect(resolveDesign({ heading_style: "bold", heading_case: "caps", heading_rule: "bar" })).toMatchObject({
+      heading_case: "caps",
+      heading_rule: "bar",
     });
   });
 
@@ -146,16 +159,16 @@ describe("contrastWithWhite", () => {
 });
 
 describe("headingColor", () => {
-  it("is the accent mixed 82% with white under Classic headings", () => {
+  it("is the accent mixed 82% with white for headings in capitals", () => {
     expect(headingColor({ ...DESIGN_DEFAULTS, accent: "#1a1a1a" })).toBe("#434343");
   });
 
-  it("is the accent itself for the other heading styles", () => {
-    expect(headingColor({ ...DESIGN_DEFAULTS, heading_style: "bold", accent: "#8a8a8a" })).toBe("#8a8a8a");
-    expect(headingColor({ ...DESIGN_DEFAULTS, heading_style: "accent_bar", accent: "#8a8a8a" })).toBe("#8a8a8a");
+  it("is the accent itself for headings as typed, whatever the line", () => {
+    expect(headingColor({ ...DESIGN_DEFAULTS, heading_case: "as_typed", accent: "#8a8a8a" })).toBe("#8a8a8a");
+    expect(headingColor({ ...DESIGN_DEFAULTS, heading_case: "as_typed", heading_rule: "bar", accent: "#8a8a8a" })).toBe("#8a8a8a");
   });
 
-  it("makes a mid grey too faint under Classic headings though the raw colour passes", () => {
+  it("makes a mid grey too faint for headings in capitals though the raw colour passes", () => {
     const design = { ...DESIGN_DEFAULTS, accent: "#8a8a8a" };
     expect(contrastWithWhite(design.accent)).toBeGreaterThan(3);
     expect(contrastWithWhite(headingColor(design))).toBeLessThan(3);

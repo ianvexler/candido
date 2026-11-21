@@ -5,6 +5,10 @@ module ResumeDesignSettings
     "font" => %w[source_sans plex_sans source_serif lora],
     "size" => %w[medium small large],
     "spacing" => %w[normal compact relaxed],
+    "heading_case" => %w[caps as_typed],
+    "heading_rule" => %w[under bar none],
+    # Older designs combined case and line in one setting; the client maps it
+    # to heading_case and heading_rule when those aren't set.
     "heading_style" => %w[caps_rule bold accent_bar],
     "date_position" => %w[right below]
   }.freeze

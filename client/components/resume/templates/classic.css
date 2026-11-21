@@ -7,7 +7,7 @@
  *   --rc-title-size, --rc-meta-size (roles and dates)
  *   --rc-section-gap, --rc-heading-gap (under headings),
  *   --rc-gap (multiplier for the small gaps between paragraphs and lines)
- * plus data-heading-style and data-date-position on the root. The fallbacks
+ * plus data-heading-case, data-heading-rule and data-date-position on the root. The fallbacks
  * below are the original Classic look.
  */
 .resume-classic {
@@ -74,19 +74,21 @@
   margin-bottom: var(--rc-heading-gap);
 }
 
-/* Mixed case reads smaller than capitals, so bold headings sit a third larger. */
-.resume-classic[data-heading-style="bold"] .rc-heading {
+/* Text as typed reads smaller than capitals, so it sits a third larger and bolder. */
+.resume-classic[data-heading-case="as_typed"] .rc-heading {
   font-size: calc(var(--rc-heading-size) * 4 / 3);
   font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
   color: var(--rc-accent);
+}
+
+.resume-classic[data-heading-rule="none"] .rc-heading {
   border-bottom: none;
   padding-bottom: 0;
 }
 
-.resume-classic[data-heading-style="accent_bar"] .rc-heading {
-  color: var(--rc-accent);
+.resume-classic[data-heading-rule="bar"] .rc-heading {
   border-bottom: none;
   border-left: 3pt solid var(--rc-accent);
   padding: 1pt 0 1pt 6pt;

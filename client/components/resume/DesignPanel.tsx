@@ -16,7 +16,8 @@ import {
   FINE_TUNE,
   FineTuneKey,
   FONT_OPTIONS,
-  HEADING_OPTIONS,
+  HEADING_CASE_OPTIONS,
+  HEADING_RULE_OPTIONS,
   headingColor,
   matchingPreset,
   resolveDesign,
@@ -240,7 +241,20 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
       </Group>
 
       <Group label="Section headings">
-        <Segmented options={HEADING_OPTIONS} value={design.heading_style} onChange={(value) => set("heading_style", value)} />
+        <div className="space-y-1.5">
+          <Segmented
+            label="Text"
+            options={HEADING_CASE_OPTIONS}
+            value={design.heading_case}
+            onChange={(value) => set("heading_case", value)}
+          />
+          <Segmented
+            label="Line"
+            options={HEADING_RULE_OPTIONS}
+            value={design.heading_rule}
+            onChange={(value) => set("heading_rule", value)}
+          />
+        </div>
       </Group>
 
       <Group label="Dates">
@@ -358,31 +372,45 @@ const OptionButton = ({
 );
 
 const Segmented = <T extends string>({
+  label,
   options,
   value,
   onChange,
 }: {
+  /** Shown beside the options, for a group with more than one row. */
+  label?: string;
   options: readonly { value: T; label: string }[];
   /** null when no option matches, e.g. a preset after fine-tuning. */
   value: T | null;
   onChange: (value: T) => void;
-}) => (
-  <div className="flex rounded-md border border-border p-0.5">
-    {options.map((option) => (
-      <button
-        key={option.value}
-        type="button"
-        aria-pressed={value === option.value}
-        onClick={() => onChange(option.value)}
-        className={cn(
-          "flex-1 rounded px-2 py-1 text-sm transition-colors",
-          value === option.value ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        {option.label}
-      </button>
-    ))}
-  </div>
-);
+}) => {
+  const control = (
+    <div role="group" aria-label={label} className="flex flex-1 rounded-md border border-border p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "flex-1 rounded px-2 py-1 text-sm transition-colors",
+            value === option.value ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+  if (!label) return control;
+  return (
+    <div className="flex items-center gap-2">
+      <span aria-hidden className="w-8 shrink-0 text-xs text-muted-foreground">
+        {label}
+      </span>
+      {control}
+    </div>
+  );
+};
 
 export default DesignPanel;

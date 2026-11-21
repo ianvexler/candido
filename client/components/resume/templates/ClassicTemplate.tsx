@@ -37,7 +37,8 @@ export const ClassicTemplate = ({ document, paper, design = DESIGN_DEFAULTS }: C
     <div
       className="resume-classic"
       data-paper={paper}
-      data-heading-style={design.heading_style}
+      data-heading-case={design.heading_case}
+      data-heading-rule={design.heading_rule}
       data-date-position={design.date_position}
       style={designStyle(design, FONT_FAMILIES)}
     >
