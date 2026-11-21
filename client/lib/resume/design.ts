@@ -25,7 +25,7 @@ export const SPACING_OPTIONS = [
 ] as const;
 
 export const HEADING_OPTIONS = [
-  { value: "caps_rule", label: "Caps and line" },
+  { value: "caps_rule", label: "Classic" },
   { value: "bold", label: "Bold" },
   { value: "accent_bar", label: "Colour bar" },
 ] as const;
