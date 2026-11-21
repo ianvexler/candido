@@ -28,13 +28,30 @@ module CvTailorings
 
     def blocks_for(html)
       fragment = Nokogiri::HTML5.fragment(html.to_s)
-      fragment.css("[data-cv-hidden]").each(&:remove)
-      fragment.css(BLOCK_SELECTOR).filter_map do |node|
+      fragment.css(BLOCK_SELECTOR).flat_map do |node|
         # A list item holding a nested list would repeat its children.
-        next if node.css(BLOCK_SELECTOR).any?
+        next [] if node.css(BLOCK_SELECTOR).any?
 
-        Normalizer.squish(node.text).presence
+        visible_runs(node).filter_map { |run| Normalizer.squish(run).presence }
       end
+    end
+
+    # The block's visible text, split wherever hidden text was, so a quote can
+    # never join the text on either side of a hidden run. Hard breaks read as
+    # spaces.
+    def visible_runs(node, runs = [ +"" ])
+      node.children.each do |child|
+        if child.text?
+          runs.last << child.content
+        elsif child.name == "br"
+          runs.last << " "
+        elsif child.element? && child.key?("data-cv-hidden")
+          runs << +""
+        elsif child.element?
+          visible_runs(child, runs)
+        end
+      end
+      runs
     end
   end
 end
