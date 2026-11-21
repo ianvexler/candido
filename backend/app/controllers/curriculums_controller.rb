@@ -49,8 +49,17 @@ class CurriculumsController < ApplicationController
     params.permit(:title, :description, :layout)
   end
 
-  # Merged into the existing styles so unrelated settings survive.
+  # Merged into the existing styles so unrelated settings survive. Design keys
+  # are validated here; paper is validated by the model.
   def style_params
-    params.fetch(:styles, {}).permit(:paper).to_h
+    raw = params.fetch(:styles, {})
+    return {} unless raw.respond_to?(:permit)
+
+    paper = raw.permit(:paper).to_h
+    design = ResumeDesignSettings.normalize!(raw.permit(*ResumeDesignSettings::KEYS).to_h)
+    unknown = raw.keys - [ "paper" ] - ResumeDesignSettings::KEYS
+    ResumeDesignSettings.invalid!("Unknown design setting: #{unknown.first}") if unknown.any?
+
+    paper.merge(design)
   end
 end

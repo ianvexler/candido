@@ -184,3 +184,23 @@ RSpec.describe "Curriculum paper size" do
     expect(curriculum.reload.styles).to eq({})
   end
 end
+
+RSpec.describe "Curriculum design" do
+  let(:user) { create(:user) }
+  let(:headers) { auth_headers(user) }
+  let(:curriculum) { create(:curriculum, user: user, styles: { "paper" => "letter" }) }
+
+  it "stores design settings next to the paper size" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { font: "lora", accent: "#1F4E79" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(curriculum.reload.styles).to eq("paper" => "letter", "font" => "lora", "accent" => "#1f4e79")
+  end
+
+  it "rejects an unknown value" do
+    put "/api/v1/curriculums/#{curriculum.id}", params: { styles: { size: "huge" } }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(curriculum.reload.styles).to eq("paper" => "letter")
+  end
+end
