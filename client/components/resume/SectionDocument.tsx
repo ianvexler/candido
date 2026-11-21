@@ -347,6 +347,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     <>
       <article
         ref={articleRef}
+        data-section-id={section.id}
         className={cn(
           "group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-10 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14 transition-opacity",
           dimmed && "opacity-55",
