@@ -5,6 +5,9 @@ ENV['RAILS_ENV'] ||= 'test'
 require_relative '../config/environment'
 # Prevent database truncation if the environment is production
 abort("The Rails environment is running in production mode!") if Rails.env.production?
+# DATABASE_URL overrides database.yml, so a stray one can point specs at real data.
+database = ActiveRecord::Base.connection_db_config.database.to_s
+abort("Specs must run against a *_test database, not #{database.inspect}.") unless database.end_with?("_test")
 # Uncomment the line below in case you have `--require rails_helper` in the `.rspec` file
 # that will avoid rails generators crashing because migrations haven't been run yet
 # return unless Rails.env.test?

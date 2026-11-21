@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_20_150000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_21_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -55,6 +55,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_20_150000) do
     t.jsonb "header", default: {}, null: false
     t.index ["user_id", "title"], name: "index_curriculums_on_user_id_and_title"
     t.index ["user_id"], name: "index_curriculums_on_user_id"
+  end
+
+  create_table "cv_imports", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "status", default: "pending", null: false
+    t.string "filename", null: false
+    t.string "media_type", null: false
+    t.text "source_data"
+    t.jsonb "result"
+    t.string "error_message"
+    t.datetime "applied_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "created_at"], name: "index_cv_imports_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_cv_imports_on_user_id"
   end
 
   create_table "feedback_entries", id: :serial, force: :cascade do |t|
@@ -164,6 +179,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_20_150000) do
   add_foreign_key "curriculum_sections", "curriculums"
   add_foreign_key "curriculum_sections", "section_templates"
   add_foreign_key "curriculums", "users"
+  add_foreign_key "cv_imports", "users"
   add_foreign_key "feedback_entries", "users", name: "FeedbackEntry_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entries", "users", name: "JobBoardEntry_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entries_tags", "job_board_entries", name: "_JobBoardEntryToJobBoardTag_A_fkey", on_update: :cascade, on_delete: :cascade

@@ -50,8 +50,14 @@ services:
     command: bash -c "rm -f tmp/pids/server.pid && bundle install && bin/rails db:migrate && bin/rails server -b 0.0.0.0 -p 3000"
     environment:
       RAILS_ENV: development
-      DATABASE_URL: postgresql://postgres:password@db:5432/candido
+      # Host and credentials only: a DATABASE_URL would also override the test
+      # database, so specs run in this container would hit development data.
+      DATABASE_HOST: db
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: password
       CORS_ORIGIN: http://localhost:3000
+      # CV import reads uploads with Claude; without a key the feature reports it's unavailable.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
