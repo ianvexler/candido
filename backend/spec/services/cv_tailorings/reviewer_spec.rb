@@ -80,6 +80,14 @@ RSpec.describe CvTailorings::Reviewer do
     expect(described_class::SYSTEM_PROMPT).to include("<job_description>", "plus 40 characters")
   end
 
+  it "asks every suggestion to quote the CV, and says the block prefixes are labels" do
+    prompt = described_class::SYSTEM_PROMPT
+
+    expect(prompt).to include("Every suggestion needs one, notes included", "belongs in gaps")
+    expect(prompt).not_to include('or "" if there is none')
+    expect(prompt).to include('"- " before each block and "Summary: "', '"Summary" is the section\'s description field')
+  end
+
   it "leaves out fallbacks for a model that doesn't support them" do
     allow(ENV).to receive(:fetch).and_call_original
     allow(ENV).to receive(:fetch).with("CV_TAILOR_MODEL", anything).and_return("claude-haiku-5-5")
