@@ -5,6 +5,11 @@ import type { CSSProperties } from "react";
  * option of each list (and the accent default) reproduce the original Classic
  * design, so resumes saved before designs existed look unchanged.
  */
+export const TEMPLATE_OPTIONS = [
+  { value: "classic", label: "Classic", description: "One column, name across the top" },
+  { value: "sidebar", label: "Sidebar", description: "Contact details and short lists in a side column" },
+] as const;
+
 export const FONT_OPTIONS = [
   { value: "source_sans", label: "Source Sans" },
   { value: "plex_sans", label: "IBM Plex Sans" },
@@ -58,6 +63,7 @@ export const ACCENT_SWATCHES = [
 
 type ValueOf<T extends readonly { value: string }[]> = T[number]["value"];
 
+export type DesignTemplate = ValueOf<typeof TEMPLATE_OPTIONS>;
 export type DesignFont = ValueOf<typeof FONT_OPTIONS>;
 export type DesignSize = ValueOf<typeof SIZE_OPTIONS>;
 export type DesignSpacing = ValueOf<typeof SPACING_OPTIONS>;
@@ -87,6 +93,7 @@ export type FineTuneKey = keyof typeof FINE_TUNE;
 export const FINE_TUNE_KEYS = Object.keys(FINE_TUNE) as FineTuneKey[];
 
 export type DesignSettings = {
+  template: DesignTemplate;
   font: DesignFont;
   size: DesignSize;
   spacing: DesignSpacing;
@@ -111,9 +118,10 @@ const SPACING_PRESETS: Record<DesignSpacing, Pick<DesignSettings, "line_height" 
 const PRESETS = { size: SIZE_PRESETS, spacing: SPACING_PRESETS };
 const MARGIN_DEFAULTS = { margin_y: 16, margin_x: 18 };
 
-export const DESIGN_KEYS = ["font", "size", "spacing", "accent", "heading_case", "heading_rule", "date_position", ...FINE_TUNE_KEYS] as const;
+export const DESIGN_KEYS = ["template", "font", "size", "spacing", "accent", "heading_case", "heading_rule", "date_position", ...FINE_TUNE_KEYS] as const;
 
 export const DESIGN_DEFAULTS: DesignSettings = {
+  template: "classic",
   font: "source_sans",
   size: "medium",
   spacing: "normal",
@@ -157,6 +165,7 @@ export const resolveDesign = (styles: Record<string, unknown> | null | undefined
   ) as Record<FineTuneKey, number>;
 
   return {
+    template: pick(TEMPLATE_OPTIONS, raw.template, DESIGN_DEFAULTS.template),
     font: pick(FONT_OPTIONS, raw.font, DESIGN_DEFAULTS.font),
     size,
     spacing,

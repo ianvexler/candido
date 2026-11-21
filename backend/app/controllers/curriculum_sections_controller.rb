@@ -54,6 +54,6 @@ class CurriculumSectionsController < ApplicationController
   end
 
   def section_params
-    params.permit(:title, :section_type, :description, :content, :hidden, *SectionContent::DETAIL_FIELDS)
+    params.permit(:title, :section_type, :description, :content, :hidden, :placement, *SectionContent::DETAIL_FIELDS)
   end
 end

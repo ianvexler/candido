@@ -169,8 +169,13 @@ export type PaperSize = (typeof PaperSizes)[number];
 export const CurriculumLayouts = ["single_column", "two_column"] as const;
 export type CurriculumLayout = (typeof CurriculumLayouts)[number];
 
+/** A section's column in a two-column template. */
+export type SectionPlacement = "main" | "sidebar";
+
 export type CurriculumSection = SectionFields & {
   id: number;
+  /** Chosen column in a two-column template; null places it by its type. */
+  placement: SectionPlacement | null;
   curriculum_id: number;
   section_template_id: number | null;
   styles: Record<string, unknown>;

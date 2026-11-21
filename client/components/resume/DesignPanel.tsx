@@ -23,13 +23,14 @@ import {
   resolveDesign,
   SIZE_OPTIONS,
   SPACING_OPTIONS,
+  TEMPLATE_OPTIONS,
 } from "@/lib/resume/design";
 import { ResumeDesign } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CheckIcon, ChevronRightIcon, RotateCcwIcon, StarIcon, Trash2Icon } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { FONT_FAMILIES } from "./templates/ClassicTemplate";
+import { FONT_FAMILIES } from "./templates/fonts";
 import IconAction from "./IconAction";
 
 // Below this, headings get hard to read on white paper.
@@ -163,6 +164,21 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
             </Button>
           </form>
         )}
+      </Group>
+
+      <Group label="Template">
+        <div className="grid grid-cols-2 gap-1.5">
+          {TEMPLATE_OPTIONS.map((option) => (
+            <OptionButton
+              key={option.value}
+              selected={design.template === option.value}
+              onClick={() => set("template", option.value)}
+            >
+              <span className="block">{option.label}</span>
+              <span className="block text-xs font-normal text-muted-foreground">{option.description}</span>
+            </OptionButton>
+          ))}
+        </div>
       </Group>
 
       <Group label="Font">

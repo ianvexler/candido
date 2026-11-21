@@ -13,6 +13,7 @@ import HeaderDocument from "@/components/resume/HeaderDocument";
 import { resolveHeader } from "@/components/resume/resumeHeader";
 import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import SectionPreview from "@/components/resume/SectionPreview";
+import { resolveDesign } from "@/lib/resume/design";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import { trackSave, waitForSaves } from "@/lib/resume/saveTracker";
 import { Button } from "@/components/ui/Button";
@@ -218,6 +219,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
               section={section}
               index={index}
               onChange={replaceSection}
+              twoColumn={resolveDesign(curriculum.styles).template === "sidebar"}
               onRemoved={(sectionId) =>
                 setSections((current) => current.filter((item) => item.id !== sectionId))
               }

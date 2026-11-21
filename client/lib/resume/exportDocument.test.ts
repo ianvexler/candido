@@ -1,8 +1,8 @@
 import { ResumeHeader, SectionFields } from "@/lib/types";
 import { describe, expect, it } from "vitest";
-import { buildResumeDocument, isEmptyDocument, pdfFileName } from "./exportDocument";
+import { buildResumeDocument, isEmptyDocument, pdfFileName, sectionColumn } from "./exportDocument";
 
-type InputSection = SectionFields & { id: number; hidden?: boolean };
+type InputSection = SectionFields & { id: number; hidden?: boolean; placement?: "main" | "sidebar" | null };
 
 const header = (overrides: Partial<ResumeHeader> = {}): ResumeHeader => ({
   name: "Alex Rivera",
@@ -124,5 +124,26 @@ describe("pdfFileName", () => {
 
   it("uses only the title when the name is blank", () => {
     expect(pdfFileName(build([], header({ name: " " })))).toBe("Platform roles");
+  });
+});
+
+describe("sectionColumn", () => {
+  it("puts short-list sections in the sidebar and the rest in the main column by default", () => {
+    for (const type of ["Skills", "Technical skills", "Languages", "Certifications", "Interests", "Tools", "Awards"]) {
+      expect(sectionColumn({ section_type: type, placement: null })).toBe("sidebar");
+    }
+    for (const type of ["Experience", "Education", "Projects", "Summary", ""]) {
+      expect(sectionColumn({ section_type: type, placement: null })).toBe("main");
+    }
+  });
+
+  it("uses the placement chosen for the section over its type", () => {
+    expect(sectionColumn({ section_type: "Skills", placement: "main" })).toBe("main");
+    expect(sectionColumn({ section_type: "Experience", placement: "sidebar" })).toBe("sidebar");
+  });
+
+  it("carries the column into the exported document", () => {
+    const doc = build([section(1, { section_type: "Skills" }), section(2, { placement: "sidebar" }), section(3)]);
+    expect(doc.sections.map((item) => item.column)).toEqual(["sidebar", "sidebar", "main"]);
   });
 });

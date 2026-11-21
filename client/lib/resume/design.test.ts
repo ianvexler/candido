@@ -43,6 +43,14 @@ describe("resolveDesign", () => {
   });
 });
 
+describe("resolveDesign template", () => {
+  it("is Classic unless a known template is stored", () => {
+    expect(resolveDesign({}).template).toBe("classic");
+    expect(resolveDesign({ template: "sidebar" }).template).toBe("sidebar");
+    expect(resolveDesign({ template: "fancy" }).template).toBe("classic");
+  });
+});
+
 describe("resolveDesign fine-tune values", () => {
   it("matches the original Classic look by default", () => {
     expect(resolveDesign({})).toMatchObject({

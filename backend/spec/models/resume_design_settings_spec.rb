@@ -15,6 +15,11 @@ RSpec.describe ResumeDesignSettings do
     expect(described_class.normalize!(heading_style: "bold")).to eq("heading_style" => "bold")
   end
 
+  it "accepts the template" do
+    expect(described_class.normalize!(template: "sidebar")).to eq("template" => "sidebar")
+    expect { described_class.normalize!(template: "fancy") }.to raise_error(ApiError, /Template must be one of classic, sidebar/)
+  end
+
   it "accepts a hex accent and lowercases it" do
     expect(described_class.normalize!("accent" => "#1F4E79")).to eq("accent" => "#1f4e79")
   end
