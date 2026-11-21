@@ -2,8 +2,9 @@
  * Sidebar template: the layout only. Type, colour and spacing come from
  * classic.css, since the root also has the resume-classic class.
  *
- * The side column floats against the left edge of the page and is at least
- * one page tall, so page 1 is tinted top to bottom. Main sections sit beside
+ * The side column floats against the left edge of the page and is a whole
+ * number of pages tall (--rs-pages, measured by the template), so its tint
+ * runs to the bottom of every page it's on. Main sections sit beside
  * it, narrowed to fit; any that start below it (page 2 on, or under a long
  * sidebar) use the full width. The page margins (--rc-margin-y,
  * --rc-margin-x) are drawn inside the columns, since the print page gives
@@ -27,7 +28,7 @@
 .resume-sidebar .rs-side {
   float: left;
   width: 32%;
-  min-height: var(--rs-page);
+  min-height: calc(var(--rs-page) * var(--rs-pages, 1));
   margin-right: 7mm;
   padding: var(--rc-margin-y) 7mm var(--rc-margin-y) max(8mm, calc(var(--rc-margin-x) * 0.6));
   background: var(--rs-tint);
@@ -56,10 +57,15 @@
   margin-left: var(--rc-margin-x);
 }
 
+/* Contains its children's margins, so the template measures their full height. */
+.resume-sidebar .rs-side-content {
+  display: flow-root;
+}
+
 @media print {
-  /* A hair short of the page, so the sidebar can never push a blank page after it. */
+  /* A hair short of the last page, so the column can never push a blank page after it. */
   .resume-sidebar .rs-side {
-    min-height: calc(var(--rs-page) - 1px);
+    min-height: calc(var(--rs-page) * var(--rs-pages, 1) - 1px);
   }
 }
 
