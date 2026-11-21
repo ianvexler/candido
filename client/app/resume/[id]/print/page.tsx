@@ -7,9 +7,9 @@ import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile
 import Loader from "@/components/common/Loader";
 import DesignPanel from "@/components/resume/DesignPanel";
 import { resolveHeader } from "@/components/resume/resumeHeader";
-import { ClassicTemplate } from "@/components/resume/templates/ClassicTemplate";
+import { ResumeTemplate } from "@/components/resume/templates/ResumeTemplate";
 import { Button } from "@/components/ui/Button";
-import { DESIGN_DEFAULTS, DesignSettings, pageMargin, resolveDesign } from "@/lib/resume/design";
+import { DESIGN_DEFAULTS, DesignSettings, pageMargin, resolveDesign, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, isEmptyDocument, pdfFileName, ResumeDocument } from "@/lib/resume/exportDocument";
 import { createSerialQueue } from "@/lib/serialQueue";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,13 @@ import NextLink from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-const SHEET_WIDTH: Record<PaperSize, string> = { a4: "210mm", letter: "8.5in" };
+// The on-screen sheet is at least one page tall, so a short resume still looks
+// like a full sheet of paper. Printing drops the minimum (print:min-h-0!) so it
+// can't spill onto a blank second page.
+const SHEET_SIZE: Record<PaperSize, { width: string; minHeight: string }> = {
+  a4: { width: "210mm", minHeight: "297mm" },
+  letter: { width: "8.5in", minHeight: "11in" },
+};
 const PAPER_LABEL: Record<PaperSize, string> = { a4: "A4", letter: "Letter" };
 const DESIGN_SAVE_DELAY_MS = 500;
 
@@ -245,10 +251,10 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
         <div className="flex flex-col lg:flex-row print:block">
           <div className="min-w-0 flex-1 overflow-x-auto px-4 py-8 print:overflow-visible print:p-0">
             <div
-              className="mx-auto bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.08)] print:w-auto! print:p-0! print:shadow-none"
-              style={{ width: SHEET_WIDTH[paper], padding: pageMargin(design) }}
+              className="mx-auto bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.08)] print:w-auto! print:min-h-0! print:p-0! print:shadow-none"
+              style={{ ...SHEET_SIZE[paper], padding: sheetPadding(design) }}
             >
-              <ClassicTemplate document={resume} paper={paper} design={design} />
+              <ResumeTemplate document={resume} paper={paper} design={design} />
             </div>
           </div>
           {/* Hidden rather than unmounted, so reopening keeps the saved designs and any half-typed name. */}

@@ -1,7 +1,11 @@
 import apiClient from "@/api/apiClient";
-import { CurriculumSection, SectionFields } from "@/lib/types";
+import { CurriculumSection, SectionFields, SectionPlacement } from "@/lib/types";
 
-export type UpdateCurriculumSectionPayload = Partial<SectionFields> & { hidden?: boolean };
+export type UpdateCurriculumSectionPayload = Partial<SectionFields> & {
+  hidden?: boolean;
+  /** null goes back to placing the section by its type. */
+  placement?: SectionPlacement | null;
+};
 
 export const updateCurriculumSection = async (
   curriculumId: number,

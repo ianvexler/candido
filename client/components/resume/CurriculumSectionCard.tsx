@@ -7,7 +7,8 @@ import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { CurriculumSection } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { EyeIcon, EyeOffIcon, GripVerticalIcon, RotateCcwIcon } from "lucide-react";
+import { sectionColumn } from "@/lib/resume/exportDocument";
+import { EyeIcon, EyeOffIcon, GripVerticalIcon, PanelLeftIcon, RotateCcwIcon } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import IconAction from "./IconAction";
@@ -20,12 +21,29 @@ interface CurriculumSectionCardProps {
   index: number;
   onChange: (section: CurriculumSection) => void;
   onRemoved: (id: number) => void;
+  /** The resume uses a two-column template, so the section can move between columns. */
+  twoColumn?: boolean;
 }
 
 /** One section of a resume: editable copy, draggable, hideable, and syncable with the library. */
-const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemoved }: CurriculumSectionCardProps) => {
+const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemoved, twoColumn = false }: CurriculumSectionCardProps) => {
   const { ref, handleRef, isDragging } = useSortable({ id: section.id, index });
   const [confirmSync, setConfirmSync] = useState(false);
+  const inSidebar = twoColumn && sectionColumn(section) === "sidebar";
+
+  // Stores the choice explicitly, so it wins over the guess from the section type.
+  const toggleColumn = async () => {
+    try {
+      const response = await trackSave(
+        `section-${section.id}`,
+        updateCurriculumSection(curriculumId, section.id, { placement: inSidebar ? "main" : "sidebar" })
+      );
+      onChange(response.section);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to move the section");
+    }
+  };
 
   const toggleHidden = async () => {
     try {
@@ -61,8 +79,14 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
     }
   };
 
-  const notice = (section.library_updated || section.hidden) && (
+  const notice = (section.library_updated || section.hidden || inSidebar) && (
     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+      {inSidebar && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+          <PanelLeftIcon className="size-3" />
+          In the sidebar
+        </span>
+      )}
       {section.hidden && (
         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
           <EyeOffIcon className="size-3" />
@@ -115,6 +139,15 @@ const CurriculumSectionCard = ({ curriculumId, section, index, onChange, onRemov
         }
         actions={
           <>
+            {twoColumn && (
+              <IconAction
+                label={inSidebar ? "Move to the main column" : "Move to the sidebar"}
+                active={inSidebar}
+                onClick={() => void toggleColumn()}
+              >
+                <PanelLeftIcon />
+              </IconAction>
+            )}
             <IconAction
               label={section.hidden ? "Show in this resume" : "Leave out of this resume"}
               active={section.hidden}

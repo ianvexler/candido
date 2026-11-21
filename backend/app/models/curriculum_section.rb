@@ -10,6 +10,7 @@
 #  hidden              :boolean          default(FALSE), not null
 #  location            :string
 #  organization        :string
+#  placement           :string
 #  position            :integer          default(0), not null
 #  role                :string
 #  section_type        :string           default("custom"), not null
@@ -41,6 +42,11 @@ class CurriculumSection < ApplicationRecord
 
   validates :title, :section_type, presence: true
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  # Column in a two-column template; nil lets the client place it by type.
+  PLACEMENTS = %w[main sidebar].freeze
+  validates :placement, inclusion: { in: PLACEMENTS, message: "must be main or sidebar" }, allow_nil: true
+
+  before_validation { self.placement = placement.presence }
 
   SYNCED_FIELDS = (%i[title section_type description content styles] + SectionContent::DETAIL_FIELDS).freeze
 

@@ -5,6 +5,11 @@ import type { CSSProperties } from "react";
  * option of each list (and the accent default) reproduce the original Classic
  * design, so resumes saved before designs existed look unchanged.
  */
+export const TEMPLATE_OPTIONS = [
+  { value: "classic", label: "Classic", description: "One column, name across the top" },
+  { value: "sidebar", label: "Sidebar", description: "Contact details and short lists in a side column" },
+] as const;
+
 export const FONT_OPTIONS = [
   { value: "source_sans", label: "Source Sans" },
   { value: "plex_sans", label: "IBM Plex Sans" },
@@ -58,6 +63,7 @@ export const ACCENT_SWATCHES = [
 
 type ValueOf<T extends readonly { value: string }[]> = T[number]["value"];
 
+export type DesignTemplate = ValueOf<typeof TEMPLATE_OPTIONS>;
 export type DesignFont = ValueOf<typeof FONT_OPTIONS>;
 export type DesignSize = ValueOf<typeof SIZE_OPTIONS>;
 export type DesignSpacing = ValueOf<typeof SPACING_OPTIONS>;
@@ -87,6 +93,7 @@ export type FineTuneKey = keyof typeof FINE_TUNE;
 export const FINE_TUNE_KEYS = Object.keys(FINE_TUNE) as FineTuneKey[];
 
 export type DesignSettings = {
+  template: DesignTemplate;
   font: DesignFont;
   size: DesignSize;
   spacing: DesignSpacing;
@@ -111,9 +118,10 @@ const SPACING_PRESETS: Record<DesignSpacing, Pick<DesignSettings, "line_height" 
 const PRESETS = { size: SIZE_PRESETS, spacing: SPACING_PRESETS };
 const MARGIN_DEFAULTS = { margin_y: 16, margin_x: 18 };
 
-export const DESIGN_KEYS = ["font", "size", "spacing", "accent", "heading_case", "heading_rule", "date_position", ...FINE_TUNE_KEYS] as const;
+export const DESIGN_KEYS = ["template", "font", "size", "spacing", "accent", "heading_case", "heading_rule", "date_position", ...FINE_TUNE_KEYS] as const;
 
 export const DESIGN_DEFAULTS: DesignSettings = {
+  template: "classic",
   font: "source_sans",
   size: "medium",
   spacing: "normal",
@@ -157,6 +165,7 @@ export const resolveDesign = (styles: Record<string, unknown> | null | undefined
   ) as Record<FineTuneKey, number>;
 
   return {
+    template: pick(TEMPLATE_OPTIONS, raw.template, DESIGN_DEFAULTS.template),
     font: pick(FONT_OPTIONS, raw.font, DESIGN_DEFAULTS.font),
     size,
     spacing,
@@ -184,8 +193,16 @@ export const matchingPreset = <K extends keyof typeof PRESETS>(design: DesignSet
   return (match?.[0] ?? null) as keyof (typeof PRESETS)[K] | null;
 };
 
-/** The printed page's margins: top and bottom, then the sides. */
-export const pageMargin = (design: DesignSettings) => `${design.margin_y}mm ${design.margin_x}mm`;
+// Sidebar runs its tinted column to the page edge, so it draws the margins
+// inside its columns instead of around the page.
+const fullBleed = (design: DesignSettings) => design.template === "sidebar";
+
+/** The printed page's margins: top and bottom, then the sides. None for a full-bleed template. */
+export const pageMargin = (design: DesignSettings) =>
+  fullBleed(design) ? "0mm" : `${design.margin_y}mm ${design.margin_x}mm`;
+
+/** Padding around the on-screen sheet, matching the printed margins. */
+export const sheetPadding = (design: DesignSettings) => (fullBleed(design) ? "0" : pageMargin(design));
 
 const pt = (value: number) => `${value}pt`;
 
@@ -203,6 +220,8 @@ export const designStyle = (design: DesignSettings, fontFamilies: Record<DesignF
     "--rc-heading-gap": pt(design.heading_gap),
     "--rc-gap": String(Number((design.paragraph_gap / BASE_PARAGRAPH_GAP).toFixed(4))),
     "--rc-accent": design.accent,
+    "--rc-margin-y": `${design.margin_y}mm`,
+    "--rc-margin-x": `${design.margin_x}mm`,
   }) as CSSProperties;
 
 const channel = (value: number) => {

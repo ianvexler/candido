@@ -44,6 +44,30 @@ RSpec.describe "Curriculum sections" do
       expect(template.reload.content).to eq("<p>Original</p>")
     end
 
+    it "places the section in the sidebar or main column of this resume" do
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}", params: { placement: "sidebar" }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["section"]).to include("placement" => "sidebar")
+      expect(section.reload.placement).to eq("sidebar")
+    end
+
+    it "goes back to the automatic placement when cleared" do
+      section.update!(placement: "main")
+
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}", params: { placement: "" }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(section.reload.placement).to be_nil
+    end
+
+    it "rejects an unknown placement" do
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}", params: { placement: "footer" }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(section.reload.placement).to be_nil
+    end
+
     it "does not find a section from another CV" do
       other_section = create(:curriculum, user: user).import_section_templates!(template).first
 
@@ -106,6 +130,15 @@ RSpec.describe "Curriculum sections" do
       expect(response.parsed_body["section"]).to include(
         "content" => "<p>Improved</p>", "role" => "Lead engineer", "library_updated" => false
       )
+    end
+
+    it "keeps this resume's placement when pulling the library version" do
+      section.update!(placement: "sidebar")
+      travel(1.minute) { template.update!(content: "<p>Improved</p>") }
+
+      travel(2.minutes) { post "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}/sync", headers: headers }
+
+      expect(section.reload.placement).to eq("sidebar")
     end
 
     it "explains when the library section was deleted" do

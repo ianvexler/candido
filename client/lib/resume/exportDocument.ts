@@ -1,6 +1,6 @@
 import { hasVisibleText, stripHiddenHtml } from "@/components/resume/documentContent";
 import { formatDateRange } from "@/components/resume/sectionDetails";
-import { ResumeHeader, ResumeHeaderTextFields, SectionFields } from "@/lib/types";
+import { ResumeHeader, ResumeHeaderTextFields, SectionFields, SectionPlacement } from "@/lib/types";
 
 /** One section as it appears in an exported resume. Every field is ready to display. */
 export type ExportSection = {
@@ -15,6 +15,8 @@ export type ExportSection = {
   summary: string;
   /** Content HTML with hidden text, and blocks left empty by it, removed. */
   html: string;
+  /** Where it sits in a two-column template. Single-column templates ignore it. */
+  column: SectionPlacement;
 };
 
 /**
@@ -27,7 +29,14 @@ export type ResumeDocument = {
   sections: ExportSection[];
 };
 
-type InputSection = SectionFields & { id: number; hidden?: boolean };
+type InputSection = SectionFields & { id: number; hidden?: boolean; placement?: SectionPlacement | null };
+
+// Short lists that read well in a narrow column.
+const SIDEBAR_TYPES = /skill|language|certif|interest|hobb|tool|award|reference|contact/i;
+
+/** The section's column in a two-column template: its chosen placement, or a guess from its type. */
+export const sectionColumn = (section: { section_type: string; placement?: SectionPlacement | null }): SectionPlacement =>
+  section.placement ?? (SIDEBAR_TYPES.test(section.section_type) ? "sidebar" : "main");
 
 const joinParts = (parts: (string | null | undefined)[]) =>
   parts.map((part) => part?.trim()).filter(Boolean).join(" · ");
@@ -51,6 +60,7 @@ const toExportSection = (section: InputSection): ExportSection => ({
   meta: joinParts([formatDateRange(section), section.location]),
   summary: section.description?.trim() ?? "",
   html: hasVisibleText(section.content) ? stripHiddenHtml(section.content) : "",
+  column: sectionColumn(section),
 });
 
 const hasContent = (section: ExportSection) =>

@@ -2,6 +2,7 @@
 # Stored in curriculums.styles (alongside "paper") and in saved designs.
 module ResumeDesignSettings
   CHOICES = {
+    "template" => %w[classic sidebar],
     "font" => %w[source_sans plex_sans source_serif lora],
     "size" => %w[medium small large],
     "spacing" => %w[normal compact relaxed],
