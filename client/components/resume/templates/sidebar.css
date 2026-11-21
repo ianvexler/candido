@@ -2,30 +2,22 @@
  * Sidebar template: the layout only. Type, colour and spacing come from
  * classic.css, since the root also has the resume-classic class.
  *
- * The tinted column runs to the edge of the page, so the page margins
- * (--rc-margin-y, --rc-margin-x) are drawn inside the columns rather than
- * around the sheet: the print page gives this template no margins.
+ * The side column floats against the left edge of the page and is at least
+ * one page tall, so page 1 is tinted top to bottom. Main sections sit beside
+ * it, narrowed to fit; any that start below it (page 2 on, or under a long
+ * sidebar) use the full width. The page margins (--rc-margin-y,
+ * --rc-margin-x) are drawn inside the columns, since the print page gives
+ * this template no margins.
  */
 .resume-sidebar {
   --rs-tint: color-mix(in srgb, var(--rc-accent) 7%, white);
-  display: grid;
-  grid-template-columns: 32% minmax(0, 1fr);
-  align-items: stretch;
-}
-
-/* On screen the columns fill the sheet, so the tint reaches the bottom. */
-.resume-sidebar[data-paper="a4"] {
-  min-height: 297mm;
+  --rs-page: 297mm;
+  /* Contains the float, so the sheet is at least as tall as the sidebar. */
+  display: flow-root;
 }
 
 .resume-sidebar[data-paper="letter"] {
-  min-height: 11in;
-}
-
-.resume-sidebar .rs-side,
-.resume-sidebar .rs-main {
-  position: relative;
-  z-index: 1;
+  --rs-page: 11in;
 }
 
 /*
@@ -33,65 +25,41 @@
  * page edge than the full side margin: 60% of it, at least 8mm.
  */
 .resume-sidebar .rs-side {
+  float: left;
+  width: 32%;
+  min-height: var(--rs-page);
+  margin-right: 7mm;
   padding: var(--rc-margin-y) 7mm var(--rc-margin-y) max(8mm, calc(var(--rc-margin-x) * 0.6));
   background: var(--rs-tint);
+  /* Each page the column spans keeps its top and bottom padding. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  /* Browsers skip backgrounds when printing unless told to keep them. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .resume-sidebar .rs-main {
-  padding: var(--rc-margin-y) var(--rc-margin-x) var(--rc-margin-y) 7mm;
+  padding: var(--rc-margin-y) var(--rc-margin-x) var(--rc-margin-y) 0;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
-.resume-sidebar .rs-backdrop {
-  display: none;
+/*
+ * Each section is its own block formatting context, so it narrows to sit
+ * beside the sidebar (rules and all) and takes the full width once below it.
+ * Its left margin is the page margin; beside the sidebar, the sidebar's own
+ * margin sets the gap instead.
+ */
+.resume-sidebar .rs-main > .rc-section {
+  display: flow-root;
+  margin-left: var(--rc-margin-x);
 }
 
 @media print {
-  /*
-   * Printed, the page has no margins at all. Each column repeats its top and
-   * bottom padding on every page it spans (box-decoration-break: clone), so
-   * continuation pages keep their margins.
-   *
-   * The tint covers the whole of page 1 (the backdrop, one page tall). On
-   * later pages it only appears behind sidebar content that runs on to them:
-   * the side column hugs its content instead of stretching beside the main
-   * column, and its own background repeats on each page it reaches.
-   */
-  .resume-sidebar[data-paper] {
-    position: relative;
-    min-height: 0;
-  }
-
-  .resume-sidebar .rs-side,
-  .resume-sidebar .rs-main {
-    -webkit-box-decoration-break: clone;
-    box-decoration-break: clone;
-  }
-
+  /* A hair short of the page, so the sidebar can never push a blank page after it. */
   .resume-sidebar .rs-side {
-    align-self: start;
-  }
-
-  .resume-sidebar .rs-side,
-  .resume-sidebar .rs-backdrop {
-    /* Browsers skip backgrounds when printing unless told to keep them. */
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* A hair short of the page, so it can never push a blank page after it. */
-  .resume-sidebar .rs-backdrop {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 32%;
-    height: calc(297mm - 1px);
-    z-index: 0;
-    background: var(--rs-tint);
-  }
-
-  .resume-sidebar[data-paper="letter"] .rs-backdrop {
-    height: calc(11in - 1px);
+    min-height: calc(var(--rs-page) - 1px);
   }
 }
 
