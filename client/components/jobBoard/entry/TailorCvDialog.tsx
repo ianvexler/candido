@@ -23,6 +23,7 @@ const TailorCvDialog = ({ open, onClose, entry }: TailorCvDialogProps) => {
   const [curriculums, setCurriculums] = useState<Curriculum[] | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +36,7 @@ const TailorCvDialog = ({ open, onClose, entry }: TailorCvDialogProps) => {
       .catch((err) => {
         console.error(err);
         if (!cancelled) {
-          setCurriculums([]);
+          setLoadFailed(true);
           setError("Failed to load your CVs.");
         }
       });
@@ -49,6 +50,7 @@ const TailorCvDialog = ({ open, onClose, entry }: TailorCvDialogProps) => {
     if (pendingId !== null) return;
     setCurriculums(null);
     setError(null);
+    setLoadFailed(false);
     onClose();
   };
 
@@ -80,38 +82,40 @@ const TailorCvDialog = ({ open, onClose, entry }: TailorCvDialogProps) => {
             </p>
           </Dialog.Description>
 
-          <div className="mt-4 min-h-0 overflow-y-auto rounded-md border border-border">
-            {curriculums === null ? (
-              <div className="flex justify-center py-8">
-                <Loader />
-              </div>
-            ) : curriculums.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">You don&apos;t have any CVs yet.</p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {curriculums.map((curriculum) => (
-                  <li key={curriculum.id}>
-                    <button
-                      type="button"
-                      onClick={() => void choose(curriculum)}
-                      disabled={pendingId !== null}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{curriculum.title}</span>
-                        {curriculum.tailored_for && (
-                          <span className="block truncate text-xs text-muted-foreground">
-                            For {curriculum.tailored_for}
-                          </span>
-                        )}
-                      </span>
-                      {pendingId === curriculum.id && <Loader2Icon className="size-4 shrink-0 animate-spin" />}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {!loadFailed && (
+            <div className="mt-4 min-h-0 overflow-y-auto rounded-md border border-border">
+              {curriculums === null ? (
+                <div className="flex justify-center py-8">
+                  <Loader />
+                </div>
+              ) : curriculums.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-muted-foreground">You don&apos;t have any CVs yet.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {curriculums.map((curriculum) => (
+                    <li key={curriculum.id}>
+                      <button
+                        type="button"
+                        onClick={() => void choose(curriculum)}
+                        disabled={pendingId !== null}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{curriculum.title}</span>
+                          {curriculum.tailored_for && (
+                            <span className="block truncate text-xs text-muted-foreground">
+                              For {curriculum.tailored_for}
+                            </span>
+                          )}
+                        </span>
+                        {pendingId === curriculum.id && <Loader2Icon className="size-4 shrink-0 animate-spin" />}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="mt-3 text-sm text-destructive">
