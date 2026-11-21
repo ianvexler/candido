@@ -3,6 +3,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { findQuote } from "@/lib/resume/suggestions";
+import { HIDDEN_MARK } from "../HiddenMark";
 
 export type SuggestionItem = { id: number; quote: string };
 export type SuggestionRange = { from: number; to: number };
@@ -16,24 +17,46 @@ declare module "@tiptap/core" {
   }
 }
 
-/** Finds `quote` in one textblock and maps it to document positions, or null. */
-const rangeInBlock = (block: PMNode, blockPos: number, quote: string): SuggestionRange | null => {
-  const match = findQuote(block.textContent, quote);
-  if (!match) return null;
+/** Marks that never carry over from the quote onto its replacement. */
+const UNCOPIED_MARKS = new Set(["link", HIDDEN_MARK]);
 
-  // Document position of each character of textContent. Inline leaves (e.g.
-  // hard breaks) add no text but take a position, so a match across one is
-  // not contiguous and is treated as not found.
-  const positions: number[] = [];
+type Run = { text: string; positions: number[] };
+
+/**
+ * The block's visible text as runs: hidden text (and any inline leaf other
+ * than a hard break) ends a run, so a quote can never match hidden text or
+ * join the text on either side of it. A hard break reads as a space, as it
+ * does in the text the reviewer saw. `positions` holds each character's
+ * document position.
+ */
+const visibleRuns = (block: PMNode, blockPos: number): Run[] => {
+  const runs: Run[] = [{ text: "", positions: [] }];
+  const boundary = () => {
+    if (runs[runs.length - 1].text) runs.push({ text: "", positions: [] });
+  };
   block.forEach((child, offset) => {
-    if (!child.isText) return;
     const start = blockPos + 1 + offset;
-    for (let i = 0; i < child.text!.length; i++) positions.push(start + i);
+    const run = runs[runs.length - 1];
+    if (child.isText && !child.marks.some((mark) => mark.type.name === HIDDEN_MARK)) {
+      run.text += child.text!;
+      for (let i = 0; i < child.text!.length; i++) run.positions.push(start + i);
+    } else if (child.type.name === "hardBreak") {
+      run.text += " ";
+      run.positions.push(start);
+    } else {
+      boundary();
+    }
   });
-  const from = positions[match.from];
-  const to = positions[match.to - 1] + 1;
-  if (from === undefined || Number.isNaN(to) || to - from !== match.to - match.from) return null;
-  return { from, to };
+  return runs;
+};
+
+/** Finds `quote` in one textblock's visible text and maps it to document positions, or null. */
+const rangeInBlock = (block: PMNode, blockPos: number, quote: string): SuggestionRange | null => {
+  for (const run of visibleRuns(block, blockPos)) {
+    const match = findQuote(run.text, quote);
+    if (match) return { from: run.positions[match.from], to: run.positions[match.to - 1] + 1 };
+  }
+  return null;
 };
 
 /**
@@ -57,7 +80,8 @@ export const suggestionRanges = (doc: PMNode, items: SuggestionItem[]): Map<numb
 
 /**
  * Replaces the first match of `quote` with `text` as plain text (never parsed
- * as HTML), keeping the marks of the quote's first character.
+ * as HTML), keeping the marks of the quote's first character except a link
+ * or the hidden mark.
  * Returns false when the quote is no longer in the document.
  */
 export const replaceQuote = (editor: Editor, quote: string, text: string): boolean => {
@@ -65,8 +89,19 @@ export const replaceQuote = (editor: Editor, quote: string, text: string): boole
   if (!range) return false;
   const plain = text.replace(/\s*\n\s*/g, " ");
   if (!plain) return editor.chain().focus().deleteRange(range).run();
-  const marks = editor.state.doc.nodeAt(range.from)?.marks.map((mark) => mark.toJSON()) ?? [];
-  return editor.chain().focus().insertContentAt(range, { type: "text", text: plain, marks }).run();
+  const marks = (editor.state.doc.nodeAt(range.from)?.marks ?? []).filter(
+    (mark) => !UNCOPIED_MARKS.has(mark.type.name)
+  );
+  // A plain transaction: insertContentAt inserts text with the marks at the
+  // position (a link included), ignoring the ones it is given.
+  return editor
+    .chain()
+    .focus()
+    .command(({ tr, state }) => {
+      tr.replaceWith(range.from, range.to, state.schema.text(plain, marks));
+      return true;
+    })
+    .run();
 };
 
 type PluginState = { items: SuggestionItem[]; activeId: number | null; decorations: DecorationSet };

@@ -1,12 +1,13 @@
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { afterEach, describe, expect, it } from "vitest";
+import HiddenMark from "../HiddenMark";
 import { SuggestionHighlight, replaceQuote, suggestionRanges } from "./SuggestionHighlight";
 
 let editor: Editor | null = null;
 
 const makeEditor = (content: string) => {
-  editor = new Editor({ extensions: [StarterKit, SuggestionHighlight], content });
+  editor = new Editor({ extensions: [StarterKit, HiddenMark, SuggestionHighlight], content });
   return editor;
 };
 
@@ -41,6 +42,39 @@ describe("suggestionRanges", () => {
     expect(e.state.doc.textBetween(after!.from, after!.to)).toBe("APIs");
   });
 
+  it("matches a quote that reads across a hard break as a space", () => {
+    const e = makeEditor("<p>Built<br>APIs</p>");
+    const range = suggestionRanges(e.state.doc, [{ id: 1, quote: "Built APIs" }]).get(1);
+    expect(range).not.toBeNull();
+    expect(e.state.doc.textBetween(range!.from, range!.to, " ", " ")).toBe("Built APIs");
+  });
+
+  it("highlights visible text after hidden text", () => {
+    const e = makeEditor("<p>Led <span data-cv-hidden>a team of 5 and</span> shipped X</p>");
+    const range = suggestionRanges(e.state.doc, [{ id: 1, quote: "shipped X" }]).get(1);
+    expect(range).not.toBeNull();
+    expect(e.state.doc.textBetween(range!.from, range!.to)).toBe("shipped X");
+  });
+
+  it("never matches hidden text or across it", () => {
+    const e = makeEditor("<p>Led <span data-cv-hidden>a team of 5 and</span> shipped X</p>");
+    const ranges = suggestionRanges(e.state.doc, [
+      { id: 1, quote: "a team of 5 and" },
+      { id: 2, quote: "Led shipped X" },
+      { id: 3, quote: "Led a team" },
+    ]);
+    expect(ranges.get(1)).toBeNull();
+    expect(ranges.get(2)).toBeNull();
+    expect(ranges.get(3)).toBeNull();
+  });
+
+  it("skips a hidden copy and finds the visible one", () => {
+    const e = makeEditor("<p><span data-cv-hidden>Built APIs</span> and Built APIs</p>");
+    const range = suggestionRanges(e.state.doc, [{ id: 1, quote: "Built APIs" }]).get(1);
+    expect(e.state.doc.textBetween(range!.from, range!.to)).toBe("Built APIs");
+    expect(range!.from).toBeGreaterThan(1 + "Built APIs and ".length - 1);
+  });
+
   it("maps across marks within a block", () => {
     const e = makeEditor("<p>Built <strong>fast</strong> APIs</p>");
     const range = suggestionRanges(e.state.doc, [{ id: 1, quote: "fast APIs" }]).get(1);
@@ -59,6 +93,16 @@ describe("replaceQuote", () => {
     const e = makeEditor("<p><strong>Built APIs</strong></p>");
     replaceQuote(e, "APIs", "services");
     expect(e.getHTML()).toBe("<p><strong>Built services</strong></p>");
+  });
+
+  it("doesn't carry a link or the hidden mark onto the replacement", () => {
+    const e = makeEditor('<p><a href="https://x.test">Built</a> APIs</p>');
+    replaceQuote(e, "Built APIs", "Shipped services");
+    expect(e.getHTML()).toBe("<p>Shipped services</p>");
+
+    const h = makeEditor("<p><span data-cv-hidden>x</span><strong>Built APIs</strong></p>");
+    replaceQuote(h, "Built APIs", "services");
+    expect(h.getHTML()).toBe('<p><span data-cv-hidden="true">x</span><strong>services</strong></p>');
   });
 
   it("returns false and leaves the text when the quote is gone", () => {

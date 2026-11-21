@@ -10,8 +10,10 @@ declare module "@tiptap/core" {
   }
 }
 
+export const HIDDEN_MARK = "hidden";
+
 const HiddenMark = Mark.create({
-  name: "hidden",
+  name: HIDDEN_MARK,
   inclusive: false,
   parseHTML() {
     return [{ tag: "span[data-cv-hidden]" }];
