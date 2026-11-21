@@ -15,7 +15,8 @@ class CurriculumsController < ApplicationController
 
   def create
     curriculum = Curriculum.transaction do
-      record = current_user.curriculums.create!(curriculum_params)
+      default_design = current_user.resume_designs.find_by(is_default: true)
+      record = current_user.curriculums.create!(curriculum_params.merge(styles: default_design&.settings || {}))
       templates = owned_templates(params[:section_template_ids])
       record.import_section_templates!(templates) if templates.any?
       record
