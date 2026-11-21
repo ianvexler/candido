@@ -213,9 +213,12 @@ const channel = (value: number) => {
 // Headings in capitals tint the accent toward white (see .rc-heading in classic.css).
 const CLASSIC_HEADING_MIX = 0.82;
 
-/** The "#rrggbb" colour section headings print in, which can be lighter than the accent. */
+/**
+ * The "#rrggbb" colour section headings print in. Capitals are tinted lighter
+ * than the accent, except beside a side bar, where the text matches the bar.
+ */
 export const headingColor = (design: DesignSettings) => {
-  if (design.heading_case !== "caps") return design.accent;
+  if (design.heading_case !== "caps" || design.heading_rule === "bar") return design.accent;
   return (
     "#" +
     [1, 3, 5]

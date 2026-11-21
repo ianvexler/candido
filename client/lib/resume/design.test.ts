@@ -163,6 +163,11 @@ describe("headingColor", () => {
     expect(headingColor({ ...DESIGN_DEFAULTS, accent: "#1a1a1a" })).toBe("#434343");
   });
 
+  it("is the accent itself beside a side bar, so text and bar match as the old Colour bar did", () => {
+    expect(headingColor({ ...DESIGN_DEFAULTS, heading_rule: "bar", accent: "#1f4e79" })).toBe("#1f4e79");
+    expect(headingColor(resolveDesign({ heading_style: "accent_bar", accent: "#1f4e79" }))).toBe("#1f4e79");
+  });
+
   it("is the accent itself for headings as typed, whatever the line", () => {
     expect(headingColor({ ...DESIGN_DEFAULTS, heading_case: "as_typed", accent: "#8a8a8a" })).toBe("#8a8a8a");
     expect(headingColor({ ...DESIGN_DEFAULTS, heading_case: "as_typed", heading_rule: "bar", accent: "#8a8a8a" })).toBe("#8a8a8a");

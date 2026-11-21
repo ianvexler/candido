@@ -88,7 +88,9 @@
   padding-bottom: 0;
 }
 
+/* The text matches the bar, as the original Colour bar headings did. */
 .resume-classic[data-heading-rule="bar"] .rc-heading {
+  color: var(--rc-accent);
   border-bottom: none;
   border-left: 3pt solid var(--rc-accent);
   padding: 1pt 0 1pt 6pt;
