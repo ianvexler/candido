@@ -18,6 +18,11 @@ gem "bcrypt", "~> 3.1.7"
 gem "aws-sdk-s3"
 gem "shrine"
 
+# Claude API, used to read uploaded CVs into resume sections
+gem "anthropic", "~> 2.12"
+# Reads text out of uploaded .docx CVs
+gem "rubyzip", "~> 2.4", require: "zip"
+
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
