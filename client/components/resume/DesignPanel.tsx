@@ -32,6 +32,7 @@ import { FormEvent, ReactNode, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { FONT_FAMILIES } from "./templates/fonts";
 import IconAction from "./IconAction";
+import TemplateThumbnail from "./TemplateThumbnail";
 
 // Below this, headings get hard to read on white paper.
 const MIN_ACCENT_CONTRAST = 3;
@@ -167,17 +168,36 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
       </Group>
 
       <Group label="Template">
-        <div className="grid grid-cols-2 gap-1.5">
-          {TEMPLATE_OPTIONS.map((option) => (
-            <OptionButton
-              key={option.value}
-              selected={design.template === option.value}
-              onClick={() => set("template", option.value)}
-            >
-              <span className="block">{option.label}</span>
-              <span className="block text-xs font-normal text-muted-foreground">{option.description}</span>
-            </OptionButton>
-          ))}
+        <div className="grid grid-cols-2 gap-2">
+          {TEMPLATE_OPTIONS.map((option) => {
+            const selected = design.template === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                title={option.description}
+                onClick={() => set("template", option.value)}
+                className="group/template flex flex-col items-center gap-1.5 rounded-md text-sm outline-none"
+              >
+                <span
+                  className={cn(
+                    "block w-full overflow-hidden rounded-md border bg-muted/50 p-2.5 transition-colors",
+                    "group-focus-visible/template:ring-2 group-focus-visible/template:ring-ring",
+                    selected ? "border-foreground/50 ring-1 ring-foreground/50" : "border-border group-hover/template:border-foreground/25"
+                  )}
+                >
+                  <span className="mx-auto block w-20 shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
+                    <TemplateThumbnail template={option.value} accent={design.accent} />
+                  </span>
+                </span>
+                <span className={cn(selected ? "font-medium text-foreground" : "text-muted-foreground group-hover/template:text-foreground")}>
+                  {option.label}
+                </span>
+                <span className="sr-only">{option.description}</span>
+              </button>
+            );
+          })}
         </div>
       </Group>
 
