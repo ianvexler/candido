@@ -4,7 +4,7 @@ import { ResumeHeaderBlock, ResumeSectionBlock, TemplateProps, templateRootProps
 import "./sidebar.css";
 
 /**
- * Two columns: a tinted side column with the name, contact details and the
+ * Two columns, edge to edge: a tinted side column with the name, contact details and the
  * sections placed there (short lists like skills by default), and a main
  * column with the rest. Each section's column comes from ExportSection.column.
  */
@@ -14,6 +14,8 @@ export const SidebarTemplate = ({ document, paper, design = DESIGN_DEFAULTS }: T
 
   return (
     <div className="resume-classic resume-sidebar" {...templateRootProps(design, paper)}>
+      {/* Prints the tinted strip on every page; see sidebar.css. */}
+      <div className="rs-backdrop" aria-hidden />
       <aside className="rs-side">
         <ResumeHeaderBlock header={document.header} stacked />
         {side.map((section) => (

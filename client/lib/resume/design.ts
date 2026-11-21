@@ -193,8 +193,16 @@ export const matchingPreset = <K extends keyof typeof PRESETS>(design: DesignSet
   return (match?.[0] ?? null) as keyof (typeof PRESETS)[K] | null;
 };
 
-/** The printed page's margins: top and bottom, then the sides. */
-export const pageMargin = (design: DesignSettings) => `${design.margin_y}mm ${design.margin_x}mm`;
+// Sidebar runs its tinted column to the page edge, so it draws the margins
+// inside its columns instead of around the page.
+const fullBleed = (design: DesignSettings) => design.template === "sidebar";
+
+/** The printed page's margins: top and bottom, then the sides. None for a full-bleed template. */
+export const pageMargin = (design: DesignSettings) =>
+  fullBleed(design) ? "0mm" : `${design.margin_y}mm ${design.margin_x}mm`;
+
+/** Padding around the on-screen sheet, matching the printed margins. */
+export const sheetPadding = (design: DesignSettings) => (fullBleed(design) ? "0" : pageMargin(design));
 
 const pt = (value: number) => `${value}pt`;
 
@@ -212,6 +220,8 @@ export const designStyle = (design: DesignSettings, fontFamilies: Record<DesignF
     "--rc-heading-gap": pt(design.heading_gap),
     "--rc-gap": String(Number((design.paragraph_gap / BASE_PARAGRAPH_GAP).toFixed(4))),
     "--rc-accent": design.accent,
+    "--rc-margin-y": `${design.margin_y}mm`,
+    "--rc-margin-x": `${design.margin_x}mm`,
   }) as CSSProperties;
 
 const channel = (value: number) => {

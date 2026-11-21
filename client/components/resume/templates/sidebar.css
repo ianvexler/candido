@@ -1,21 +1,79 @@
 /*
  * Sidebar template: the layout only. Type, colour and spacing come from
  * classic.css, since the root also has the resume-classic class.
+ *
+ * The tinted column runs to the edge of the page, so the page margins
+ * (--rc-margin-y, --rc-margin-x) are drawn inside the columns rather than
+ * around the sheet: the print page gives this template no margins.
  */
 .resume-sidebar {
+  --rs-tint: color-mix(in srgb, var(--rc-accent) 7%, white);
   display: grid;
   grid-template-columns: 32% minmax(0, 1fr);
-  column-gap: 16pt;
-  align-items: start;
+  align-items: stretch;
+}
+
+/* On screen the columns fill the sheet, so the tint reaches the bottom. */
+.resume-sidebar[data-paper="a4"] {
+  min-height: 297mm;
+}
+
+.resume-sidebar[data-paper="letter"] {
+  min-height: 11in;
+}
+
+.resume-sidebar .rs-side,
+.resume-sidebar .rs-main {
+  position: relative;
+  z-index: 1;
 }
 
 .resume-sidebar .rs-side {
-  padding: 12pt 11pt;
-  border-radius: 3pt;
-  background: color-mix(in srgb, var(--rc-accent) 7%, white);
-  /* Browsers skip backgrounds when printing unless told to keep them. */
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+  padding: var(--rc-margin-y) 6mm var(--rc-margin-y) var(--rc-margin-x);
+  background: var(--rs-tint);
+}
+
+.resume-sidebar .rs-main {
+  padding: var(--rc-margin-y) var(--rc-margin-x) var(--rc-margin-y) 7mm;
+}
+
+.resume-sidebar .rs-backdrop {
+  display: none;
+}
+
+@media print {
+  /*
+   * Printed, the page has no margins at all. Each column repeats its top and
+   * bottom padding on every page it spans (box-decoration-break: clone), so
+   * continuation pages keep their margins. The column's own background would
+   * stop where its content does, so a fixed strip, which Chrome repeats on
+   * every page, draws the tint edge to edge instead.
+   */
+  .resume-sidebar[data-paper] {
+    min-height: 0;
+  }
+
+  .resume-sidebar .rs-side,
+  .resume-sidebar .rs-main {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  .resume-sidebar .rs-side {
+    background: none;
+  }
+
+  .resume-sidebar .rs-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 32%;
+    z-index: 0;
+    background: var(--rs-tint);
+    /* Browsers skip backgrounds when printing unless told to keep them. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 
 /* The first section in each column lines up with the top of the column. */

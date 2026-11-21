@@ -9,7 +9,7 @@ import DesignPanel from "@/components/resume/DesignPanel";
 import { resolveHeader } from "@/components/resume/resumeHeader";
 import { ResumeTemplate } from "@/components/resume/templates/ResumeTemplate";
 import { Button } from "@/components/ui/Button";
-import { DESIGN_DEFAULTS, DesignSettings, pageMargin, resolveDesign } from "@/lib/resume/design";
+import { DESIGN_DEFAULTS, DesignSettings, pageMargin, resolveDesign, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, isEmptyDocument, pdfFileName, ResumeDocument } from "@/lib/resume/exportDocument";
 import { createSerialQueue } from "@/lib/serialQueue";
 import { cn } from "@/lib/utils";
@@ -252,7 +252,7 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
           <div className="min-w-0 flex-1 overflow-x-auto px-4 py-8 print:overflow-visible print:p-0">
             <div
               className="mx-auto bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.08)] print:w-auto! print:min-h-0! print:p-0! print:shadow-none"
-              style={{ ...SHEET_SIZE[paper], padding: pageMargin(design) }}
+              style={{ ...SHEET_SIZE[paper], padding: sheetPadding(design) }}
             >
               <ResumeTemplate document={resume} paper={paper} design={design} />
             </div>

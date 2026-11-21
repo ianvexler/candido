@@ -8,6 +8,7 @@ import {
   matchingPreset,
   pageMargin,
   resolveDesign,
+  sheetPadding,
 } from "./design";
 
 const fonts = { source_sans: "SourceSans", plex_sans: "Plex", source_serif: "SourceSerif", lora: "Lora" };
@@ -142,6 +143,23 @@ describe("designStyle", () => {
 
   it("matches the original look by default", () => {
     expect(designStyle(DESIGN_DEFAULTS, fonts)).toMatchObject({ "--rc-size": "10.5pt", "--rc-gap": "1", "--rc-line": "1.35", "--rc-section-gap": "14pt" });
+  });
+});
+
+describe("full-bleed Sidebar pages", () => {
+  const sidebar = { ...DESIGN_DEFAULTS, template: "sidebar" as const, margin_y: 14, margin_x: 20 };
+
+  it("prints with no page margins, so the sidebar reaches every edge", () => {
+    expect(pageMargin(sidebar)).toBe("0mm");
+  });
+
+  it("leaves the on-screen sheet unpadded, since the template draws the margins inside its columns", () => {
+    expect(sheetPadding(sidebar)).toBe("0");
+    expect(sheetPadding(DESIGN_DEFAULTS)).toBe("16mm 18mm");
+  });
+
+  it("hands the margins to the template as CSS variables", () => {
+    expect(designStyle(sidebar, fonts)).toMatchObject({ "--rc-margin-y": "14mm", "--rc-margin-x": "20mm" });
   });
 });
 
