@@ -44,6 +44,15 @@ RSpec.describe CvTailorings::Normalizer do
     expect(run([ suggestion("kind" => "note", "quote" => "nope") ])[:suggestions]).to be_empty
   end
 
+  it "strips the bullet and summary labels from a quote" do
+    bullet = suggestion("quote" => "- Built APIs")
+    summary = suggestion("field" => "description", "quote" => "Summary: Backend engineer", "replacement" => "Backend dev")
+
+    quotes = run([ bullet, summary ])[:suggestions].map { |s| s[:quote] }
+
+    expect(quotes).to eq([ "Built APIs", "Backend engineer" ])
+  end
+
   it "drops a replacement longer than the limit" do
     sections.first[:blocks] = [ "0123456789" ]
     long = run([ suggestion("quote" => "0123456789", "replacement" => "a" * 60) ])

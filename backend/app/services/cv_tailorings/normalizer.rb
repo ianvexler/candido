@@ -77,7 +77,7 @@ module CvTailorings
       field = raw["field"]
       return unless section && CvTailoringSuggestion::KINDS.include?(kind) && CvTailoringSuggestion::FIELDS.include?(field)
 
-      quote = raw["quote"].to_s
+      quote = unlabel(raw["quote"].to_s)
       reason = cut(squish(raw["reason"]), MAX_REASON)
       return if squish(quote).empty? || reason.empty? || !quoted?(section, field, quote)
 
@@ -86,6 +86,12 @@ module CvTailorings
 
       { curriculum_section_id: section[:id], kind: kind, field: field, quote: quote,
         replacement: replacement, reason: reason }
+    end
+
+    # CvText.render prefixes blocks with "- " and the description with
+    # "Summary: "; the model sometimes copies the label into the quote.
+    def unlabel(quote)
+      quote.sub(/\A\s*(?:- |Summary: )/, "")
     end
 
     def quoted?(section, field, quote)
