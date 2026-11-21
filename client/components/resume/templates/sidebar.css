@@ -28,8 +28,12 @@
   z-index: 1;
 }
 
+/*
+ * The tint marks the column's edge, so its text needs less room from the
+ * page edge than the full side margin: 60% of it, at least 8mm.
+ */
 .resume-sidebar .rs-side {
-  padding: var(--rc-margin-y) 6mm var(--rc-margin-y) var(--rc-margin-x);
+  padding: var(--rc-margin-y) 7mm var(--rc-margin-y) max(8mm, calc(var(--rc-margin-x) * 0.6));
   background: var(--rs-tint);
 }
 
