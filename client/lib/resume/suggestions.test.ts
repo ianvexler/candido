@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CvSuggestion, CvTailoring } from "@/lib/types";
-import { findQuote, isTailoringActive, splitSuggestions } from "./suggestions";
+import { findQuote, isTailoringActive, splitSuggestions, openSuggestionId } from "./suggestions";
 
 describe("findQuote", () => {
   it("finds an exact quote", () => expect(findQuote("Built APIs for tools", "APIs")).toEqual({ from: 6, to: 10 }));
@@ -62,5 +62,34 @@ describe("isTailoringActive", () => {
   it("is false once finished", () => {
     expect(isTailoringActive({ ...base, status: "succeeded" })).toBe(false);
     expect(isTailoringActive({ ...base, status: "failed" })).toBe(false);
+  });
+});
+
+describe("openSuggestionId", () => {
+  const all = (id: number) => [5, 7].includes(id);
+
+  it("follows the parent's id when it controls the card", () => {
+    expect(openSuggestionId(5, 7, all)).toBe(5);
+    expect(openSuggestionId(null, 7, all)).toBeNull();
+  });
+
+  it("reopens a card the parent closed and selects again", () => {
+    // 5 opens, closing sets null, selecting 5 again opens it.
+    expect(openSuggestionId(5, null, all)).toBe(5);
+    expect(openSuggestionId(null, null, all)).toBeNull();
+    expect(openSuggestionId(5, null, all)).toBe(5);
+    // 5 → 7 → 5
+    expect(openSuggestionId(7, null, all)).toBe(7);
+    expect(openSuggestionId(5, null, all)).toBe(5);
+  });
+
+  it("falls back to the local id when nothing controls it", () => {
+    expect(openSuggestionId(undefined, 7, all)).toBe(7);
+    expect(openSuggestionId(undefined, null, all)).toBeNull();
+  });
+
+  it("opens nothing for an id that isn't openable (another section, stale, resolved)", () => {
+    expect(openSuggestionId(9, null, all)).toBeNull();
+    expect(openSuggestionId(undefined, 9, all)).toBeNull();
   });
 });

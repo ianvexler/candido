@@ -35,3 +35,17 @@ export const splitSuggestions = (
 
 export const isTailoringActive = (t: CvTailoring | null): boolean =>
   t !== null && (t.status === "pending" || t.status === "processing");
+
+/**
+ * Which suggestion card is open. A parent that passes an id (or null) controls
+ * it; undefined falls back to the local id. Only openable ids open, e.g. this
+ * section's pending, non-stale suggestions.
+ */
+export const openSuggestionId = (
+  controlledId: number | null | undefined,
+  localId: number | null,
+  openable: (id: number) => boolean,
+): number | null => {
+  const id = controlledId !== undefined ? controlledId : localId;
+  return id !== null && openable(id) ? id : null;
+};

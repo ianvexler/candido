@@ -5,7 +5,7 @@ import "@/components/richEditor/styles.scss";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
 import { CvSuggestion, SectionFields } from "@/lib/types";
-import { findQuote } from "@/lib/resume/suggestions";
+import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
 import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -55,9 +55,15 @@ interface SectionDocumentProps<T extends SectionFields & { id: number }> {
   className?: string;
   /** Review suggestions for this section. Pending ones are highlighted. */
   suggestions?: CvSuggestion[];
-  /** The suggestion whose card is open, e.g. picked in the review panel. */
+  /**
+   * The suggestion whose card is open. When passed (even null) the parent
+   * controls the card: set it on onSuggestionClick, clear it on onSuggestionClose.
+   * Left undefined, a click on a highlight opens the card locally.
+   */
   activeSuggestionId?: number | null;
   onSuggestionClick?: (id: number) => void;
+  /** The card closed: Escape, a click away, or after a successful resolve. */
+  onSuggestionClose?: () => void;
   /** Called after the text change (if any) is applied here. */
   onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
   /** Pending suggestions whose quote is no longer in the text. Called when the set changes. */
@@ -86,6 +92,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
   onSuggestionClick,
+  onSuggestionClose,
   onSuggestionResolve,
   onStaleChange,
 }: SectionDocumentProps<T>) => {
@@ -232,29 +239,32 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
   const contentItemsKey = JSON.stringify(contentItems);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  // Opening is driven by the panel (activeSuggestionId) or a click on a
-  // highlight; closing the card (Escape, click away) is local.
-  const [clickedId, setClickedId] = useState<number | null>(null);
-  const [closedId, setClosedId] = useState<number | null>(null);
+  // Used only when the parent doesn't control the card (activeSuggestionId undefined).
+  const [localOpenId, setLocalOpenId] = useState<number | null>(null);
   // Accepted here but not yet marked on the server: their quote is gone on
   // purpose, so they aren't stale.
   const [resolvingIds, setResolvingIds] = useState<number[]>([]);
-  const activeId = activeSuggestionId !== undefined ? activeSuggestionId : clickedId;
-
   const isStale = (s: CvSuggestion): boolean => {
     if (fieldOf(s) === "description") return findQuote(description, s.quote) === null;
     if (!editor) return false;
     return suggestionRanges(editor.state.doc, [{ id: s.id, quote: s.quote }]).get(s.id) === null;
   };
 
+  const cardId = openSuggestionId(activeSuggestionId, localOpenId, (id) => {
+    const s = pending.find((p) => p.id === id);
+    return s !== undefined && !resolvingIds.includes(id) && !isStale(s);
+  });
+  const cardSuggestion = cardId === null ? null : pending.find((s) => s.id === cardId)!;
+
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     // Nothing to show and nothing shown: leave the editor alone.
     if (contentItems.length === 0 && !editor.view.dom.querySelector("[data-suggestion-id]")) return;
-    editor.commands.setSuggestions(contentItems, activeId ?? null);
+    // The active (solid) highlight is the one whose card is open.
+    editor.commands.setSuggestions(contentItems, cardId);
     // contentItemsKey stands in for contentItems.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, contentItemsKey, activeId]);
+  }, [editor, contentItemsKey, cardId]);
 
   // Reports stale ids when they change. Runs after edits (dirty) and when the
   // suggestions or summary change; with no suggestions it does nothing.
@@ -270,10 +280,6 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     // isStale reads editor and description, both listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onStaleChange, editor, pending, resolvingIds, description, dirty]);
-
-  const openSuggestion =
-    activeId != null && activeId !== closedId ? pending.find((s) => s.id === activeId) ?? null : null;
-  const cardSuggestion = openSuggestion && !isStale(openSuggestion) ? openSuggestion : null;
 
   const cardAnchor = useMemo(() => {
     if (!cardSuggestion || !editor) return null;
@@ -300,9 +306,13 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     const target = (event.target as HTMLElement).closest?.("[data-suggestion-id]");
     if (!target) return;
     const id = Number(target.getAttribute("data-suggestion-id"));
-    setClickedId(id);
-    setClosedId(null);
+    if (activeSuggestionId === undefined) setLocalOpenId(id);
     onSuggestionClick?.(id);
+  };
+
+  const closeCard = () => {
+    if (activeSuggestionId === undefined) setLocalOpenId(null);
+    onSuggestionClose?.();
   };
 
   const resolveSuggestion = async (s: CvSuggestion, action: SuggestionAction, text?: string) => {
@@ -315,11 +325,11 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
       } else if (!editor || !replaceQuote(editor, s.quote, text)) {
         return;
       }
-      setClosedId(s.id);
       setResolvingIds((ids) => [...ids, s.id]);
     }
     try {
       await onSuggestionResolve?.(s, action, text);
+      closeCard();
     } catch (error) {
       console.error(error);
       toast.error("Couldn't update the suggestion. Try again.");
@@ -493,7 +503,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
           suggestion={cardSuggestion}
           anchor={cardAnchor}
           onResolve={(action, text) => resolveSuggestion(cardSuggestion, action, text)}
-          onClose={() => setClosedId(cardSuggestion.id)}
+          onClose={closeCard}
         />
       )}
 

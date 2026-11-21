@@ -30,6 +30,7 @@ interface CurriculumSectionCardProps {
   suggestions?: CvSuggestion[];
   activeSuggestionId?: number | null;
   onSuggestionClick?: (id: number) => void;
+  onSuggestionClose?: () => void;
   onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
   onStaleChange?: (staleIds: number[]) => void;
 }
@@ -46,6 +47,7 @@ const CurriculumSectionCard = ({
   suggestions,
   activeSuggestionId,
   onSuggestionClick,
+  onSuggestionClose,
   onSuggestionResolve,
   onStaleChange,
 }: CurriculumSectionCardProps) => {
@@ -152,6 +154,7 @@ const CurriculumSectionCard = ({
         suggestions={suggestions}
         activeSuggestionId={activeSuggestionId}
         onSuggestionClick={onSuggestionClick}
+        onSuggestionClose={onSuggestionClose}
         onSuggestionResolve={onSuggestionResolve}
         onStaleChange={onStaleChange}
         handle={
