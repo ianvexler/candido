@@ -57,6 +57,7 @@ export type JobBoardEntry = {
   cover_letter_key?: string;
   cover_letter_filename?: string;
   closing_date?: Date;
+  tailored_curriculums?: { id: number; title: string; updated_at: string }[];
 }
 
 export type JobBoardTag = {
@@ -196,6 +197,9 @@ export type Curriculum = {
   layout: CurriculumLayout;
   styles: { paper?: PaperSize } & Record<string, unknown>;
   section_count: number;
+  job_board_entry_id: number | null;
+  source_curriculum_id: number | null;
+  tailored_for: string | null;
   /** Fields this resume overrides; anything missing comes from the profile. Full view only. */
   header?: Partial<ResumeHeader>;
   /** Profile with this resume's overrides applied. Full view only. */
@@ -229,4 +233,44 @@ export type CvImport = {
   result: { header: ResumeHeader; sections: CvImportSection[] } | null;
   applied_at: string | null;
   created_at: string;
+}
+
+export const CvTailoringStatuses = ["pending", "processing", "succeeded", "failed"] as const;
+export type CvTailoringStatus = (typeof CvTailoringStatuses)[number];
+
+export const CvSuggestionStatuses = ["pending", "accepted", "edited", "rejected"] as const;
+export type CvSuggestionStatus = (typeof CvSuggestionStatuses)[number];
+
+/** One suggested change to a resume section: a rewrite of a quoted passage, or a note about it. */
+export type CvSuggestion = {
+  id: number;
+  curriculum_section_id: number;
+  kind: "rewrite" | "note";
+  field: "content" | "description" | null;
+  quote: string;
+  replacement: string | null;
+  reason: string;
+  status: CvSuggestionStatus;
+  position: number | null;
+}
+
+export type CvTailoringReport = {
+  fit: "strong" | "partial" | "weak";
+  summary: string;
+  requirements: { text: string; covered: "yes" | "partly" | "no" }[];
+  gaps: string[];
+}
+
+/** A review of one resume against one job. */
+export type CvTailoring = {
+  id: number;
+  status: CvTailoringStatus;
+  error_message: string | null;
+  job_title: string;
+  company: string;
+  job_board_entry_id: number | null;
+  used_posting: boolean;
+  report: CvTailoringReport | null;
+  created_at: string;
+  suggestions: CvSuggestion[];
 }
