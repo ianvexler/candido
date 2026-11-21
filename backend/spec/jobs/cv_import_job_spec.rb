@@ -51,6 +51,17 @@ RSpec.describe CvImportJob do
     )
   end
 
+  it "doesn't overwrite an import that expired while it was being read" do
+    allow(extractor).to receive(:call) do
+      CvImport.where(id: cv_import.id).update_all(status: "failed", error_message: "expired", source_data: nil)
+      output
+    end
+
+    described_class.perform_now(cv_import.id)
+
+    expect(cv_import.reload).to have_attributes(status: "failed", error_message: "expired", result: nil)
+  end
+
   it "skips an import that isn't pending" do
     done = create(:cv_import, status: "succeeded", source_data: nil)
 

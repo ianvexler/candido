@@ -7,6 +7,9 @@ module CvImports
     DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document".freeze
     MAX_TOKENS = 16_000
     BETAS = [ "server-side-fallback-2026-07-01" ].freeze
+    # Models that accept server-side fallbacks; others get a plain request, so
+    # overriding CV_IMPORT_MODEL doesn't turn every import into a 400.
+    FALLBACK_MODELS = %w[claude-fable-5-1 claude-opus-5-5 claude-opus-5 claude-sonnet-5-5].freeze
 
     BUSY = "The CV reader is busy. Try again in a minute.".freeze
     UNREADABLE = "We couldn't read this CV.".freeze
@@ -64,16 +67,16 @@ module CvImports
 
     # Returns the model's reply as a Hash matching SCHEMA.
     def call(data:, media_type:)
-      message = @client.beta.messages.create(
-        model: ENV.fetch("CV_IMPORT_MODEL", "claude-opus-5-5"),
+      model = ENV.fetch("CV_IMPORT_MODEL", "claude-opus-5-5")
+      params = {
+        model: model,
         max_tokens: MAX_TOKENS,
-        betas: BETAS,
-        fallbacks: :default,
         output_config: { effort: :low, format_: { type: :json_schema, schema: SCHEMA } },
         system_: SYSTEM_PROMPT,
         messages: [ { role: "user", content: input_blocks(data, media_type) } ]
-      )
-      parse(message)
+      }
+      params.merge!(betas: BETAS, fallbacks: :default) if FALLBACK_MODELS.include?(model)
+      parse(@client.beta.messages.create(**params))
     rescue Anthropic::Errors::RateLimitError, Anthropic::Errors::InternalServerError, Anthropic::Errors::APIConnectionError => error
       log_api_error(error)
       raise ExtractionError, BUSY

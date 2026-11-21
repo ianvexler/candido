@@ -4,7 +4,7 @@ class CvImportsController < ApplicationController
   ACCEPTED_TYPES = [ CvImports::Extractor::PDF, CvImports::Extractor::DOCX ].freeze
 
   before_action :require_authentication
-  before_action -> { CvImport.expire_stale! }, only: %i[create show]
+  before_action -> { CvImport.expire_stale! }, only: :create
   before_action :set_cv_import, only: %i[show apply]
 
   def create
@@ -31,12 +31,12 @@ class CvImportsController < ApplicationController
   end
 
   def show
-    render json: { cv_import: serialize(@cv_import, with: CvImportBlueprint) }
+    render json: { cv_import: serialize(@cv_import.expire_if_stale!, with: CvImportBlueprint) }
   end
 
   def apply
     applied = @cv_import.apply!(
-      section_indexes: Array(params[:section_indexes]),
+      section_indexes: section_indexes,
       fill_profile: ActiveModel::Type::Boolean.new.cast(params[:fill_profile]) || false
     )
     render json: {
@@ -47,6 +47,16 @@ class CvImportsController < ApplicationController
   end
 
   private
+
+  def section_indexes
+    raw = params[:section_indexes]
+    return [] if raw.nil?
+
+    valid = raw.is_a?(Array) && raw.all? { |value| value.is_a?(Integer) || value.to_s.match?(/\A\d+\z/) }
+    raise ApiError.new("section_indexes must be a list of numbers", status: :bad_request) unless valid
+
+    raw.map(&:to_i)
+  end
 
   def set_cv_import
     @cv_import = CvImport.find_owned!(current_user, params[:id])

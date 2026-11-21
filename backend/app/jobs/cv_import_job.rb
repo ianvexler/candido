@@ -28,7 +28,11 @@ class CvImportJob < ApplicationJob
 
   private
 
+  # Only an import still being read is updated: if it expired meanwhile, the
+  # user has already been told it failed, so a late result is dropped.
   def finish(cv_import, **attributes)
-    cv_import.update!(source_data: nil, **attributes)
+    cv_import.with_lock do
+      cv_import.update!(source_data: nil, **attributes) if cv_import.status == "processing"
+    end
   end
 end

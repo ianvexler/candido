@@ -172,6 +172,20 @@ RSpec.describe "CV imports" do
       expect(user.reload.resume_profile).to eq({})
     end
 
+    it "rejects section indexes that aren't numbers" do
+      apply(section_indexes: [ "abc" ], fill_profile: false)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(user.section_templates.count).to eq(0)
+      expect(cv_import.reload.applied_at).to be_nil
+    end
+
+    it "rejects section indexes that aren't a list" do
+      apply(section_indexes: { "0" => "1" }, fill_profile: false)
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
     it "can't be applied twice" do
       apply(section_indexes: [ 0 ], fill_profile: false)
       apply(section_indexes: [ 0 ], fill_profile: false)

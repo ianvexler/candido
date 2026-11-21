@@ -35,8 +35,10 @@ class CvImport < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :filename, :media_type, presence: true
 
+  # Leaves out the stored file, which callers here never need and which can be
+  # several megabytes.
   def self.find_owned!(user, id)
-    cv_import = find_by(id: id)
+    cv_import = select(column_names - [ "source_data" ]).find_by(id: id)
     raise ApiError.new("CV import not found", status: :not_found) if cv_import.nil?
     if cv_import.user_id != user.id
       raise ApiError.new("You are not authorized to access this CV import", status: :forbidden)
@@ -50,9 +52,22 @@ class CvImport < ApplicationRecord
   # discarded, so nothing waits forever or keeps a CV around.
   STALE_AFTER = 10.minutes
 
-  def self.expire_stale!
+  def self.stale
     where(status: %w[pending processing], updated_at: ...STALE_AFTER.ago)
-      .update_all(status: "failed", error_message: CvImportJob::UNEXPECTED, source_data: nil, updated_at: Time.current)
+  end
+
+  def self.expire_stale!
+    stale.update_all(expired_attributes)
+  end
+
+  def self.expired_attributes
+    { status: "failed", error_message: CvImportJob::UNEXPECTED, source_data: nil, updated_at: Time.current }
+  end
+
+  # Expires just this import if it's stale, then reloads it.
+  def expire_if_stale!
+    reload if self.class.stale.where(id: id).update_all(self.class.expired_attributes).positive?
+    self
   end
 
   def self.limit_reached?(user)

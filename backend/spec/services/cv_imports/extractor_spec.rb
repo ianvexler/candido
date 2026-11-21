@@ -52,6 +52,17 @@ RSpec.describe CvImports::Extractor do
     expect(params[:output_config][:format_][:type]).to eq(:json_schema)
   end
 
+  it "leaves out fallbacks for a model that doesn't support them" do
+    allow(ENV).to receive(:fetch).and_call_original
+    allow(ENV).to receive(:fetch).with("CV_IMPORT_MODEL", anything).and_return("claude-haiku-5-5")
+
+    extract
+
+    expect(client.params[:model]).to eq("claude-haiku-5-5")
+    expect(client.params).not_to have_key(:fallbacks)
+    expect(client.params).not_to have_key(:betas)
+  end
+
   it "uses a schema that forbids extra properties on every object" do
     extract
 

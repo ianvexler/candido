@@ -69,17 +69,19 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
     }
 
     setStep({ name: "reading", filename: file.name });
+    pollAbort.current?.abort();
     const controller = new AbortController();
     pollAbort.current = controller;
 
     try {
-      const { cv_import: created } = await createCvImport(file);
+      const { cv_import: created } = await createCvImport(file, controller.signal);
       const finished = await pollUntil(
         async () => (await getCvImport(created.id)).cv_import,
         (cvImport) => cvImport.status === "succeeded" || cvImport.status === "failed",
         { intervalMs: POLL_INTERVAL_MS, timeoutMs: POLL_TIMEOUT_MS, signal: controller.signal }
       );
 
+      if (controller.signal.aborted) return;
       if (finished.status === "failed" || !finished.result) {
         setStep({ name: "failed", message: finished.error_message ?? "We couldn't read this CV." });
         return;
@@ -88,7 +90,8 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
       setFillProfile(headerSummary(finished.result.header).length > 0 || finished.result.header.links.length > 0);
       setStep({ name: "review", cvImport: finished });
     } catch (error) {
-      if ((error as Error)?.name === "AbortError") return;
+      // The dialog was closed or another file was chosen: this result is stale.
+      if (controller.signal.aborted) return;
       const message =
         error instanceof PollTimeoutError
           ? "This is taking longer than expected. Try again later."
