@@ -73,6 +73,13 @@ RSpec.describe CvTailorings::Reviewer do
     expect(text).to include("Backend Engineer", "Acme", "Remote", "[section 7] Experience\nBuilt APIs")
   end
 
+  it "wraps the description and CV in tags" do
+    review
+
+    expect(user_text).to include("<job_description>\nBuild APIs.\n</job_description>", "<cv>\n[section 7] Experience\nBuilt APIs\n</cv>")
+    expect(described_class::SYSTEM_PROMPT).to include("<job_description>", "plus 40 characters")
+  end
+
   it "leaves out fallbacks for a model that doesn't support them" do
     allow(ENV).to receive(:fetch).and_call_original
     allow(ENV).to receive(:fetch).with("CV_TAILOR_MODEL", anything).and_return("claude-haiku-5-5")
