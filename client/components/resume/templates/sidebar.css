@@ -49,11 +49,15 @@
   /*
    * Printed, the page has no margins at all. Each column repeats its top and
    * bottom padding on every page it spans (box-decoration-break: clone), so
-   * continuation pages keep their margins. The column's own background would
-   * stop where its content does, so a fixed strip, which Chrome repeats on
-   * every page, draws the tint edge to edge instead.
+   * continuation pages keep their margins.
+   *
+   * The tint covers the whole of page 1 (the backdrop, one page tall). On
+   * later pages it only appears behind sidebar content that runs on to them:
+   * the side column hugs its content instead of stretching beside the main
+   * column, and its own background repeats on each page it reaches.
    */
   .resume-sidebar[data-paper] {
+    position: relative;
     min-height: 0;
   }
 
@@ -64,19 +68,30 @@
   }
 
   .resume-sidebar .rs-side {
-    background: none;
+    align-self: start;
   }
 
+  .resume-sidebar .rs-side,
   .resume-sidebar .rs-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0 auto 0 0;
-    width: 32%;
-    z-index: 0;
-    background: var(--rs-tint);
     /* Browsers skip backgrounds when printing unless told to keep them. */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* A hair short of the page, so it can never push a blank page after it. */
+  .resume-sidebar .rs-backdrop {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 32%;
+    height: calc(297mm - 1px);
+    z-index: 0;
+    background: var(--rs-tint);
+  }
+
+  .resume-sidebar[data-paper="letter"] .rs-backdrop {
+    height: calc(11in - 1px);
   }
 }
 

@@ -14,7 +14,7 @@ export const SidebarTemplate = ({ document, paper, design = DESIGN_DEFAULTS }: T
 
   return (
     <div className="resume-classic resume-sidebar" {...templateRootProps(design, paper)}>
-      {/* Prints the tinted strip on every page; see sidebar.css. */}
+      {/* Prints the tint down the whole of page 1; see sidebar.css. */}
       <div className="rs-backdrop" aria-hidden />
       <aside className="rs-side">
         <ResumeHeaderBlock header={document.header} stacked />
