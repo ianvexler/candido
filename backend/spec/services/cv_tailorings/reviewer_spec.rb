@@ -220,12 +220,12 @@ RSpec.describe CvTailorings::Reviewer do
     expect(user_text).to match(/Already declined.*Built APIs/)
   end
 
-  it "builds a client with the shared options" do
+  it "builds a client with its own timeout" do
     allow(Anthropic::Client).to receive(:new).and_return(client)
 
     described_class.new
 
-    expect(Anthropic::Client).to have_received(:new).with(**CvImports::Extractor::CLIENT_OPTIONS)
+    expect(Anthropic::Client).to have_received(:new).with(timeout: 300, max_retries: 1)
   end
 
   describe ".configured?" do

@@ -7,6 +7,9 @@ module CvTailorings
     MAX_TOKENS = 16_000
     MAX_CONTINUATIONS = 3
     FETCH_TOOL = "web_fetch_20260209".freeze
+    # A review can fetch the posting and write up to 16k tokens, so it gets
+    # more time than a CV import.
+    CLIENT_OPTIONS = { timeout: 300, max_retries: 1 }.freeze
 
     BUSY = "The CV reviewer is busy. Try again in a minute.".freeze
     UNREADABLE = "We couldn't review this CV.".freeze
@@ -69,7 +72,7 @@ module CvTailorings
       ENV["ANTHROPIC_API_KEY"].present?
     end
 
-    def initialize(client: Anthropic::Client.new(**CvImports::Extractor::CLIENT_OPTIONS))
+    def initialize(client: Anthropic::Client.new(**CLIENT_OPTIONS))
       @client = client
     end
 
