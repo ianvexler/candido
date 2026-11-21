@@ -1,12 +1,22 @@
+import { DESIGN_DEFAULTS, DesignFont, DesignSettings, designStyle } from "@/lib/resume/design";
 import { ResumeDocument } from "@/lib/resume/exportDocument";
 import { PaperSize } from "@/lib/types";
-import { Source_Sans_3 } from "next/font/google";
+import { IBM_Plex_Sans, Lora, Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import "./classic.css";
 
-const sourceSans = Source_Sans_3({
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "600", "700"],
-});
+// next/font needs literal options in each call at module level; the browser
+// only downloads the font a resume actually uses.
+const sourceSans = Source_Sans_3({ subsets: ["latin", "latin-ext"], weight: ["400", "600", "700"] });
+const plexSans = IBM_Plex_Sans({ subsets: ["latin", "latin-ext"], weight: ["400", "600", "700"] });
+const sourceSerif = Source_Serif_4({ subsets: ["latin", "latin-ext"], weight: ["400", "600", "700"] });
+const lora = Lora({ subsets: ["latin", "latin-ext"], weight: ["400", "600", "700"] });
+
+export const FONT_FAMILIES: Record<DesignFont, string> = {
+  source_sans: sourceSans.style.fontFamily,
+  plex_sans: plexSans.style.fontFamily,
+  source_serif: sourceSerif.style.fontFamily,
+  lora: lora.style.fontFamily,
+};
 
 const linkText = (label: string, url: string) => label || url.replace(/^(https?:\/\/|mailto:)/, "");
 
@@ -14,15 +24,22 @@ interface ClassicTemplateProps {
   document: ResumeDocument;
   /** Not used by the layout yet; templates receive it so they can adapt to the page. */
   paper: PaperSize;
+  design?: DesignSettings;
 }
 
 /** A single-column CV: name and contact details, then each section in order. */
-export const ClassicTemplate = ({ document, paper }: ClassicTemplateProps) => {
+export const ClassicTemplate = ({ document, paper, design = DESIGN_DEFAULTS }: ClassicTemplateProps) => {
   const { header, sections } = document;
   const contact = [header.email, header.phone, header.location].filter(Boolean);
 
   return (
-    <div className={`resume-classic ${sourceSans.className}`} data-paper={paper}>
+    <div
+      className="resume-classic"
+      data-paper={paper}
+      data-heading-style={design.heading_style}
+      data-date-position={design.date_position}
+      style={designStyle(design, FONT_FAMILIES)}
+    >
       <header className="rc-header">
         {header.name && <h1 className="rc-name">{header.name}</h1>}
         {header.headline && <p className="rc-headline">{header.headline}</p>}
