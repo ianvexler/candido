@@ -49,8 +49,9 @@ RSpec.describe CvTailorings::Reviewer do
   let(:cv_text) { "[section 7] Experience\nBuilt APIs" }
   let(:client) { ReviewerFakeClient.new(replies: [ ReviewerFakeClient.reply(output.to_json) ]) }
 
-  def review(using: client, declined_quotes: [])
-    described_class.new(client: using).call(job: job, cv_text: cv_text, declined_quotes: declined_quotes)
+  def review(using: client, declined_quotes: [], **options)
+    described_class.new(client: using, **options.slice(:clock))
+      .call(job: job, cv_text: cv_text, declined_quotes: declined_quotes, **options.slice(:heartbeat))
   end
 
   def user_text(params = client.params) = params[:messages].first[:content]
@@ -167,6 +168,30 @@ RSpec.describe CvTailorings::Reviewer do
     expect(stuck.calls.size).to eq(4)
   end
 
+  it "beats the heartbeat before every request" do
+    beats = []
+    pause = ReviewerFakeClient.reply("", stop_reason: :pause_turn)
+    paused = ReviewerFakeClient.new(replies: [ pause, ReviewerFakeClient.reply(output.to_json) ])
+
+    review(using: paused, heartbeat: -> { beats << paused.calls.size })
+
+    expect(beats).to eq([ 0, 1 ])
+  end
+
+  it "starts no continuation after the deadline" do
+    now = 0.0
+    pause = ReviewerFakeClient.reply("", stop_reason: :pause_turn)
+    paused = ReviewerFakeClient.new(replies: [ pause ])
+    # The first request takes nine minutes.
+    allow(paused).to receive(:create).and_wrap_original do |original, **params|
+      now += 9.minutes.to_i
+      original.call(**params)
+    end
+
+    expect { review(using: paused, clock: -> { now }) }.to raise_error(CvTailorings::ReviewError, "The CV reviewer is busy. Try again in a minute.")
+    expect(paused.calls.size).to eq(1)
+  end
+
   {
     refusal: "We couldn't review this CV.",
     max_tokens: "This CV is too long to review in one go."
@@ -225,7 +250,7 @@ RSpec.describe CvTailorings::Reviewer do
 
     described_class.new
 
-    expect(Anthropic::Client).to have_received(:new).with(timeout: 300, max_retries: 1)
+    expect(Anthropic::Client).to have_received(:new).with(timeout: 240, max_retries: 1)
   end
 
   describe ".configured?" do

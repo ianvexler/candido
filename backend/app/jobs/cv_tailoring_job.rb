@@ -4,6 +4,7 @@ class CvTailoringJob < ApplicationJob
   queue_as :default
 
   JOB_REMOVED = "This job was removed from your board.".freeze
+  CV_REMOVED = "This CV was deleted.".freeze
 
   def perform(cv_tailoring_id)
     # Claim the run in one statement so an expiry can't slip in between
@@ -17,9 +18,12 @@ class CvTailoringJob < ApplicationJob
     return finish(cv_tailoring, status: "failed", error_message: JOB_REMOVED) if job.nil?
 
     curriculum = cv_tailoring.curriculum
+    return finish(cv_tailoring, status: "failed", error_message: CV_REMOVED) if curriculum.nil?
+
     sections = CvTailorings::CvText.call(curriculum)
     result = CvTailorings::Reviewer.new.call(
-      job: job, cv_text: CvTailorings::CvText.render(sections), declined_quotes: declined_quotes(cv_tailoring)
+      job: job, cv_text: CvTailorings::CvText.render(sections), declined_quotes: declined_quotes(cv_tailoring),
+      heartbeat: -> { heartbeat(cv_tailoring) }
     )
     normalized = CvTailorings::Normalizer.call(result[:output], sections)
     finish(cv_tailoring, status: "succeeded", report: normalized[:report], used_posting: result[:used_posting]) do
@@ -34,6 +38,13 @@ class CvTailoringJob < ApplicationJob
 
   private
 
+  # Marks the run as still working so CvTailoring.expire_stale! leaves it alone.
+  def heartbeat(cv_tailoring)
+    CvTailoring.where(id: cv_tailoring.id, status: "processing").update_all(updated_at: Time.current)
+  end
+
+  # Only passages the user turned down; suggestions closed by a re-run
+  # ("superseded") may come back.
   def declined_quotes(cv_tailoring)
     CvTailoringSuggestion
       .joins(:cv_tailoring)

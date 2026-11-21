@@ -30,7 +30,8 @@
 class CvTailoringSuggestion < ApplicationRecord
   KINDS = %w[rewrite note].freeze
   FIELDS = %w[content description].freeze
-  STATUSES = %w[pending accepted edited rejected].freeze
+  # superseded: still pending when a re-run replaced its review; not a decline.
+  STATUSES = %w[pending accepted edited rejected superseded].freeze
   RESOLUTIONS = %w[accepted edited rejected].freeze
   MAX_REPLACEMENT_LENGTH = 2000
 

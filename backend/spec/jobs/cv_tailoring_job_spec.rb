@@ -66,6 +66,29 @@ RSpec.describe CvTailoringJob do
     expect(tailoring.reload).to have_attributes(status: "failed", error_message: "This job was removed from your board.")
   end
 
+  it "fails when the CV was deleted" do
+    tailoring
+    curriculum.destroy!
+    expect(reviewer).not_to receive(:call)
+
+    described_class.perform_now(tailoring.id)
+
+    expect(tailoring.reload).to have_attributes(status: "failed", error_message: "This CV was deleted.", curriculum_id: nil)
+  end
+
+  it "gives the reviewer a heartbeat that keeps the run from going stale" do
+    allow(reviewer).to receive(:call) do |heartbeat:, **|
+      CvTailoring.where(id: tailoring.id).update_all(updated_at: 9.minutes.ago)
+      heartbeat.call
+      expect(CvTailoring.stale.where(id: tailoring.id)).to be_empty
+      { output: output, used_posting: false }
+    end
+
+    described_class.perform_now(tailoring.id)
+
+    expect(tailoring.reload.status).to eq("succeeded")
+  end
+
   it "drops a late result for an expired run" do
     allow(reviewer).to receive(:call) do
       CvTailoring.where(id: tailoring.id).update_all(status: "failed", error_message: CvTailoring::STALE_MESSAGE)
@@ -82,6 +105,7 @@ RSpec.describe CvTailoringJob do
     earlier = create(:cv_tailoring, user: user, curriculum: curriculum, job_board_entry: job, status: "succeeded")
     create(:cv_tailoring_suggestion, cv_tailoring: earlier, curriculum_section: section, quote: "Old quote", status: "rejected")
     create(:cv_tailoring_suggestion, cv_tailoring: earlier, curriculum_section: section, quote: "Kept", status: "accepted")
+    create(:cv_tailoring_suggestion, cv_tailoring: earlier, curriculum_section: section, quote: "Never looked at", status: "superseded")
     allow(reviewer).to receive(:call).and_return({ output: {}, used_posting: false })
 
     described_class.perform_now(tailoring.id)

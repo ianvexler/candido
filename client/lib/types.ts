@@ -238,7 +238,7 @@ export type CvImport = {
 export const CvTailoringStatuses = ["pending", "processing", "succeeded", "failed"] as const;
 export type CvTailoringStatus = (typeof CvTailoringStatuses)[number];
 
-export const CvSuggestionStatuses = ["pending", "accepted", "edited", "rejected"] as const;
+export const CvSuggestionStatuses = ["pending", "accepted", "edited", "rejected", "superseded"] as const;
 export type CvSuggestionStatus = (typeof CvSuggestionStatuses)[number];
 
 /** One suggested change to a resume section: a rewrite of a quoted passage, or a note about it. */

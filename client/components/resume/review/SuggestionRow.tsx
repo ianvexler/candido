@@ -93,7 +93,7 @@ const SuggestionRow = ({ suggestion, label, stale, active, dismissing, onSelect,
   );
 };
 
-const DONE_ICONS = { accepted: CheckIcon, edited: PencilIcon, rejected: XIcon } as const;
+const DONE_ICONS = { accepted: CheckIcon, edited: PencilIcon, rejected: XIcon, superseded: XIcon } as const;
 
 /** A resolved suggestion in the collapsed Done group. */
 export const DoneRow = ({ suggestion, label }: { suggestion: CvSuggestion; label: string }) => {

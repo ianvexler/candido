@@ -8,8 +8,13 @@ module CvTailorings
     MAX_CONTINUATIONS = 3
     FETCH_TOOL = "web_fetch_20260209".freeze
     # A review can fetch the posting and write up to 16k tokens, so it gets
-    # more time than a CV import.
-    CLIENT_OPTIONS = { timeout: 300, max_retries: 1 }.freeze
+    # more time than a CV import. One request with its retry (~8 minutes) stays
+    # under CvTailoring::STALE_AFTER, and the job's heartbeat runs before each
+    # request, so a slow review isn't expired while it's still working.
+    CLIENT_OPTIONS = { timeout: 240, max_retries: 1 }.freeze
+    # No new continuation starts after this, so a review can't run on for long
+    # after the user has been told to expect it.
+    DEADLINE = 8.minutes
 
     BUSY = "The CV reviewer is busy. Try again in a minute.".freeze
     UNREADABLE = "We couldn't review this CV.".freeze
@@ -72,12 +77,14 @@ module CvTailorings
       ENV["ANTHROPIC_API_KEY"].present?
     end
 
-    def initialize(client: Anthropic::Client.new(**CLIENT_OPTIONS))
+    def initialize(client: Anthropic::Client.new(**CLIENT_OPTIONS), clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) })
       @client = client
+      @clock = clock
     end
 
     # Returns { output: Hash matching SCHEMA, used_posting: Boolean }.
-    def call(job:, cv_text:, declined_quotes: [])
+    # `heartbeat` is called before each request to the model.
+    def call(job:, cv_text:, declined_quotes: [], heartbeat: -> { })
       model = ENV.fetch("CV_TAILOR_MODEL", "claude-opus-5-5")
       params = {
         model: model,
@@ -91,8 +98,12 @@ module CvTailorings
 
       messages = [ { role: "user", content: user_message(job, cv_text, declined_quotes, posting_url: tool && job.url.to_s.strip) } ]
       used_posting = false
+      started = @clock.call
 
-      (MAX_CONTINUATIONS + 1).times do
+      (MAX_CONTINUATIONS + 1).times do |attempt|
+        raise ReviewError, BUSY if attempt.positive? && @clock.call - started > DEADLINE.to_i
+
+        heartbeat.call
         reply = @client.beta.messages.create(**params, messages: messages)
         used_posting ||= read_posting?(reply)
         return { output: parse(reply), used_posting: used_posting } unless reply.stop_reason == :pause_turn

@@ -94,6 +94,9 @@ const ResumePage = ({ params }: ResumePageProps) => {
   }, [id]);
 
   // Polls while a review runs; stops on unmount or when the resume changes.
+  // The server always ends a run (it expires one that stops working), so the
+  // timeout only needs to outlast the longest review: 8 minutes before the
+  // last request starts, plus that request and its retry.
   const tailoringActive = isTailoringActive(tailoring);
   const tailoringId = tailoring?.id;
   useEffect(() => {
@@ -102,7 +105,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
 
     pollUntil(() => getLatestCvTailoring(Number(id)), (r) => !isTailoringActive(r.cv_tailoring), {
       intervalMs: 3000,
-      timeoutMs: 6 * 60_000,
+      timeoutMs: 20 * 60_000,
       signal: controller.signal,
     })
       .then((r) => setTailoring(r.cv_tailoring))

@@ -95,14 +95,14 @@ RSpec.describe "CV tailorings" do
       expect(response).to have_http_status(:created)
     end
 
-    it "rejects leftover pending suggestions" do
+    it "supersedes leftover pending suggestions without declining them" do
       earlier = create(:cv_tailoring, user: user, curriculum: copy, job_board_entry: job, status: "succeeded")
       leftover = create(:cv_tailoring_suggestion, cv_tailoring: earlier)
       accepted = create(:cv_tailoring_suggestion, cv_tailoring: earlier, curriculum_section: leftover.curriculum_section, status: "accepted")
 
       rerun
 
-      expect(leftover.reload.status).to eq("rejected")
+      expect(leftover.reload.status).to eq("superseded")
       expect(accepted.reload.status).to eq("accepted")
     end
 

@@ -31,7 +31,7 @@ class CvTailoringsController < ApplicationController
       raise ApiError.new("A review is already running.", status: :conflict) if latest&.active?
 
       CvTailoringSuggestion.where(cv_tailoring_id: curriculum.cv_tailorings.select(:id), status: "pending")
-        .update_all(status: "rejected", updated_at: Time.current)
+        .update_all(status: "superseded", updated_at: Time.current)
       start_run(curriculum, job)
     end
     CvTailoringJob.perform_later(cv_tailoring.id)

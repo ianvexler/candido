@@ -33,6 +33,7 @@ export const DONE_LABELS: Record<Exclude<CvSuggestionStatus, "pending">, string>
   accepted: "Accepted",
   edited: "Edited",
   rejected: "Dismissed",
+  superseded: "Replaced",
 };
 
 /** The status saved for an action taken on a suggestion card. */
