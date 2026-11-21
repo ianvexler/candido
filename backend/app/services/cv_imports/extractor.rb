@@ -57,8 +57,8 @@ module CvImports
       ENV["ANTHROPIC_API_KEY"].present?
     end
 
-    # Fails well inside the upload dialog's 3-minute wait, so the user never
-    # abandons an import that later finishes (and is billed) out of sight.
+    # Two attempts at most (~5 minutes): the upload dialog waits 6 minutes, so
+    # the user never abandons an import that later finishes (and is billed).
     CLIENT_OPTIONS = { timeout: 150, max_retries: 1 }.freeze
 
     def initialize(client: Anthropic::Client.new(**CLIENT_OPTIONS))

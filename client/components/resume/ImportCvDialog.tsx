@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { pollUntil, PollTimeoutError } from "@/lib/poll";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
+import { waitForSaves } from "@/lib/resume/saveTracker";
 import { CvImport, ResumeHeader } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { FileUpIcon } from "lucide-react";
@@ -17,7 +18,9 @@ import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "re
 const ACCEPT = ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_SIZE = 5 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+// Longer than the server can spend on one read (two 150s attempts), so the
+// dialog never gives up on an import that then finishes and is billed.
+const POLL_TIMEOUT_MS = 6 * 60 * 1000;
 
 type Step =
   | { name: "choose" }
@@ -43,6 +46,7 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [fillProfile, setFillProfile] = useState(true);
   const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const pollAbort = useRef<AbortController | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -54,6 +58,7 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
     setStep({ name: "choose" });
     setSelected(new Set());
     setFillProfile(true);
+    setApplyError(null);
   };
 
   const close = () => {
@@ -116,7 +121,14 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
   const apply = async () => {
     if (step.name !== "review") return;
     setApplying(true);
+    setApplyError(null);
     try {
+      // The import merges into the saved profile, so header edits still
+      // waiting to save must land first or the reloaded header drops them.
+      if (!(await waitForSaves())) {
+        setApplyError("Your profile is still saving. Try again in a moment.");
+        return;
+      }
       const result = await applyCvImport(step.cvImport.id, {
         section_indexes: [...selected].sort((a, b) => a - b),
         fill_profile: fillProfile,
@@ -125,7 +137,8 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
       reset();
       onClose();
     } catch (error) {
-      setStep({ name: "failed", message: errorMessage(error, "We couldn't add these sections. Try again.") });
+      // Stay on the review so the user can retry without reading the CV again.
+      setApplyError(errorMessage(error, "We couldn't add these sections. Try again."));
     } finally {
       setApplying(false);
     }
@@ -204,6 +217,11 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
                 fillProfile={fillProfile}
                 onFillProfile={setFillProfile}
               />
+            )}
+            {step.name === "review" && applyError && (
+              <p className="mt-3 text-sm text-destructive" role="alert">
+                {applyError}
+              </p>
             )}
           </div>
 

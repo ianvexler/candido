@@ -7,10 +7,13 @@ class CvImportJob < ApplicationJob
   UNEXPECTED = "Something went wrong reading this CV. Try again later.".freeze
 
   def perform(cv_import_id)
-    cv_import = CvImport.find_by(id: cv_import_id)
-    return if cv_import.nil? || cv_import.status != "pending"
+    # Claim the import in one statement so an expiry can't slip in between
+    # checking and starting, and a duplicate run can't read it twice.
+    claimed = CvImport.where(id: cv_import_id, status: "pending")
+      .update_all(status: "processing", updated_at: Time.current)
+    return if claimed.zero?
 
-    cv_import.update!(status: "processing")
+    cv_import = CvImport.find(cv_import_id)
     output = CvImports::Extractor.new.call(data: Base64.decode64(cv_import.source_data.to_s), media_type: cv_import.media_type)
     draft = CvImports::Draft.from_model_output(output)
 
