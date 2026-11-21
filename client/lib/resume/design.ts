@@ -113,6 +113,22 @@ const channel = (value: number) => {
   return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
 };
 
+// Classic headings tint the accent toward white (see .rc-heading in classic.css).
+const CLASSIC_HEADING_MIX = 0.82;
+
+/** The "#rrggbb" colour section headings print in, which can be lighter than the accent. */
+export const headingColor = (design: DesignSettings) => {
+  if (design.heading_style !== "caps_rule") return design.accent;
+  return (
+    "#" +
+    [1, 3, 5]
+      .map((start) => parseInt(design.accent.slice(start, start + 2), 16))
+      .map((value) => Math.round(value * CLASSIC_HEADING_MIX + 255 * (1 - CLASSIC_HEADING_MIX)))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("")
+  );
+};
+
 /** WCAG contrast ratio between a "#rrggbb" colour and white (1 to 21). */
 export const contrastWithWhite = (hex: string) => {
   const [r, g, b] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));

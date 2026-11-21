@@ -99,4 +99,15 @@ RSpec.describe "Resume designs" do
 
     expect(curriculum.reload.styles).to eq("font" => "lora")
   end
+
+  it "answers a clash on the default design with a conflict, not a server error" do
+    design = create(:resume_design, user: user)
+    allow(ResumeDesign).to receive(:find_owned!).and_return(design)
+    allow(design).to receive(:update!).and_raise(ActiveRecord::RecordNotUnique)
+
+    put "/api/v1/resume_designs/#{design.id}", params: { is_default: true }, headers: headers, as: :json
+
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body["error"]).to be_present
+  end
 end

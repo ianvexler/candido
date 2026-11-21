@@ -29,7 +29,8 @@ class CurriculumsController < ApplicationController
     Curriculum.transaction do
       @curriculum.update!(curriculum_params)
       @curriculum.update_header!(params[:header]) if params.key?(:header)
-      @curriculum.merge_styles!(style_params) if style_params.present?
+      styles = style_params
+      @curriculum.merge_styles!(styles, **style_ordering) if styles.present?
     end
     render_curriculum(@curriculum)
   end
@@ -53,14 +54,21 @@ class CurriculumsController < ApplicationController
   # Merged into the existing styles so unrelated settings survive. Design keys
   # are validated here; paper is validated by the model.
   def style_params
-    raw = params.fetch(:styles, {})
-    return {} unless raw.respond_to?(:permit)
+    raw = params[:styles]
+    return {} if raw.nil?
+    ResumeDesignSettings.invalid!("Styles must be an object") unless raw.is_a?(ActionController::Parameters)
 
-    paper = raw.permit(:paper).to_h
-    design = ResumeDesignSettings.normalize!(raw.permit(*ResumeDesignSettings::KEYS).to_h)
-    unknown = raw.keys - [ "paper" ] - ResumeDesignSettings::KEYS
-    ResumeDesignSettings.invalid!("Unknown design setting: #{unknown.first}") if unknown.any?
+    styles = raw.to_unsafe_h
+    styles.slice("paper").merge(ResumeDesignSettings.normalize!(styles.except("paper")))
+  end
 
-    paper.merge(design)
+  # Optional ordering for saves from one open page; see Curriculum#merge_styles!.
+  def style_ordering
+    return {} if params[:styles_writer].blank?
+
+    seq = Integer(params[:styles_seq].to_s, exception: false)
+    ResumeDesignSettings.invalid!("Save number must be a whole number") if seq.nil? || seq.negative?
+
+    { writer: params[:styles_writer].to_s.first(64), seq: seq }
   end
 end

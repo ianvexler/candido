@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrastWithWhite, DESIGN_DEFAULTS, designStyle, resolveDesign } from "./design";
+import { contrastWithWhite, DESIGN_DEFAULTS, designStyle, headingColor, resolveDesign } from "./design";
 
 const fonts = { source_sans: "SourceSans", plex_sans: "Plex", source_serif: "SourceSerif", lora: "Lora" };
 
@@ -53,5 +53,22 @@ describe("contrastWithWhite", () => {
 
   it("is 1 for white", () => {
     expect(contrastWithWhite("#ffffff")).toBeCloseTo(1, 5);
+  });
+});
+
+describe("headingColor", () => {
+  it("is the accent mixed 82% with white under Classic headings", () => {
+    expect(headingColor({ ...DESIGN_DEFAULTS, accent: "#1a1a1a" })).toBe("#434343");
+  });
+
+  it("is the accent itself for the other heading styles", () => {
+    expect(headingColor({ ...DESIGN_DEFAULTS, heading_style: "bold", accent: "#8a8a8a" })).toBe("#8a8a8a");
+    expect(headingColor({ ...DESIGN_DEFAULTS, heading_style: "accent_bar", accent: "#8a8a8a" })).toBe("#8a8a8a");
+  });
+
+  it("makes a mid grey too faint under Classic headings though the raw colour passes", () => {
+    const design = { ...DESIGN_DEFAULTS, accent: "#8a8a8a" };
+    expect(contrastWithWhite(design.accent)).toBeGreaterThan(3);
+    expect(contrastWithWhite(headingColor(design))).toBeLessThan(3);
   });
 });

@@ -31,6 +31,9 @@ class ResumeDesign < ApplicationRecord
 
   before_validation { self.name = name.to_s.squish }
   before_validation { self.settings = ResumeDesignSettings.normalize!(settings) }
+  # Validation runs inside the save transaction, so the lock is held until
+  # commit: concurrent saves for one user take turns on the limit and default.
+  before_validation :lock_user, if: -> { new_record? || will_save_change_to_is_default? }
   before_save :clear_other_defaults, if: -> { is_default? && will_save_change_to_is_default? }
 
   def self.find_owned!(user, id)
@@ -47,6 +50,10 @@ class ResumeDesign < ApplicationRecord
     return if user.nil? || user.resume_designs.count < MAX_PER_USER
 
     errors.add(:base, "You can save up to #{MAX_PER_USER} designs. Delete one to save another.")
+  end
+
+  def lock_user
+    user&.lock!
   end
 
   def clear_other_defaults

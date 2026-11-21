@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { PaperSize, PaperSizes } from "@/lib/types";
 import { ArrowLeftIcon, DownloadIcon, PaletteIcon } from "lucide-react";
 import NextLink from "next/link";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 // Print margins; the on-screen sheet uses the same padding so it matches the PDF.
@@ -45,6 +45,18 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
   const [saves] = useState(createSerialQueue);
   // The design change waiting for the debounce, sent early if the page goes away.
   const pendingDesign = useRef<DesignSettings | null>(null);
+  // Design saves are numbered per page so the server skips one that arrives
+  // after a newer one, such as a slow save overtaken by the save sent on leaving.
+  const [styleWriter] = useState(() => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+  const styleSeq = useRef(0);
+  // Numbered when the save is sent, before it waits in the queue.
+  const designPayload = useCallback(
+    (next: DesignSettings) => {
+      styleSeq.current += 1;
+      return { styles: next, styles_writer: styleWriter, styles_seq: styleSeq.current };
+    },
+    [styleWriter]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -92,11 +104,13 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
   }, [print, resume, empty]);
 
   useEffect(() => {
-    const saveDesign = (next: DesignSettings) =>
-      saves.run(() => updateCurriculum(Number(id), { styles: next })).catch((error) => {
+    const saveDesign = (next: DesignSettings) => {
+      const payload = designPayload(next);
+      return saves.run(() => updateCurriculum(Number(id), payload)).catch((error) => {
         console.error(error);
         toast.error("Couldn't save the design. Try again.");
       });
+    };
     const flush = () => {
       const next = pendingDesign.current;
       pendingDesign.current = null;
@@ -106,7 +120,7 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
     if (designEdits === 0) return;
     const timer = setTimeout(flush, DESIGN_SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [designEdits, id, saves]);
+  }, [designEdits, designPayload, id, saves]);
 
   // Leaving within the debounce: send the last change now. In-app navigation
   // keeps the page's JavaScript alive long enough for a normal request; a tab
@@ -121,7 +135,7 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
         keepalive: true,
         credentials: "include",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ styles: next }),
+        body: JSON.stringify(designPayload(next)),
       }).catch(() => undefined);
     };
     window.addEventListener("pagehide", sendWithKeepalive);
@@ -130,9 +144,11 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
       window.removeEventListener("pagehide", sendWithKeepalive);
       const next = pendingDesign.current;
       pendingDesign.current = null;
-      if (next) void saves.run(() => updateCurriculum(Number(id), { styles: next })).catch(() => undefined);
+      if (!next) return;
+      const payload = designPayload(next);
+      void saves.run(() => updateCurriculum(Number(id), payload)).catch(() => undefined);
     };
-  }, [id, saves]);
+  }, [designPayload, id, saves]);
 
   const changeDesign = (next: DesignSettings) => {
     setDesign(next);
@@ -236,15 +252,15 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
               <ClassicTemplate document={resume} paper={paper} design={design} />
             </div>
           </div>
-          {panelOpen && (
-            <aside
-              aria-label="Design"
-              className="border-t border-border bg-background px-5 py-5 lg:sticky lg:top-[49px] lg:h-[calc(100vh-49px)] lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0 print:hidden"
-            >
-              <h2 className="mb-4 text-sm font-semibold">Design</h2>
-              <DesignPanel design={design} onChange={changeDesign} />
-            </aside>
-          )}
+          {/* Hidden rather than unmounted, so reopening keeps the saved designs and any half-typed name. */}
+          <aside
+            aria-label="Design"
+            hidden={!panelOpen}
+            className="border-t border-border bg-background px-5 py-5 lg:sticky lg:top-[49px] lg:h-[calc(100vh-49px)] lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0 print:hidden"
+          >
+            <h2 className="mb-4 text-sm font-semibold">Design</h2>
+            <DesignPanel design={design} onChange={changeDesign} />
+          </aside>
         </div>
       )}
     </div>

@@ -10,6 +10,10 @@ export type UpdateCurriculumPayload = {
   header?: Partial<ResumeHeader>;
   /** Merged into the resume's existing styles: paper size and design settings. */
   styles?: { paper?: PaperSize } & Partial<DesignSettings>;
+  /** Identifies the open page sending numbered style saves. */
+  styles_writer?: string;
+  /** Counts up with each save from that page; a lower number arriving late is ignored. */
+  styles_seq?: number;
 };
 
 export const updateCurriculum = async (

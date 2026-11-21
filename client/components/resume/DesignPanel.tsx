@@ -11,8 +11,10 @@ import {
   DATE_OPTIONS,
   DESIGN_DEFAULTS,
   DesignSettings,
+  DESIGN_KEYS,
   FONT_OPTIONS,
   HEADING_OPTIONS,
+  headingColor,
   resolveDesign,
   SIZE_OPTIONS,
   SPACING_OPTIONS,
@@ -25,7 +27,7 @@ import toast from "react-hot-toast";
 import { FONT_FAMILIES } from "./templates/ClassicTemplate";
 import IconAction from "./IconAction";
 
-// Below this, accent text and rules get hard to read on white paper.
+// Below this, headings get hard to read on white paper.
 const MIN_ACCENT_CONTRAST = 3;
 
 interface DesignPanelProps {
@@ -36,8 +38,7 @@ interface DesignPanelProps {
 const errorMessage = (error: unknown, fallback: string) =>
   (error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
 
-const sameDesign = (a: DesignSettings, b: DesignSettings) =>
-  (Object.keys(DESIGN_DEFAULTS) as (keyof DesignSettings)[]).every((key) => a[key] === b[key]);
+const sameDesign = (a: DesignSettings, b: DesignSettings) => DESIGN_KEYS.every((key) => a[key] === b[key]);
 
 /** Controls for a resume's look, and the user's saved designs. */
 const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
@@ -90,7 +91,8 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
     }
   };
 
-  const lowContrast = contrastWithWhite(design.accent) < MIN_ACCENT_CONTRAST;
+  // Checks the colour headings print in, which Classic tints lighter than the accent.
+  const lowContrast = contrastWithWhite(headingColor(design)) < MIN_ACCENT_CONTRAST;
 
   return (
     <div className="space-y-5 text-sm">
@@ -102,18 +104,19 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
         ) : (
           <ul className="space-y-1">
             {saved.map((item) => {
-              const applied = sameDesign(resolveDesign(item.settings), design);
+              const itemDesign = resolveDesign(item.settings);
+              const applied = sameDesign(itemDesign, design);
               return (
                 <li key={item.id} className="group/design flex items-center gap-1 rounded-md pl-2 hover:bg-muted/60">
                   <button
                     type="button"
-                    onClick={() => onChange(resolveDesign(item.settings))}
+                    onClick={() => onChange(itemDesign)}
                     className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
                   >
                     <span
                       aria-hidden
                       className="size-3 shrink-0 rounded-full"
-                      style={{ background: resolveDesign(item.settings).accent }}
+                      style={{ background: itemDesign.accent }}
                     />
                     <span className="truncate">{item.name}</span>
                     {applied && <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="In use" />}
