@@ -45,6 +45,16 @@ class CvImport < ApplicationRecord
     cv_import
   end
 
+  # Jobs run in-process, so a restart or deploy can drop one mid-read. Imports
+  # that haven't moved for this long are treated as failed and their files
+  # discarded, so nothing waits forever or keeps a CV around.
+  STALE_AFTER = 10.minutes
+
+  def self.expire_stale!
+    where(status: %w[pending processing], updated_at: ...STALE_AFTER.ago)
+      .update_all(status: "failed", error_message: CvImportJob::UNEXPECTED, source_data: nil, updated_at: Time.current)
+  end
+
   def self.limit_reached?(user)
     user.cv_imports.where(created_at: 24.hours.ago..).count >= DAILY_LIMIT
   end

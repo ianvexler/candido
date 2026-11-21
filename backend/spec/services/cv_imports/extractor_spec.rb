@@ -114,9 +114,35 @@ RSpec.describe CvImports::Extractor do
   end
 
   it "reports other API errors generically" do
-    bad = FakeClient.new(error: api_error(Anthropic::Errors::BadRequestError))
+    bad = FakeClient.new(error: api_error(Anthropic::Errors::NotFoundError))
 
     expect { extract(using: bad) }.to raise_error(CvImports::ExtractionError, "We couldn't read this CV. Try again later.")
+  end
+
+  it "logs API failures without the CV" do
+    allow(Rails.logger).to receive(:error)
+    bad = FakeClient.new(error: api_error(Anthropic::Errors::AuthenticationError))
+
+    expect { extract(using: bad) }.to raise_error(CvImports::ExtractionError)
+    expect(Rails.logger).to have_received(:error).with(a_string_including("AuthenticationError", "429")) do |line|
+      expect(line).not_to include(Base64.strict_encode64(pdf))
+    end
+  end
+
+  it "explains a file the API won't accept" do
+    rejected = FakeClient.new(error: api_error(Anthropic::Errors::BadRequestError))
+
+    expect { extract(using: rejected) }.to raise_error(
+      CvImports::ExtractionError, "We couldn't read this file. It may be password-protected or too long."
+    )
+  end
+
+  it "builds a client that gives up before the upload dialog does" do
+    allow(Anthropic::Client).to receive(:new).and_return(client)
+
+    described_class.new
+
+    expect(Anthropic::Client).to have_received(:new).with(timeout: 150, max_retries: 1)
   end
 
   describe ".configured?" do

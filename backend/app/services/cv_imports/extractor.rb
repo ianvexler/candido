@@ -54,7 +54,11 @@ module CvImports
       ENV["ANTHROPIC_API_KEY"].present?
     end
 
-    def initialize(client: Anthropic::Client.new)
+    # Fails well inside the upload dialog's 3-minute wait, so the user never
+    # abandons an import that later finishes (and is billed) out of sight.
+    CLIENT_OPTIONS = { timeout: 150, max_retries: 1 }.freeze
+
+    def initialize(client: Anthropic::Client.new(**CLIENT_OPTIONS))
       @client = client
     end
 
@@ -70,13 +74,26 @@ module CvImports
         messages: [ { role: "user", content: input_blocks(data, media_type) } ]
       )
       parse(message)
-    rescue Anthropic::Errors::RateLimitError, Anthropic::Errors::InternalServerError, Anthropic::Errors::APIConnectionError
+    rescue Anthropic::Errors::RateLimitError, Anthropic::Errors::InternalServerError, Anthropic::Errors::APIConnectionError => error
+      log_api_error(error)
       raise ExtractionError, BUSY
-    rescue Anthropic::Errors::APIStatusError
+    rescue Anthropic::Errors::BadRequestError => error
+      log_api_error(error)
+      raise ExtractionError, "We couldn't read this file. It may be password-protected or too long."
+    rescue Anthropic::Errors::APIStatusError => error
+      log_api_error(error)
       raise ExtractionError, "We couldn't read this CV. Try again later."
     end
 
     private
+
+    # Enough to diagnose a bad key, model name or beta header; never the CV.
+    def log_api_error(error)
+      status = error.respond_to?(:status) ? error.status : nil
+      headers = error.respond_to?(:headers) ? error.headers : nil
+      request_id = headers.respond_to?(:[]) ? headers["request-id"] : nil
+      Rails.logger.error("CV import: Claude API #{error.class.name.demodulize} status=#{status.inspect} request_id=#{request_id.inspect}")
+    end
 
     def input_blocks(data, media_type)
       instruction = { type: "text", text: "Read this CV into the resume structure." }

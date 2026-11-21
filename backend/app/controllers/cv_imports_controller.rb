@@ -4,6 +4,7 @@ class CvImportsController < ApplicationController
   ACCEPTED_TYPES = [ CvImports::Extractor::PDF, CvImports::Extractor::DOCX ].freeze
 
   before_action :require_authentication
+  before_action -> { CvImport.expire_stale! }, only: %i[create show]
   before_action :set_cv_import, only: %i[show apply]
 
   def create

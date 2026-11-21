@@ -30,6 +30,40 @@ RSpec.describe "CV imports" do
       expect(CvImport.last.media_type).to eq("application/pdf")
     end
 
+    it "accepts a Word document" do
+      buffer = Zip::OutputStream.write_buffer do |zip|
+        zip.put_next_entry("[Content_Types].xml")
+        zip.write('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        zip.put_next_entry("word/document.xml")
+        zip.write('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>')
+      end
+      docx = upload(buffer.string, "cv.docx", CvImports::Extractor::DOCX)
+
+      post "/api/v1/cv_imports", params: { file: docx }, headers: headers
+
+      expect(response).to have_http_status(:created)
+      expect(CvImport.last.media_type).to eq(CvImports::Extractor::DOCX)
+    end
+
+    it "fails imports left unfinished, and forgets their files" do
+      stuck = create(:cv_import, user: user, status: "processing", updated_at: 11.minutes.ago)
+
+      get "/api/v1/cv_imports/#{stuck.id}", headers: headers
+
+      expect(response.parsed_body["cv_import"]).to include(
+        "status" => "failed", "error_message" => "Something went wrong reading this CV. Try again later."
+      )
+      expect(stuck.reload.source_data).to be_nil
+    end
+
+    it "leaves imports that are still being read" do
+      recent = create(:cv_import, user: user, status: "processing", updated_at: 2.minutes.ago)
+
+      get "/api/v1/cv_imports/#{recent.id}", headers: headers
+
+      expect(response.parsed_body["cv_import"]["status"]).to eq("processing")
+    end
+
     it "rejects a file that isn't a PDF or Word document" do
       post "/api/v1/cv_imports", params: { file: upload("hello", "cv.txt", "text/plain") }, headers: headers
 
