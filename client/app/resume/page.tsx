@@ -90,9 +90,13 @@ const ResumesPage = () => {
       ) : masters.length === 0 ? (
         <div className="mt-10 rounded-lg border border-dashed border-border px-6 py-14 text-center">
           <FileTextIcon className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-3 font-medium">No resumes yet</p>
+          <p className="mt-3 font-medium">
+            {copies.length > 0 ? "No master CVs yet" : "No resumes yet"}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Write sections in your library, then pick the ones each resume needs.
+            {copies.length > 0
+              ? "Create one to reuse for applications."
+              : "Write sections in your library, then pick the ones each resume needs."}
           </p>
           <Button className="mt-5" onClick={() => setCreating(true)}>
             <PlusIcon />
@@ -151,11 +155,18 @@ const ResumesPage = () => {
                     href={`/resume/${curriculum.id}`}
                     className="flex flex-col gap-0.5 px-4 py-3 pr-12 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-4"
                   >
-                    <span className="min-w-0 truncate text-sm font-medium sm:flex-1">{curriculum.title}</span>
-                    <span className="min-w-0 truncate text-xs text-muted-foreground sm:w-48">
+                    <span className="flex min-w-0 items-center gap-2 sm:flex-1">
+                      <span className="truncate text-sm font-medium">{curriculum.title}</span>
+                      {curriculum.cv_for_job && (
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          In use
+                        </span>
+                      )}
+                    </span>
+                    <span className="min-w-0 truncate text-xs text-muted-foreground sm:w-48 sm:shrink-0">
                       For {curriculum.tailored_for}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground sm:w-36 sm:shrink-0 sm:text-right">
                       Edited {formatDistanceToNow(new Date(curriculum.updated_at), { addSuffix: true })}
                     </span>
                   </NextLink>
