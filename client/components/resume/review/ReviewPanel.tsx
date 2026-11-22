@@ -2,9 +2,9 @@
 
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
-import { COVERAGE_LABELS, FIT_LABELS, progressStep, reviewGroups, sectionLabel } from "@/lib/resume/reviewPanel";
+import { COVERAGE_LABELS, FIT_LABELS, FIT_STYLES, progressStep, reviewGroups, sectionLabel } from "@/lib/resume/reviewPanel";
 import { isTailoringActive } from "@/lib/resume/suggestions";
-import { CurriculumSection, CvSuggestion, CvTailoring, CvTailoringReport } from "@/lib/types";
+import { CurriculumSection, CvSuggestion, CvTailoring } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CheckIcon, ChevronRightIcon, ContrastIcon, InfoIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { ReactNode, useEffect, useMemo, useState } from "react";
@@ -27,12 +27,6 @@ interface ReviewPanelProps {
   /** Shown inline above the footer, e.g. why a re-run couldn't start. */
   error?: string | null;
 }
-
-const FIT_STYLES: Record<CvTailoringReport["fit"], string> = {
-  strong: "bg-emerald-50 text-emerald-900 [&>i]:bg-emerald-500",
-  partial: "bg-amber-50 text-amber-900 [&>i]:bg-amber-500",
-  weak: "bg-rose-50 text-rose-900 [&>i]:bg-rose-500",
-};
 
 const COVERAGE_ICONS = {
   yes: <CheckIcon className="size-3 text-emerald-600" aria-hidden />,

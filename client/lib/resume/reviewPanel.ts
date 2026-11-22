@@ -7,6 +7,13 @@ export const FIT_LABELS: Record<CvTailoringReport["fit"], string> = {
   weak: "Weak",
 };
 
+/** Badge colours for a fit; the `<i>` child is the dot. */
+export const FIT_STYLES: Record<CvTailoringReport["fit"], string> = {
+  strong: "bg-emerald-50 text-emerald-900 [&>i]:bg-emerald-500",
+  partial: "bg-amber-50 text-amber-900 [&>i]:bg-amber-500",
+  weak: "bg-rose-50 text-rose-900 [&>i]:bg-rose-500",
+};
+
 export const COVERAGE_LABELS: Record<CvTailoringReport["requirements"][number]["covered"], string> = {
   yes: "Covered",
   partly: "Partly covered",
