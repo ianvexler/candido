@@ -57,7 +57,7 @@ export type JobBoardEntry = {
   cover_letter_key?: string;
   cover_letter_filename?: string;
   closing_date?: Date;
-  tailored_curriculums?: { id: number; title: string; updated_at: string }[];
+  cv_curriculum: { id: number; title: string; updated_at: string; fit: CvTailoringReport["fit"] | null } | null;
 }
 
 export type JobBoardTag = {
@@ -200,6 +200,7 @@ export type Curriculum = {
   job_board_entry_id: number | null;
   source_curriculum_id: number | null;
   tailored_for: string | null;
+  cv_for_job: { id: number; company: string } | null;
   /** Fields this resume overrides; anything missing comes from the profile. Full view only. */
   header?: Partial<ResumeHeader>;
   /** Profile with this resume's overrides applied. Full view only. */
