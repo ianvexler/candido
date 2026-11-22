@@ -4,6 +4,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/Tabs"
+import CvSlot from "./CvSlot";
 import EntryDocCard from "./EntryDocCard";
 import { JobBoardEntry } from "@/lib/types";
 
@@ -21,7 +22,7 @@ const EntryDocArea = ({ entry, onUpdateEntry }: EntryDocAreaProps) => {
       </TabsList>
 
       <TabsContent value="cv">
-        <EntryDocCard type="CV" entry={entry} onUpdateEntry={onUpdateEntry} />
+        <CvSlot entry={entry} onUpdateEntry={onUpdateEntry} />
       </TabsContent>
 
       <TabsContent value="cover-letter">

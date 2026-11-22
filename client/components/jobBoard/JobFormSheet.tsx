@@ -22,6 +22,7 @@ import TagsInput from "./TagsInput";
 import { Button } from "../ui/Button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
+import CvSlot from "./entry/CvSlot";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -98,6 +99,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
   const [detailsTab, setDetailsTab] = useState<"description" | "notes">("description");
   const [closingDate, setClosingDate] = useState<string>(initialClosingDate);
+  // An action (open the CV picker, open the CV editor) waiting on the discard-edits prompt.
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const isTitleValid = title.trim().length > 0;
   const isCompanyValid = company.trim().length > 0;
@@ -315,6 +318,31 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const handleDiscardChanges = () => {
     setDiscardChangesModalOpen(false);
     props.onClose();
+  };
+
+  // Unsaved edits are never lost silently: ask before running an action that leaves them behind.
+  const beforeLeave = (action: () => void) => {
+    if (!hasUpdatedFields) {
+      action();
+      return;
+    }
+    debouncedSave.cancel();
+    setPendingLeave(() => action);
+  };
+
+  const handleConfirmLeave = () => {
+    const action = pendingLeave;
+    setTitle(initialTitle);
+    setCompany(initialCompany);
+    setLocation(initialLocation);
+    setSalary(initialSalary);
+    setUrl(initialUrl);
+    setStatus(initialStatus);
+    setTags(initialTags);
+    setClosingDate(initialClosingDate);
+    setEditorHtml(initialDescription);
+    editor?.commands.setContent(initialDescription);
+    action?.();
   };
 
   const handleSaveChanges = async () => {
@@ -579,6 +607,10 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </div>
         )}
 
+        {!isCreate && entry && (
+          <CvSlot entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+        )}
+
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Tags
@@ -700,6 +732,17 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         }
         confirmLabel={isCreate ? "Create" : "Update"}
         cancelLabel="Discard"
+      />
+
+      <ConfirmationModal
+        isOpen={pendingLeave !== null}
+        onClose={() => setPendingLeave(null)}
+        onConfirm={handleConfirmLeave}
+        title="Discard changes?"
+        description="Your unsaved changes to this job will be lost."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        variant="destructive"
       />
 
       {!isCreate && entry && (

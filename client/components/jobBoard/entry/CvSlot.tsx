@@ -249,7 +249,7 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
         onClose={() => setConfirm(null)}
         onConfirm={() => confirm?.run()}
         title={confirm?.kind === "remove" ? "Remove the uploaded CV?" : "Replace the uploaded CV?"}
-        description="The current file is deleted."
+        description={state === "text" ? "The current text is deleted." : "The current file is deleted."}
         confirmLabel={confirm?.kind === "remove" ? "Remove" : "Replace"}
         variant="destructive"
       />
