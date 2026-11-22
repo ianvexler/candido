@@ -38,12 +38,15 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "replace" | "remove"; run: () => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Responses can arrive after the entry changed; merge onto the latest one, not the one at call time.
+  const latestEntry = useRef(entry);
+  latestEntry.current = entry;
 
   const save = async (text?: string, file?: File, success?: string) => {
     setSaving(true);
     try {
       const response = await uploadCVJobBoardEntry(entry.id, text, file);
-      onUpdateEntry(entryWithUpload(entry, response.job_board_entry));
+      onUpdateEntry(entryWithUpload(latestEntry.current, response.job_board_entry));
       setDraft(null);
       if (success) toast.success(success);
     } catch (error) {
@@ -241,7 +244,7 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         entry={entry}
-        onCreated={(result) => onUpdateEntry(entryWithCopy(entry, result.curriculum))}
+        onCreated={(result) => onUpdateEntry(entryWithCopy(latestEntry.current, result.curriculum))}
       />
 
       <ConfirmationModal

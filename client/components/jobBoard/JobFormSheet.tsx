@@ -23,6 +23,7 @@ import { Button } from "../ui/Button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
 import CvSlot from "./entry/CvSlot";
+import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -164,6 +165,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const stateRef = useRef({ title, company, location, salary, url, status, editorHtml, tags });
   stateRef.current = { title, company, location, salary, url, status, editorHtml, tags };
 
+  const inFlightRef = useRef<Promise<boolean> | null>(null);
   const performSaveRef = useRef<() => Promise<boolean>>(async () => false);
 
   const performCreate = useCallback(async (): Promise<boolean> => {
@@ -250,7 +252,15 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   }, [isCreate, entry, closingDate, props]);
 
   const performSave = isCreate ? performCreate : performUpdate;
-  performSaveRef.current = performSave;
+  const trackedUpdate = useCallback(() => {
+    const p = performUpdate();
+    inFlightRef.current = p;
+    void p.finally(() => {
+      if (inFlightRef.current === p) inFlightRef.current = null;
+    });
+    return p;
+  }, [performUpdate]);
+  performSaveRef.current = isCreate ? performCreate : trackedUpdate;
 
   const debouncedSave = useMemo(
     () =>
@@ -320,18 +330,32 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     props.onClose();
   };
 
-  // Unsaved edits are never lost silently: ask before running an action that leaves them behind.
+  // The sheet autosaves, so save before leaving; only if that can't happen ask the user.
+  const hasUpdatedRef = useRef(hasUpdatedFields);
+  hasUpdatedRef.current = hasUpdatedFields;
+
   const beforeLeave = (action: () => void) => {
-    if (!hasUpdatedFields) {
-      action();
-      return;
-    }
     debouncedSave.cancel();
-    setPendingLeave(() => action);
+    void leaveAfterSave({
+      hasUnsavedEdits: hasUpdatedRef.current,
+      inFlight: inFlightRef.current,
+      save: trackedUpdate,
+      run: action,
+      onBlocked: () => setPendingLeave(() => action),
+    });
   };
 
-  const handleConfirmLeave = () => {
+  const discardedRef = useRef(false);
+  const handleKeepEditing = () => {
+    setPendingLeave(null);
+    // The modal also calls onClose after Discard and continue; only resume autosave for Keep editing.
+    if (discardedRef.current) discardedRef.current = false;
+    else debouncedSave();
+  };
+
+  const handleDiscardAndContinue = () => {
     const action = pendingLeave;
+    discardedRef.current = true;
     setTitle(initialTitle);
     setCompany(initialCompany);
     setLocation(initialLocation);
@@ -736,11 +760,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
       <ConfirmationModal
         isOpen={pendingLeave !== null}
-        onClose={() => setPendingLeave(null)}
-        onConfirm={handleConfirmLeave}
-        title="Discard changes?"
-        description="Your unsaved changes to this job will be lost."
-        confirmLabel="Discard"
+        onClose={handleKeepEditing}
+        onConfirm={handleDiscardAndContinue}
+        title="Couldn't save your changes"
+        description="Discard them and continue, or keep editing?"
+        confirmLabel="Discard and continue"
         cancelLabel="Keep editing"
         variant="destructive"
       />
