@@ -5,7 +5,7 @@ import { createCvTailoring } from "@/api/resources/cvTailorings/createCvTailorin
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { isReviewUnavailable } from "@/lib/jobBoard/cvSlot";
+import { isReviewUnavailable } from "@/lib/jobBoard/docSlot";
 import { splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import { Curriculum, CvTailoring, JobBoardEntry } from "@/lib/types";

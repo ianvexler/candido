@@ -10,12 +10,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Textarea } from "@/components/ui/Textarea";
 import {
   afterCopyCreated,
-  coverLetterSlotState,
-  CvSlotState,
-  cvSlotState,
-  entryWithCoverLetter,
-  entryWithUpload,
-} from "@/lib/jobBoard/cvSlot";
+  DOC_KINDS,
+  DocKind,
+  EntryPatch,
+  FillWay,
+  replaceWays,
+  textPreview,
+} from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronDownIcon, ClipboardTypeIcon, CopyIcon, FileTextIcon, UploadIcon } from "lucide-react";
@@ -24,58 +25,19 @@ import { ChangeEvent, ReactNode, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import UseCvDialog from "./UseCvDialog";
 
-export type DocKind = "cv" | "cover_letter";
-
 interface DocSlotProps {
   kind: DocKind;
   entry: JobBoardEntry;
-  onUpdateEntry: (entry: JobBoardEntry) => void;
+  /** Applies a change to the job with this id; changes name only the fields they set. */
+  onPatchEntry: (id: number, patch: EntryPatch) => void;
   /** Wraps actions that navigate away (e.g. a discard-changes prompt). */
   beforeLeave?: (action: () => void) => void;
 }
 
-type FillWay = "upload" | "paste" | "use";
-
-interface KindConfig {
-  /** Sentence start, e.g. in toasts. */
-  name: string;
-  /** Mid-sentence. */
-  noun: string;
-  ways: FillWay[];
-  placeholder: string;
-  fallbackFilename: string;
-  state: (entry: JobBoardEntry) => CvSlotState;
-  doc: (entry: JobBoardEntry) => { key?: string; text?: string; filename?: string };
-  save: (entry: JobBoardEntry, text?: string, file?: File) => Promise<(latest: JobBoardEntry) => JobBoardEntry>;
-}
-
-const KINDS: Record<DocKind, KindConfig> = {
-  cv: {
-    name: "CV",
-    noun: "CV",
-    ways: ["upload", "paste", "use"],
-    placeholder: "Paste the CV you sent",
-    fallbackFilename: "cv.pdf",
-    state: cvSlotState,
-    doc: (e) => ({ key: e.cv_key, text: e.cv_text, filename: e.cv_filename }),
-    save: async (entry, text, file) => {
-      const { job_board_entry } = await uploadCVJobBoardEntry(entry.id, text, file);
-      return (latest) => entryWithUpload(latest, job_board_entry);
-    },
-  },
-  cover_letter: {
-    name: "Cover letter",
-    noun: "cover letter",
-    ways: ["upload", "paste"],
-    placeholder: "Paste the cover letter you sent",
-    fallbackFilename: "cover-letter.pdf",
-    state: coverLetterSlotState,
-    doc: (e) => ({ key: e.cover_letter_key, text: e.cover_letter_text, filename: e.cover_letter_filename }),
-    save: async (entry, text, file) => {
-      const { job_board_entry } = await uploadCoverLetterJobBoardEntry(entry.id, text, file);
-      return (latest) => entryWithCoverLetter(latest, job_board_entry);
-    },
-  },
+/** Each document's endpoint; with no text or file it clears the document. */
+const UPLOADS: Record<DocKind, (id: number, text?: string, file?: File) => Promise<{ job_board_entry: JobBoardEntry }>> = {
+  cv: uploadCVJobBoardEntry,
+  cover_letter: uploadCoverLetterJobBoardEntry,
 };
 
 const runNow = (action: () => void) => action();
@@ -83,30 +45,30 @@ const runNow = (action: () => void) => action();
 /**
  * One of the job's documents: an uploaded file or pasted text, and for the CV
  * also a copy of one of the user's CVs. Has no heading; the page around it names it.
+ * Its parent must remount it for another job (key it by the job's id), so a paste box
+ * or prompt never carries over.
  */
-const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotProps) => {
+const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotProps) => {
   const router = useRouter();
-  const config = KINDS[kind];
+  const config = DOC_KINDS[kind];
   const state = config.state(entry);
   const doc = config.doc(entry);
 
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [confirm, setConfirm] = useState<{ kind: "replace" | "remove"; run: () => void } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "replace" | "remove"; description?: string; run: () => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  // Responses can arrive after the entry changed; merge onto the latest one, not the one at call time.
-  const latestEntry = useRef(entry);
-  latestEntry.current = entry;
-  // Same for the leave wrapper: the sheet's save reads the latest fields and entry.
+  // The leave wrapper changes as the sheet's fields change: the sheet's save reads the latest fields and entry.
   const latestBeforeLeave = useRef(beforeLeave);
   latestBeforeLeave.current = beforeLeave;
 
   const save = async (text?: string, file?: File, success?: string) => {
     setSaving(true);
     try {
-      const merge = await config.save(entry, text, file);
-      onUpdateEntry(merge(latestEntry.current));
+      // Sends only this document's fields, for this job, so a late response can't undo anything else.
+      const { job_board_entry } = await UPLOADS[kind](entry.id, text, file);
+      onPatchEntry(entry.id, config.patch(job_board_entry));
       setDraft(null);
       if (success) toast.success(success);
     } catch (error) {
@@ -125,7 +87,10 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
       toast.error("Please upload a PDF file.");
       return;
     }
-    void save(undefined, file, `${config.name} uploaded`);
+    const run = () => void save(undefined, file, `${config.name} uploaded`);
+    // Ask only now that a file was picked: cancelling the picker deletes nothing.
+    if (state === "file" || state === "text") setConfirm({ kind: "replace", run });
+    else run();
   };
 
   const fill = (way: FillWay) => {
@@ -134,11 +99,17 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
     else setPickerOpen(true);
   };
 
-  // Replacing an upload or text deletes it, so ask first; a copy is kept, so don't.
-  // Pasting over a file asks on Save instead, since the paste box can still be cancelled.
+  // Replacing an upload or text deletes it, so ask; a copy is kept, so don't.
+  // Uploads and pastes ask once there's something to replace it with. Picking one of your CVs
+  // makes the copy straight away, so that asks before the picker opens.
   const replaceWith = (way: FillWay) => {
-    if ((state === "file" || state === "text") && way !== "paste") setConfirm({ kind: "replace", run: () => fill(way) });
-    else fill(way);
+    if ((state === "file" || state === "text") && way === "use") {
+      setConfirm({
+        kind: "replace",
+        description: `Picking one of your CVs deletes the current ${state === "text" ? "text" : "file"}.`,
+        run: () => fill(way),
+      });
+    } else fill(way);
   };
 
   const saveDraft = (text: string) => {
@@ -255,7 +226,7 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
             >
               Open
             </Button>
-            {replaceControl(config.ways)}
+            {replaceControl(replaceWays(kind, state))}
             {removeButton}
           </>
         }
@@ -268,7 +239,7 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
         icon={isFile ? <FileTextIcon /> : <ClipboardTypeIcon />}
         title={isFile ? doc.filename ?? config.fallbackFilename : "Pasted text"}
         detail={isFile ? "PDF" : undefined}
-        preview={isFile ? undefined : doc.text}
+        preview={isFile ? undefined : textPreview(doc.text)}
         actions={
           <>
             {isFile ? (
@@ -280,7 +251,7 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
                 Edit
               </Button>
             )}
-            {replaceControl(isFile ? config.ways : config.ways.filter((way) => way !== "paste"))}
+            {replaceControl(replaceWays(kind, state))}
             {removeButton}
           </>
         }
@@ -303,9 +274,9 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
           entry={entry}
           onCreated={(result) =>
             afterCopyCreated({
-              entry: latestEntry.current,
+              entryId: entry.id,
               copy: result.curriculum,
-              onUpdateEntry,
+              onPatchEntry,
               beforeLeave: latestBeforeLeave.current,
               navigate: (href) => router.push(href),
             })
@@ -318,7 +289,7 @@ const DocSlot = ({ kind, entry, onUpdateEntry, beforeLeave = runNow }: DocSlotPr
         onClose={() => setConfirm(null)}
         onConfirm={() => confirm?.run()}
         title={`${confirm?.kind === "remove" ? "Remove" : "Replace"} the ${what}?`}
-        description={state === "text" ? "The current text is deleted." : "The current file is deleted."}
+        description={confirm?.description ?? (state === "text" ? "The current text is deleted." : "The current file is deleted.")}
         confirmLabel={confirm?.kind === "remove" ? "Remove" : "Replace"}
         variant="destructive"
       />
@@ -361,7 +332,9 @@ const SlotCard = ({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-start justify-between gap-3">
-          <p className="min-w-0 truncate text-sm font-medium">{title}</p>
+          <p className="min-w-0 truncate text-sm font-medium" title={title}>
+            {title}
+          </p>
           {badge}
         </div>
         {detail && <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>}
