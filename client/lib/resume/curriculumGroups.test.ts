@@ -23,3 +23,15 @@ describe("splitCurriculums", () => {
     expect(copies.map((c) => c.id)).toEqual([2, 4]);
   });
 });
+
+describe("deleteDescription", () => {
+  it("warns when the curriculum is a job's CV", () => {
+    expect(deleteDescription({ cv_for_job: { id: 1, company: "Acme" } })).toBe(
+      "This is the CV for your Acme application; its CV slot will be empty.",
+    );
+  });
+  it("falls back to the library note", () => {
+    expect(deleteDescription({ cv_for_job: null })).toBe("Your section library is not affected.");
+    expect(deleteDescription(null)).toBe("Your section library is not affected.");
+  });
+});
