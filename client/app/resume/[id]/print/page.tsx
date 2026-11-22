@@ -31,12 +31,10 @@ const DESIGN_SAVE_DELAY_MS = 500;
 
 interface PrintPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string }>;
 }
 
-const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
+const PrintResumePage = ({ params }: PrintPageProps) => {
   const { id } = use(params);
-  const { print } = use(searchParams);
   const [resume, setResume] = useState<ResumeDocument | null>(null);
   const [paper, setPaper] = useState<PaperSize>("a4");
   const [design, setDesign] = useState<DesignSettings>(DESIGN_DEFAULTS);
@@ -44,7 +42,6 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
   const [designEdits, setDesignEdits] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const printed = useRef(false);
   // Style saves go out one at a time, so the last change sent is the last applied.
   const [saves] = useState(createSerialQueue);
   // The design change waiting for the debounce, sent early if the page goes away.
@@ -99,13 +96,6 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
   }, [resume]);
 
   const empty = resume ? isEmptyDocument(resume) : true;
-
-  // Opened with ?print=1 from the editor: print once fonts are ready.
-  useEffect(() => {
-    if (print !== "1" || !resume || empty || printed.current) return;
-    printed.current = true;
-    void window.document.fonts.ready.then(() => window.print());
-  }, [print, resume, empty]);
 
   useEffect(() => {
     const saveDesign = (next: DesignSettings) => {
@@ -232,7 +222,7 @@ const PrintResumePage = ({ params, searchParams }: PrintPageProps) => {
               </button>
             ))}
           </div>
-          <Button size="sm" onClick={() => window.print()} disabled={empty}>
+          <Button size="sm" onClick={() => void window.document.fonts.ready.then(() => window.print())} disabled={empty}>
             <DownloadIcon />
             Save as PDF
           </Button>

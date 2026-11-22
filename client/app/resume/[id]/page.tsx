@@ -248,7 +248,8 @@ const ResumePage = ({ params }: ResumePageProps) => {
     if (!saved) {
       toast("Your latest changes are still saving, so the PDF may not include them.");
     }
-    const url = `/resume/${curriculum.id}/print?print=1`;
+    // The export view prints only when asked, so the design can be adjusted first.
+    const url = `/resume/${curriculum.id}/print`;
     if (tab) tab.location.href = url;
     else window.location.assign(url);
   };
