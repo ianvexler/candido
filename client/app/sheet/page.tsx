@@ -3,6 +3,7 @@
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { getNotes } from "@/api/resources/notes/getNotes";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
+import { entryWithUpload } from "@/lib/jobBoard/cvSlot";
 import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
 import { uploadCoverLetterJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCoverLetterJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
@@ -175,7 +176,7 @@ const SheetPage = () => {
     async (entry: JobBoardEntry, file: File) => {
       try {
         const response = await uploadCVJobBoardEntry(entry.id, undefined, file);
-        const updated = { ...entry, ...response.job_board_entry };
+        const updated = entryWithUpload({ ...entry, ...response.job_board_entry }, response.job_board_entry);
 
         setJobBoardEntries((prev) =>
           prev.map((e) => (e.id === entry.id ? updated : e))
