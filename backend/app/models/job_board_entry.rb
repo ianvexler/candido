@@ -20,16 +20,19 @@
 #  url                   :text
 #  created_at            :datetime         not null
 #  updated_at            :datetime         not null
+#  cv_curriculum_id      :bigint
 #  user_id               :integer          not null
 #
 # Indexes
 #
-#  JobBoardEntry_title_idx                 (title)
-#  JobBoardEntry_userId_status_number_key  (user_id,status,number) UNIQUE
+#  JobBoardEntry_title_idx                      (title)
+#  JobBoardEntry_userId_status_number_key       (user_id,status,number) UNIQUE
+#  index_job_board_entries_on_cv_curriculum_id  (cv_curriculum_id)
 #
 # Foreign Keys
 #
 #  JobBoardEntry_userId_fkey  (user_id => users.id) ON DELETE => restrict ON UPDATE => cascade
+#  fk_rails_...               (cv_curriculum_id => curriculums.id) ON DELETE => nullify
 #
 class JobBoardEntry < ApplicationRecord
   STATUSES = %w[PENDING APPLIED ASSESSMENT INTERVIEW OFFERED REJECTED ACCEPTED ARCHIVED].freeze
@@ -37,6 +40,8 @@ class JobBoardEntry < ApplicationRecord
   belongs_to :user
   has_many :job_board_entry_notes, dependent: :destroy
   has_many :tailored_curriculums, class_name: "Curriculum", dependent: :nullify
+  # The copy of a resume that serves as this job's CV; empty if it is deleted.
+  belongs_to :cv_curriculum, class_name: "Curriculum", optional: true, inverse_of: :cv_for_job
   has_and_belongs_to_many :job_board_tags
 
   enum :status, STATUSES.index_by(&:itself), default: "PENDING", validate: true
@@ -169,8 +174,18 @@ class JobBoardEntry < ApplicationRecord
       file: file,
       text_attr: :cv_text,
       key_attr: :cv_key,
-      filename_attr: :cv_filename
+      filename_attr: :cv_filename,
+      extra: { cv_curriculum_id: nil }
     )
+  end
+
+  # Makes a copy of a resume this job's CV, replacing any uploaded file or text.
+  # The stored file goes only after the surrounding transaction commits, so a
+  # rollback never loses it.
+  def use_cv_copy!(curriculum)
+    old_key = cv_key
+    update!(cv_curriculum: curriculum, cv_text: nil, cv_key: nil, cv_filename: nil)
+    ActiveRecord.after_all_transactions_commit { PdfUploader.delete_key(old_key) } if old_key
   end
 
   def upload_cover_letter!(text: nil, file: nil)
@@ -185,17 +200,17 @@ class JobBoardEntry < ApplicationRecord
 
   private
 
-  def apply_upload!(text:, file:, text_attr:, key_attr:, filename_attr:)
+  def apply_upload!(text:, file:, text_attr:, key_attr:, filename_attr:, extra: {})
     if text.present?
       PdfUploader.delete_key(self[key_attr])
-      update!(text_attr => text, key_attr => nil, filename_attr => nil)
+      update!(text_attr => text, key_attr => nil, filename_attr => nil, **extra)
     elsif file.present?
       uploaded = PdfUploader.store!(file)
       PdfUploader.delete_key(self[key_attr])
-      update!(text_attr => nil, key_attr => uploaded.id, filename_attr => file.original_filename)
+      update!(text_attr => nil, key_attr => uploaded.id, filename_attr => file.original_filename, **extra)
     else
       PdfUploader.delete_key(self[key_attr])
-      update!(text_attr => nil, key_attr => nil, filename_attr => nil)
+      update!(text_attr => nil, key_attr => nil, filename_attr => nil, **extra)
     end
   end
 

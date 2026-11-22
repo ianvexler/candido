@@ -11,7 +11,7 @@ class JobBoardEntriesController < ApplicationController
   }.freeze
 
   def index
-    entries = current_user.job_board_entries.includes(:job_board_tags)
+    entries = current_user.job_board_entries.includes(:job_board_tags, cv_curriculum: :cv_tailorings)
     render json: {
       job_board_entries: serialize(entries, with: JobBoardEntryBlueprint),
       is_empty: entries.empty?
@@ -19,7 +19,7 @@ class JobBoardEntriesController < ApplicationController
   end
 
   def show
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
   end
 
   def create
@@ -34,12 +34,13 @@ class JobBoardEntriesController < ApplicationController
     end
 
     created = JobBoardEntry.bulk_import_for_user!(current_user, import_attributes(entries))
+    ActiveRecord::Associations::Preloader.new(records: created, associations: { cv_curriculum: :cv_tailorings }).call
     render json: { job_board_entries: serialize(created, with: JobBoardEntryBlueprint) }
   end
 
   def update
     @job_board_entry.update_for_user!(entry_attributes, tag_names: params[:tag_names])
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
   end
 
   def destroy
@@ -54,12 +55,12 @@ class JobBoardEntriesController < ApplicationController
 
   def upload_cv
     @job_board_entry.upload_cv!(text: params[:cv_text], file: params[:file])
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
   end
 
   def upload_cover_letter
     @job_board_entry.upload_cover_letter!(text: params[:cover_letter_text], file: params[:file])
-    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint, view: :with_tailored) }
+    render json: { job_board_entry: serialize(@job_board_entry, with: JobBoardEntryBlueprint) }
   end
 
   private

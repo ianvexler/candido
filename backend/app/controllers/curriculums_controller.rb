@@ -5,7 +5,7 @@ class CurriculumsController < ApplicationController
   before_action :set_curriculum, only: %i[show update destroy]
 
   def index
-    curriculums = current_user.curriculums.includes(:curriculum_sections).order(updated_at: :desc)
+    curriculums = current_user.curriculums.includes(:curriculum_sections, :cv_for_job).order(updated_at: :desc)
     render json: { curriculums: serialize(curriculums, with: CurriculumBlueprint) }
   end
 

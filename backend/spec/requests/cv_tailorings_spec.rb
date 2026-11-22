@@ -209,16 +209,4 @@ RSpec.describe "CV tailorings" do
       expect(response).to have_http_status(:forbidden)
     end
   end
-
-  describe "GET /job_board_entries/:id" do
-    it "lists its tailored CVs" do
-      copy = source.duplicate_for_job!(job)
-
-      get "/api/v1/job_board_entries/#{job.id}", headers: headers
-
-      expect(response.parsed_body["job_board_entry"]["tailored_curriculums"]).to contain_exactly(
-        a_hash_including("id" => copy.id, "title" => "Main CV – Acme")
-      )
-    end
-  end
 end

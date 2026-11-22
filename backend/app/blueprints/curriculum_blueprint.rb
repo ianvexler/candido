@@ -7,6 +7,11 @@ class CurriculumBlueprint < ApplicationBlueprint
     curriculum.curriculum_sections.size
   end
 
+  field :cv_for_job do |curriculum, _options|
+    job = curriculum.cv_for_job
+    job && { id: job.id, company: job.company }
+  end
+
   view :full do
     field :header
     field :resolved_header do |curriculum, _options|

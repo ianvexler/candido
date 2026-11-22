@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_22_110000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -144,6 +144,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_22_110000) do
     t.text "cover_letter_key"
     t.text "cv_key"
     t.datetime "closing_date", precision: 3
+    t.bigint "cv_curriculum_id"
+    t.index ["cv_curriculum_id"], name: "index_job_board_entries_on_cv_curriculum_id"
     t.index ["title"], name: "JobBoardEntry_title_idx"
     t.index ["user_id", "status", "number"], name: "JobBoardEntry_userId_status_number_key", unique: true
   end
@@ -242,6 +244,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_22_110000) do
   add_foreign_key "cv_tailorings", "job_board_entries", on_delete: :nullify
   add_foreign_key "cv_tailorings", "users"
   add_foreign_key "feedback_entries", "users", name: "FeedbackEntry_userId_fkey", on_update: :cascade, on_delete: :restrict
+  add_foreign_key "job_board_entries", "curriculums", column: "cv_curriculum_id", on_delete: :nullify
   add_foreign_key "job_board_entries", "users", name: "JobBoardEntry_userId_fkey", on_update: :cascade, on_delete: :restrict
   add_foreign_key "job_board_entries_tags", "job_board_entries", name: "_JobBoardEntryToJobBoardTag_A_fkey", on_update: :cascade, on_delete: :cascade
   add_foreign_key "job_board_entries_tags", "job_board_tags", name: "_JobBoardEntryToJobBoardTag_B_fkey", on_update: :cascade, on_delete: :cascade

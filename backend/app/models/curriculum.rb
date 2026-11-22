@@ -42,6 +42,8 @@ class Curriculum < ApplicationRecord
   # Set on a copy made for one job; the links clear if either is deleted.
   belongs_to :job_board_entry, optional: true
   belongs_to :source_curriculum, class_name: "Curriculum", optional: true
+  # The job that uses this copy as its CV; the database empties its slot on delete.
+  has_one :cv_for_job, class_name: "JobBoardEntry", foreign_key: :cv_curriculum_id, inverse_of: :cv_curriculum
 
   validates :title, presence: true
   validates :layout, inclusion: { in: LAYOUTS }

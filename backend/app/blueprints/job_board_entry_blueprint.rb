@@ -6,10 +6,12 @@ class JobBoardEntryBlueprint < ApplicationBlueprint
 
   association :job_board_tags, blueprint: JobBoardTagBlueprint
 
-  # One query per entry, so only for responses that return a single entry.
-  view :with_tailored do
-    field :tailored_curriculums do |entry, _options|
-      entry.tailored_curriculums.order(:id).map { |curriculum| curriculum.slice(:id, :title, :updated_at) }
-    end
+  # Fit comes from the preloaded runs, so listing jobs costs no query per job.
+  field :cv_curriculum do |entry, _options|
+    copy = entry.cv_curriculum
+    next nil if copy.nil?
+
+    latest = copy.cv_tailorings.select { |run| run.status == "succeeded" }.max_by { |run| [ run.created_at, run.id ] }
+    { id: copy.id, title: copy.title, updated_at: copy.updated_at, fit: latest&.report&.dig("fit") }
   end
 end
