@@ -1,5 +1,4 @@
 import { uploadCoverLetterJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCoverLetterJobBoardEntry";
-import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -11,14 +10,14 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 interface EntryDocCardProps {
-  type: "CV" | "Cover Letter";
+  type: "Cover Letter";
   entry: JobBoardEntry;
   onUpdateEntry: (entry: JobBoardEntry) => void;
 }
 const EntryDocCard = ({ type, entry, onUpdateEntry }: EntryDocCardProps) => {
-  const initialDocText = type === "CV" ? entry.cv_text : entry.cover_letter_text;
-  const initialDocKey = type === "CV" ? entry.cv_key : entry.cover_letter_key;
-  const initialDocDisplayName = type === "CV" ? entry.cv_filename : entry.cover_letter_filename;
+  const initialDocText = entry.cover_letter_text;
+  const initialDocKey = entry.cover_letter_key;
+  const initialDocDisplayName = entry.cover_letter_filename;
 
   const [docText, setDocText] = useState<string | undefined>(initialDocText);
   const [docFile, setDocFile] = useState<File | undefined>();
@@ -35,7 +34,7 @@ const EntryDocCard = ({ type, entry, onUpdateEntry }: EntryDocCardProps) => {
 
     setLoadingFile(true);
     getFileUpload(initialDocKey).then((response) => {
-      setDocFile(new File([response], initialDocDisplayName ?? (type === "CV" ? "cv.pdf" : "cover-letter.pdf")));
+      setDocFile(new File([response], initialDocDisplayName ?? "cover-letter.pdf"));
     }).finally(() => {
       setLoadingFile(false);
     });
@@ -60,27 +59,15 @@ const EntryDocCard = ({ type, entry, onUpdateEntry }: EntryDocCardProps) => {
     setSaving(true);
 
     try {
-      if (type === "CV") {
-        const response = await uploadCVJobBoardEntry(entry.id, docText, docFile);
-        const updated = response.job_board_entry;
-        
-        onUpdateEntry({
-          ...entry,
-          cv_text: updated.cv_text,
-          cv_key: updated.cv_key,
-          cv_filename: updated.cv_filename,
-        });
-      } else {
-        const response = await uploadCoverLetterJobBoardEntry(entry.id, docText, docFile);
-        const updated = response.job_board_entry;
-        
-        onUpdateEntry({
-          ...entry,
-          cover_letter_text: updated.cover_letter_text,
-          cover_letter_key: updated.cover_letter_key,
-          cover_letter_filename: updated.cover_letter_filename,
-        });
-      }
+      const response = await uploadCoverLetterJobBoardEntry(entry.id, docText, docFile);
+      const updated = response.job_board_entry;
+      
+      onUpdateEntry({
+        ...entry,
+        cover_letter_text: updated.cover_letter_text,
+        cover_letter_key: updated.cover_letter_key,
+        cover_letter_filename: updated.cover_letter_filename,
+      });
 
       toast.success(`Saved ${type} successfully`);
     } catch (error) {
