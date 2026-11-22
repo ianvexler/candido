@@ -17,12 +17,11 @@ import { TextStyleKit } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
 import { useRouter } from "next/navigation";
 import ConfirmationModal from "../common/ConfirmationModal";
-import SheetFileInputs from "./sheet/SheetFileInputs";
 import TagsInput from "./TagsInput";
 import { Button } from "../ui/Button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
-import CvSlot from "./entry/CvSlot";
+import DocSlot from "./entry/DocSlot";
 import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
@@ -629,15 +628,17 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
         {!isCreate && entry && (
           <>
-            <CvSlot entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+            <section className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">CV</h3>
+              <DocSlot kind="cv" entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+            </section>
 
-            <div className="flex flex-col gap-2">
+            <section className="flex flex-col gap-2">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Cover letter
               </h3>
-
-              <SheetFileInputs entry={entry} />
-            </div>
+              <DocSlot kind="cover_letter" entry={entry} onUpdateEntry={props.onUpdateJob} />
+            </section>
           </>
         )}
 

@@ -2,7 +2,8 @@
 
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
-import { COVERAGE_LABELS, FIT_LABELS, FIT_STYLES, progressStep, reviewGroups, sectionLabel } from "@/lib/resume/reviewPanel";
+import FitBadge from "@/components/common/FitBadge";
+import { COVERAGE_LABELS, progressStep, reviewGroups, sectionLabel } from "@/lib/resume/reviewPanel";
 import { isTailoringActive } from "@/lib/resume/suggestions";
 import { CurriculumSection, CvSuggestion, CvTailoring } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -119,18 +120,7 @@ const ReviewPanel = ({
               <h2 className="min-w-0 text-sm font-semibold leading-snug break-words">
                 {tailoring.job_title} · {tailoring.company}
               </h2>
-              {report && (
-                <span
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
-                    FIT_STYLES[report.fit]
-                  )}
-                >
-                  <i className="size-1.5 rounded-full" aria-hidden />
-                  {FIT_LABELS[report.fit]}
-                  <span className="sr-only"> fit</span>
-                </span>
-              )}
+              {report && <FitBadge fit={report.fit} />}
             </div>
 
             {report?.summary && (

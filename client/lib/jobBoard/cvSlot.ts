@@ -62,3 +62,23 @@ export const isReviewUnavailable = (error: unknown): boolean => {
   const status = (error as { response?: { status?: unknown } } | undefined)?.response?.status;
   return status === 503 || status === 429;
 };
+
+/** What fills the job's cover letter: an uploaded file, pasted text, or nothing. */
+export const coverLetterSlotState = (
+  entry: Pick<JobBoardEntry, "cover_letter_key" | "cover_letter_text">,
+): Exclude<CvSlotState, "copy"> => {
+  if (entry.cover_letter_key) return "file";
+  if (entry.cover_letter_text?.trim()) return "text";
+  return "empty";
+};
+
+/** The entry after the cover letter endpoint answered. */
+export const entryWithCoverLetter = (
+  entry: JobBoardEntry,
+  updated: Pick<JobBoardEntry, "cover_letter_text" | "cover_letter_key" | "cover_letter_filename">,
+): JobBoardEntry => ({
+  ...entry,
+  cover_letter_text: updated.cover_letter_text,
+  cover_letter_key: updated.cover_letter_key,
+  cover_letter_filename: updated.cover_letter_filename,
+});

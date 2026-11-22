@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { afterCopyCreated, cvSlotState, entryWithCopy, entryWithUpload, isReviewUnavailable } from "./cvSlot";
+import {
+  afterCopyCreated,
+  coverLetterSlotState,
+  cvSlotState,
+  entryWithCopy,
+  entryWithCoverLetter,
+  entryWithUpload,
+  isReviewUnavailable,
+} from "./cvSlot";
 import { JobBoardEntry } from "@/lib/types";
 
 const base = {
@@ -79,5 +87,24 @@ describe("isReviewUnavailable", () => {
     expect(isReviewUnavailable({ response: { status: 429 } })).toBe(true);
     expect(isReviewUnavailable({ response: { status: 500 } })).toBe(false);
     expect(isReviewUnavailable(new Error("x"))).toBe(false);
+  });
+});
+
+describe("coverLetterSlotState", () => {
+  it("prefers a file, then non-blank text", () => {
+    expect(coverLetterSlotState(base)).toBe("empty");
+    expect(coverLetterSlotState({ ...base, cover_letter_text: "  " })).toBe("empty");
+    expect(coverLetterSlotState({ ...base, cover_letter_key: "k", cover_letter_text: "t" })).toBe("file");
+    expect(coverLetterSlotState({ ...base, cover_letter_text: "t" })).toBe("text");
+  });
+});
+
+describe("entryWithCoverLetter", () => {
+  it("takes the cover letter fields from the response and keeps the CV", () => {
+    const entry = { ...base, cv_text: "cv", cover_letter_key: "old", cover_letter_filename: "old.pdf" };
+    const result = entryWithCoverLetter(entry, { cover_letter_text: "Dear…", cover_letter_key: undefined, cover_letter_filename: undefined });
+    expect(result).toMatchObject({ cv_text: "cv", cover_letter_text: "Dear…" });
+    expect(result.cover_letter_key).toBeUndefined();
+    expect(result.cover_letter_filename).toBeUndefined();
   });
 });
