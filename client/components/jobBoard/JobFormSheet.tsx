@@ -252,14 +252,18 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   }, [isCreate, entry, closingDate, props]);
 
   const performSave = isCreate ? performCreate : performUpdate;
+  // What the newest save sent, to tell whether anything was edited while it was in flight.
+  const sentRef = useRef<string | null>(null);
+  const fieldsSnapshot = () => JSON.stringify({ ...stateRef.current, closingDate });
   const trackedUpdate = useCallback(() => {
+    sentRef.current = JSON.stringify({ ...stateRef.current, closingDate });
     const p = performUpdate();
     inFlightRef.current = p;
     void p.finally(() => {
       if (inFlightRef.current === p) inFlightRef.current = null;
     });
     return p;
-  }, [performUpdate]);
+  }, [performUpdate, closingDate]);
   performSaveRef.current = isCreate ? performCreate : trackedUpdate;
 
   const debouncedSave = useMemo(
@@ -339,6 +343,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     void leaveAfterSave({
       hasUnsavedEdits: hasUpdatedRef.current,
       inFlight: inFlightRef.current,
+      editedSinceInFlight: () => fieldsSnapshot() !== sentRef.current,
       save: trackedUpdate,
       run: action,
       onBlocked: () => setPendingLeave(() => action),

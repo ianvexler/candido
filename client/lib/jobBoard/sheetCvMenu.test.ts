@@ -18,6 +18,7 @@ describe("sheetCvMenu", () => {
     expect(menu.heading).toBe("Main – Acme");
     expect(menu.items.map((i) => i.action)).toEqual(["open", "replace-with-file"]);
     expect(menu.items[1].confirm?.description).toBe("The copy stays in your resumes.");
+    expect(menu.items[1].confirm?.destructive).toBeFalsy();
   });
   it("falls back to 'CV copy' without a title", () => {
     expect(sheetCvMenu({ ...none, cv_curriculum: { ...copy, title: "" } }).heading).toBe("CV copy");
@@ -27,5 +28,6 @@ describe("sheetCvMenu", () => {
     expect(menu.items.map((i) => i.action)).toEqual(["replace-with-file"]);
     expect(menu.items[0].confirm?.title).toBe("Replace the pasted CV?");
     expect(menu.items[0].confirm?.description).toBe("The current text is deleted.");
+    expect(menu.items[0].confirm?.destructive).toBe(true);
   });
 });

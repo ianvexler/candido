@@ -75,9 +75,16 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
   };
 
   // Replacing an upload or text deletes it, so ask first; a copy is kept, so don't.
+  // Pasting over a file asks on Save instead, since the paste box can still be cancelled.
   const replaceWith = (way: FillWay) => {
-    if (state === "file" || state === "text") setConfirm({ kind: "replace", run: () => fill(way) });
+    if ((state === "file" || state === "text") && way !== "paste") setConfirm({ kind: "replace", run: () => fill(way) });
     else fill(way);
+  };
+
+  const saveDraft = (text: string) => {
+    const run = () => void save(text, undefined, "CV saved");
+    if (state === "file") setConfirm({ kind: "replace", run });
+    else run();
   };
 
   const remove = () => {
@@ -147,7 +154,7 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
           <Button
             type="button"
             size="sm"
-            onClick={() => void save(draft, undefined, "CV saved")}
+            onClick={() => saveDraft(draft)}
             disabled={saving || !draft.trim()}
           >
             {saving ? "Saving…" : "Save"}
@@ -251,7 +258,7 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
         isOpen={confirm !== null}
         onClose={() => setConfirm(null)}
         onConfirm={() => confirm?.run()}
-        title={confirm?.kind === "remove" ? "Remove the uploaded CV?" : "Replace the uploaded CV?"}
+        title={`${confirm?.kind === "remove" ? "Remove" : "Replace"} the ${state === "text" ? "pasted" : "uploaded"} CV?`}
         description={state === "text" ? "The current text is deleted." : "The current file is deleted."}
         confirmLabel={confirm?.kind === "remove" ? "Remove" : "Replace"}
         variant="destructive"

@@ -6,13 +6,12 @@ class JobBoardEntryBlueprint < ApplicationBlueprint
 
   association :job_board_tags, blueprint: JobBoardTagBlueprint
 
-  # Fit comes from the preloaded runs, so listing jobs costs no query per job.
   # `fit` is deliberately the latest *succeeded* run's (last known fit), not the latest run's.
+  # Preload `cv_curriculum: :latest_fit_tailoring` when listing jobs.
   field :cv_curriculum do |entry, _options|
     copy = entry.cv_curriculum
     next nil if copy.nil?
 
-    latest = copy.cv_tailorings.select { |run| run.status == "succeeded" }.max_by { |run| [ run.created_at, run.id ] }
-    { id: copy.id, title: copy.title, updated_at: copy.updated_at, fit: latest&.report&.dig("fit") }
+    { id: copy.id, title: copy.title, updated_at: copy.updated_at, fit: copy.latest_fit_tailoring&.read_attribute(:fit) }
   end
 end

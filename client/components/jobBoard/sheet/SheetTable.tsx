@@ -152,6 +152,7 @@ const SheetTable = ({
             title={confirmReplace?.item.confirm?.title ?? ""}
             description={confirmReplace?.item.confirm?.description}
             confirmLabel={confirmReplace?.item.confirm?.confirmLabel}
+            variant={confirmReplace?.item.confirm?.destructive ? "destructive" : undefined}
           />
           {entries.length === 0 && (
             <TableEmpty>

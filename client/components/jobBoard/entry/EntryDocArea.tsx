@@ -11,9 +11,11 @@ import { JobBoardEntry } from "@/lib/types";
 interface EntryDocAreaProps {
   entry: JobBoardEntry;
   onUpdateEntry: (entry: JobBoardEntry) => void;
+  /** Wraps CV actions that open the picker or leave the page. */
+  beforeLeave?: (action: () => void) => void;
 }
 
-const EntryDocArea = ({ entry, onUpdateEntry }: EntryDocAreaProps) => {
+const EntryDocArea = ({ entry, onUpdateEntry, beforeLeave }: EntryDocAreaProps) => {
   return (
     <Tabs defaultValue="cv" className="w-full">
       <TabsList>
@@ -22,7 +24,7 @@ const EntryDocArea = ({ entry, onUpdateEntry }: EntryDocAreaProps) => {
       </TabsList>
 
       <TabsContent value="cv">
-        <CvSlot entry={entry} onUpdateEntry={onUpdateEntry} />
+        <CvSlot entry={entry} onUpdateEntry={onUpdateEntry} beforeLeave={beforeLeave} />
       </TabsContent>
 
       <TabsContent value="cover-letter">

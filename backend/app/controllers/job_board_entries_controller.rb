@@ -11,7 +11,7 @@ class JobBoardEntriesController < ApplicationController
   }.freeze
 
   def index
-    entries = current_user.job_board_entries.includes(:job_board_tags, cv_curriculum: :cv_tailorings)
+    entries = current_user.job_board_entries.includes(:job_board_tags, cv_curriculum: :latest_fit_tailoring)
     render json: {
       job_board_entries: serialize(entries, with: JobBoardEntryBlueprint),
       is_empty: entries.empty?
@@ -34,7 +34,6 @@ class JobBoardEntriesController < ApplicationController
     end
 
     created = JobBoardEntry.bulk_import_for_user!(current_user, import_attributes(entries))
-    ActiveRecord::Associations::Preloader.new(records: created, associations: { cv_curriculum: :cv_tailorings }).call
     render json: { job_board_entries: serialize(created, with: JobBoardEntryBlueprint) }
   end
 

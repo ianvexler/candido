@@ -5,7 +5,8 @@ import Loader from "@/components/common/Loader";
 import PageContainer from "@/components/common/PageContainer";
 import MainEntryForm from "@/components/jobBoard/entry/MainEntryForm";
 import { JobBoardEntry } from "@/lib/types";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import ConfirmationModal from "@/components/common/ConfirmationModal";
 import EntryDocArea from "@/components/jobBoard/entry/EntryDocArea";
 
 interface BoardJobEntryPageProps {
@@ -31,6 +32,17 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
     setJobEntry(entry);
   }
 
+  // The form saves only on Submit, so ask before the CV slot leaves the page with edits unsaved.
+  const dirtyRef = useRef(false);
+  const onDirtyChange = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty;
+  }, []);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const beforeLeave = (action: () => void) => {
+    if (dirtyRef.current) setPendingLeave(() => action);
+    else action();
+  };
+
   if (!jobEntry) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
@@ -46,16 +58,29 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
           <MainEntryForm
             entry={jobEntry}
             onUpdateEntry={setJobEntry}
+            onDirtyChange={onDirtyChange}
           />
         </div>
 
         <div className="min-w-0 overflow-hidden">
           <EntryDocArea 
             entry={jobEntry} 
-            onUpdateEntry={onFileUpdate} 
+            onUpdateEntry={onFileUpdate}
+            beforeLeave={beforeLeave}
           />
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={pendingLeave !== null}
+        onClose={() => setPendingLeave(null)}
+        onConfirm={() => pendingLeave?.()}
+        title="Discard your job changes?"
+        description="You have edits to this job that aren't submitted yet."
+        confirmLabel="Discard and continue"
+        cancelLabel="Keep editing"
+        variant="destructive"
+      />
     </PageContainer>
   )
 }

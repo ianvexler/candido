@@ -7,7 +7,7 @@ export interface SheetCvMenuItem {
   action: SheetCvAction;
   label: string;
   /** Ask before acting, because the current CV would be lost or unlinked. */
-  confirm?: { title: string; description: string; confirmLabel: string };
+  confirm?: { title: string; description: string; confirmLabel: string; destructive?: boolean };
 }
 
 export interface SheetCvMenu {
@@ -48,6 +48,7 @@ export const sheetCvMenu = (
               title: "Replace the pasted CV?",
               description: "The current text is deleted.",
               confirmLabel: "Replace",
+              destructive: true,
             },
           },
         ],

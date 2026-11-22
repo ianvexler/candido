@@ -9,15 +9,17 @@ import { capitalize } from "@/lib/utils";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useState, SubmitEvent, useMemo } from "react";
+import { useState, SubmitEvent, useMemo, useEffect } from "react";
 import toast from "react-hot-toast";
 
 interface MainEntryFormProps {
   entry: JobBoardEntry;
   onUpdateEntry: (entry: JobBoardEntry) => void;
+  /** Told whenever the form gains or loses unsaved edits. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-const MainEntryForm = ({ entry, onUpdateEntry }: MainEntryFormProps) => {
+const MainEntryForm = ({ entry, onUpdateEntry, onDirtyChange }: MainEntryFormProps) => {
   const [title, setTitle] = useState<string>(entry.title);
   const [company, setCompany] = useState<string>(entry.company);
   const [location, setLocation] = useState<string>(entry.location ?? "");
@@ -44,12 +46,16 @@ const MainEntryForm = ({ entry, onUpdateEntry }: MainEntryFormProps) => {
   const hasUpdatedFields = useMemo(() => {
     return title !== entry.title ||
       company !== entry.company ||
-      location !== entry.location ||
-      salary !== entry.salary ||
-      url !== entry.url ||
+      location !== (entry.location ?? "") ||
+      salary !== (entry.salary ?? "") ||
+      url !== (entry.url ?? "") ||
       status !== entry.status ||
       editorHtml !== description;
   }, [title, entry, company, location, salary, url, status, editorHtml, description]);
+
+  useEffect(() => {
+    onDirtyChange?.(hasUpdatedFields);
+  }, [hasUpdatedFields, onDirtyChange]);
 
   const onSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
