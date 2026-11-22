@@ -1,3 +1,5 @@
+import { uploadCoverLetterJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCoverLetterJobBoardEntry";
+import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
 import { Curriculum, JobBoardEntry } from "@/lib/types";
 
 export type DocSlotState = "empty" | "file" | "text" | "copy";
@@ -12,6 +14,20 @@ export type EntryPatch = Partial<JobBoardEntry> | ((current: JobBoardEntry) => P
 /** Applies a patch to the job it was made for; any other job is returned unchanged. */
 export const applyEntryPatch = (entry: JobBoardEntry, id: number, patch: EntryPatch): JobBoardEntry =>
   entry.id === id ? { ...entry, ...(typeof patch === "function" ? patch(entry) : patch) } : entry;
+
+// Counts document saves (uploads, pastes, removals, copies linked), and which count each job's
+// last one had, so a job save can tell whether a document changed while it was out.
+let documentSaves = 0;
+const lastDocumentSave = new Map<number, number>();
+
+/** Records that a job's documents changed; call it when the save's response arrives. */
+export const noteDocumentsSaved = (id: number) => {
+  documentSaves += 1;
+  lastDocumentSave.set(id, documentSaves);
+};
+
+/** Marks when a job save is sent; pass the result to jobSavePatch. */
+export const jobSaveStarted = (): number => documentSaves;
 
 /** What fills the job's one CV slot: a linked copy, an uploaded file, pasted text, or nothing. */
 export const cvSlotState = (
@@ -57,6 +73,7 @@ export const afterCopyCreated = ({
   beforeLeave: (action: () => void) => void;
   navigate: (href: string) => void;
 }) => {
+  noteDocumentsSaved(entryId);
   onPatchEntry(entryId, copyPatch(copy));
   beforeLeave(() => navigate(`/resume/${copy.id}`));
 };
@@ -81,6 +98,8 @@ export interface DocKindConfig {
   fallbackFilename: string;
   state: (entry: JobBoardEntry) => DocSlotState;
   doc: (entry: JobBoardEntry) => { key?: string; text?: string; filename?: string };
+  /** Saves the document; with no text or file it clears it. */
+  upload: (id: number, text?: string, file?: File) => Promise<{ job_board_entry: JobBoardEntry }>;
   /** The fields an upload response sets: this document's, and nothing else. */
   patch: (saved: JobBoardEntry) => Partial<JobBoardEntry>;
 }
@@ -95,6 +114,7 @@ export const DOC_KINDS: Record<DocKind, DocKindConfig> = {
     fallbackFilename: "cv.pdf",
     state: cvSlotState,
     doc: (e) => ({ key: e.cv_key, text: e.cv_text, filename: e.cv_filename }),
+    upload: uploadCVJobBoardEntry,
     // Uploading or pasting unlinks any copy.
     patch: (saved) => ({ cv_curriculum: null, cv_text: saved.cv_text, cv_key: saved.cv_key, cv_filename: saved.cv_filename }),
   },
@@ -106,12 +126,20 @@ export const DOC_KINDS: Record<DocKind, DocKindConfig> = {
     fallbackFilename: "cover-letter.pdf",
     state: coverLetterSlotState,
     doc: (e) => ({ key: e.cover_letter_key, text: e.cover_letter_text, filename: e.cover_letter_filename }),
+    upload: uploadCoverLetterJobBoardEntry,
     patch: (saved) => ({
       cover_letter_text: saved.cover_letter_text,
       cover_letter_key: saved.cover_letter_key,
       cover_letter_filename: saved.cover_letter_filename,
     }),
   },
+};
+
+/** Saves one of a job's documents and returns the patch for it, noting the save for job saves. */
+export const saveDocument = async (kind: DocKind, id: number, text?: string, file?: File): Promise<EntryPatch> => {
+  const { job_board_entry } = await DOC_KINDS[kind].upload(id, text, file);
+  noteDocumentsSaved(id);
+  return DOC_KINDS[kind].patch(job_board_entry);
 };
 
 /** Ways to replace what's in the slot: pasted text is edited in place, so pasting isn't offered again. */
@@ -137,12 +165,14 @@ const DOCUMENT_FIELDS = [
 ] as const;
 
 /**
- * What a job save sets. Saving the job never changes its documents, and its response may
- * have left before a document was saved, so those stay as they are. The linked copy's
- * details (title, fit, edit time) are the exception: when the response names the same copy,
- * its details are newer.
+ * What a job save sets. Its response has the documents as they were when the server read the
+ * job. If a document was saved after the job save was sent, the response may predate it, so the
+ * documents stay as they are; the linked copy's details (title, fit, edit time) are still taken
+ * when the response names the same copy. Otherwise the response is current and is taken whole,
+ * so a copy unlinked elsewhere (deleted in another tab) is cleared.
  */
-export const jobSavePatch = (saved: JobBoardEntry): EntryPatch => (current) => {
+export const jobSavePatch = (saved: JobBoardEntry, startedAt: number): EntryPatch => (current) => {
+  if ((lastDocumentSave.get(saved.id) ?? 0) <= startedAt) return { ...saved };
   const patch: Partial<JobBoardEntry> = { ...saved };
   for (const field of DOCUMENT_FIELDS) delete patch[field];
   if (saved.cv_curriculum && current.cv_curriculum?.id === saved.cv_curriculum.id) {

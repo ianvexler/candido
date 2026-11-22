@@ -1,7 +1,5 @@
 "use client";
 
-import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
-import { uploadCoverLetterJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCoverLetterJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import FitBadge from "@/components/common/FitBadge";
@@ -15,6 +13,7 @@ import {
   EntryPatch,
   FillWay,
   replaceWays,
+  saveDocument,
   textPreview,
 } from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry } from "@/lib/types";
@@ -33,12 +32,6 @@ interface DocSlotProps {
   /** Wraps actions that navigate away (e.g. a discard-changes prompt). */
   beforeLeave?: (action: () => void) => void;
 }
-
-/** Each document's endpoint; with no text or file it clears the document. */
-const UPLOADS: Record<DocKind, (id: number, text?: string, file?: File) => Promise<{ job_board_entry: JobBoardEntry }>> = {
-  cv: uploadCVJobBoardEntry,
-  cover_letter: uploadCoverLetterJobBoardEntry,
-};
 
 const runNow = (action: () => void) => action();
 
@@ -67,8 +60,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
     setSaving(true);
     try {
       // Sends only this document's fields, for this job, so a late response can't undo anything else.
-      const { job_board_entry } = await UPLOADS[kind](entry.id, text, file);
-      onPatchEntry(entry.id, config.patch(job_board_entry));
+      onPatchEntry(entry.id, await saveDocument(kind, entry.id, text, file));
       setDraft(null);
       if (success) toast.success(success);
     } catch (error) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { deleteJobBoardEntry } from "@/api/resources/jobBoardEntries/deleteJobBoardEntry";
-import { applyEntryPatch, EntryPatch } from "@/lib/jobBoard/docSlot";
+import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { getNotes } from "@/api/resources/notes/getNotes";
@@ -200,10 +200,7 @@ const BoardPage = () => {
 
   useEffect(() => () => { if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current); }, []);
 
-  const onPatchJob = (id: number, patch: EntryPatch) => {
-    setJobBoardEntries((prev) => prev.map((entry) => applyEntryPatch(entry, id, patch)));
-    setSelectedJob((prev) => prev && applyEntryPatch(prev, id, patch));
-  };
+  const onPatchJob = usePatchJob(setJobBoardEntries, setSelectedJob);
 
   const handleDeleteDrop = (entry: JobBoardEntry) => {
     setPendingDeleteEntry(entry);

@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
 import DocSlot from "./entry/DocSlot";
 import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
-import { EntryPatch, jobSavePatch } from "@/lib/jobBoard/docSlot";
+import { EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -117,17 +117,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     },
   });
 
-  useEffect(() => {
-    if (isCreate || !editor) {
-      return;
-    }
-
-    editor.commands.setContent(initialDescription);
-  }, [isCreate, editor, entry?.id, initialDescription]);
-
-  useEffect(() => {
-    setDetailsTab("description");
-  }, [isCreate, entry?.id]);
+  // The parent remounts the sheet for each job, so the editor and tabs start from this job and
+  // are never reset from props: a save's response would otherwise replace text typed meanwhile.
 
   const handleDetailsTabChange = (value: string) => {
     setDetailsTab(value as "description" | "notes");
@@ -226,6 +217,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
       const closingDateDate = toClosingDatePayload(closingDate);
 
+      const startedAt = jobSaveStarted();
       const response = await updateJobBoardEntry(
         entry.id,
         title,
@@ -240,8 +232,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         closingDateDate
       );
 
-      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry));
-      setClosingDate(toDateInputValue(response.job_board_entry.closing_date));
+      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry, startedAt));
+      // Show the date as the server stored it, unless it was changed while this save was out.
+      if (stateRef.current.closingDate === closingDate) {
+        setClosingDate(toDateInputValue(response.job_board_entry.closing_date));
+      }
       return true;
     } catch (error) {
       console.error(error);
@@ -400,6 +395,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         ? Math.max(...entriesInNewStatus.map((e) => e.number)) + 1
         : 1;
 
+      const startedAt = jobSaveStarted();
       const response = await updateJobBoardEntry(
         entry.id,
         stateRef.current.title,
@@ -413,7 +409,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         stateRef.current.tags,
       );
 
-      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry));
+      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry, startedAt));
       toast.success(`Moved to ${capitalize(newStatus.toLowerCase())}`);
       props.onClose();
     } catch (error) {

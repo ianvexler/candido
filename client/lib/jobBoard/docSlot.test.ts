@@ -8,6 +8,8 @@ import {
   cvSlotState,
   isReviewUnavailable,
   jobSavePatch,
+  jobSaveStarted,
+  noteDocumentsSaved,
   replaceWays,
   textPreview,
 } from "./docSlot";
@@ -147,26 +149,48 @@ describe("DOC_KINDS patches", () => {
 });
 
 describe("jobSavePatch", () => {
-  it("takes the job's fields but keeps documents saved while the request was out", () => {
-    const current = { ...base, company: "Old", cv_curriculum: linked, cover_letter_text: "new letter" };
-    const saved = { ...base, company: "New", cv_curriculum: null, cover_letter_text: null } as unknown as JobBoardEntry;
-    const result = applyEntryPatch(current, 7, jobSavePatch(saved));
+  // Each test uses its own job id, since document saves are counted per job for the whole module.
+  it("takes the response whole when no document was saved while it was out", () => {
+    const job = { ...base, id: 101, company: "Old", cv_curriculum: linked };
+    const startedAt = jobSaveStarted();
+    const saved = { ...job, company: "New", cv_curriculum: null } as unknown as JobBoardEntry;
+    const result = applyEntryPatch(job, 101, jobSavePatch(saved, startedAt));
+    expect(result.company).toBe("New");
+    // e.g. the copy was deleted in another tab and the server unlinked it
+    expect(result.cv_curriculum).toBeNull();
+  });
+  it("keeps documents saved while the request was out and takes the job's fields", () => {
+    const startedAt = jobSaveStarted();
+    noteDocumentsSaved(102);
+    const current = { ...base, id: 102, company: "Old", cv_curriculum: linked, cover_letter_text: "new letter" };
+    const saved = { ...base, id: 102, company: "New", cv_curriculum: null, cover_letter_text: null } as unknown as JobBoardEntry;
+    const result = applyEntryPatch(current, 102, jobSavePatch(saved, startedAt));
     expect(result.company).toBe("New");
     expect(result.cv_curriculum).toBe(linked);
     expect(result.cover_letter_text).toBe("new letter");
   });
-  it("takes newer details for the same linked copy", () => {
+  it("still takes newer details for the same linked copy", () => {
+    const startedAt = jobSaveStarted();
+    noteDocumentsSaved(103);
     const fresh = { ...linked, title: "Renamed", fit: "strong" as const };
-    const result = applyEntryPatch({ ...base, cv_curriculum: linked }, 7, jobSavePatch({ ...base, cv_curriculum: fresh }));
+    const result = applyEntryPatch({ ...base, id: 103, cv_curriculum: linked }, 103, jobSavePatch({ ...base, id: 103, cv_curriculum: fresh }, startedAt));
     expect(result.cv_curriculum).toEqual(fresh);
   });
   it("keeps a copy linked since the save started rather than the one it names", () => {
+    const startedAt = jobSaveStarted();
     const newer = { ...linked, id: 9 };
-    const result = applyEntryPatch({ ...base, cv_curriculum: newer }, 7, jobSavePatch({ ...base, cv_curriculum: linked }));
+    afterCopyCreated({ entryId: 104, copy: { ...copy, id: 9 }, onPatchEntry: () => {}, beforeLeave: () => {}, navigate: () => {} });
+    const result = applyEntryPatch({ ...base, id: 104, cv_curriculum: newer }, 104, jobSavePatch({ ...base, id: 104, cv_curriculum: linked }, startedAt));
     expect(result.cv_curriculum).toBe(newer);
+  });
+  it("only counts document saves on the same job", () => {
+    const startedAt = jobSaveStarted();
+    noteDocumentsSaved(999);
+    const result = applyEntryPatch({ ...base, id: 105, cv_curriculum: linked }, 105, jobSavePatch({ ...base, id: 105, cv_curriculum: null }, startedAt));
+    expect(result.cv_curriculum).toBeNull();
   });
   it("does nothing to another job", () => {
     const other = { ...base, id: 8 };
-    expect(applyEntryPatch(other, 7, jobSavePatch({ ...base, company: "New" }))).toBe(other);
+    expect(applyEntryPatch(other, 7, jobSavePatch({ ...base, company: "New" }, jobSaveStarted()))).toBe(other);
   });
 });
