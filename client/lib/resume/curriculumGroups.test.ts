@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCopy, splitCurriculums } from "./curriculumGroups";
+import { deleteDescription, isCopy, splitCurriculums } from "./curriculumGroups";
 import { Curriculum } from "@/lib/types";
 
 const make = (id: number, tailored_for: string | null, job_board_entry_id: number | null = null) =>

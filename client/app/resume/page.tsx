@@ -10,9 +10,10 @@ import PageContainer from "@/components/common/PageContainer";
 import Title from "@/components/common/Title";
 import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import { Button } from "@/components/ui/Button";
+import { deleteDescription, splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { Curriculum } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
-import { FileTextIcon, LayersIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronRightIcon, FileTextIcon, LayersIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -24,6 +25,8 @@ const ResumesPage = () => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Curriculum | null>(null);
+  const [copiesOpen, setCopiesOpen] = useState(false);
+  const { masters, copies } = splitCurriculums(curriculums);
 
   useEffect(() => {
     void getCurriculums()
@@ -84,7 +87,7 @@ const ResumesPage = () => {
         <div className="flex justify-center py-16">
           <Loader />
         </div>
-      ) : curriculums.length === 0 ? (
+      ) : masters.length === 0 ? (
         <div className="mt-10 rounded-lg border border-dashed border-border px-6 py-14 text-center">
           <FileTextIcon className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-3 font-medium">No resumes yet</p>
@@ -98,7 +101,7 @@ const ResumesPage = () => {
         </div>
       ) : (
         <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {curriculums.map((curriculum) => (
+          {masters.map((curriculum) => (
             <li key={curriculum.id} className="group relative">
               <NextLink
                 href={`/resume/${curriculum.id}`}
@@ -131,6 +134,51 @@ const ResumesPage = () => {
         </ul>
       )}
 
+      {!loading && copies.length > 0 && (
+        <div className="mt-10">
+          <button
+            type="button"
+            onClick={() => setCopiesOpen((open) => !open)}
+            aria-expanded={copiesOpen}
+            aria-controls="tailored-copies"
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            <ChevronRightIcon className={`size-4 transition-transform ${copiesOpen ? "rotate-90" : ""}`} />
+            Tailored for jobs ({copies.length})
+          </button>
+          {copiesOpen && (
+            <ul id="tailored-copies" className="mt-3 divide-y divide-border rounded-lg border border-border bg-white">
+              {copies.map((curriculum) => (
+                <li key={curriculum.id} className="group relative">
+                  <NextLink
+                    href={`/resume/${curriculum.id}`}
+                    className="flex flex-col gap-0.5 px-4 py-3 pr-12 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-4"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium sm:flex-1">{curriculum.title}</span>
+                    <span className="min-w-0 truncate text-xs text-muted-foreground sm:w-48">
+                      For {curriculum.tailored_for}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Edited {formatDistanceToNow(new Date(curriculum.updated_at), { addSuffix: true })}
+                    </span>
+                  </NextLink>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    onClick={() => setPendingDelete(curriculum)}
+                    aria-label={`Delete ${curriculum.title}`}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <SectionPickerDialog
         open={creating}
         onClose={() => setCreating(false)}
@@ -147,7 +195,7 @@ const ResumesPage = () => {
         onClose={() => setPendingDelete(null)}
         onConfirm={onDelete}
         title="Delete this resume?"
-        description="Your section library is not affected."
+        description={deleteDescription(pendingDelete)}
         confirmLabel="Delete"
         variant="destructive"
       />
