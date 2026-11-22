@@ -7,6 +7,7 @@ class JobBoardEntryBlueprint < ApplicationBlueprint
   association :job_board_tags, blueprint: JobBoardTagBlueprint
 
   # Fit comes from the preloaded runs, so listing jobs costs no query per job.
+  # `fit` is deliberately the latest *succeeded* run's (last known fit), not the latest run's.
   field :cv_curriculum do |entry, _options|
     copy = entry.cv_curriculum
     next nil if copy.nil?

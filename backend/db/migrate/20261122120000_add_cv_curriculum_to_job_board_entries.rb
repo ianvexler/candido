@@ -14,7 +14,7 @@ class AddCvCurriculumToJobBoardEntries < ActiveRecord::Migration[8.0]
         ORDER BY curriculums.created_at DESC, curriculums.id DESC
         LIMIT 1
       )
-      WHERE cv_key IS NULL AND cv_text IS NULL
+      WHERE cv_key IS NULL AND NULLIF(btrim(cv_text), '') IS NULL
     SQL
   end
 
