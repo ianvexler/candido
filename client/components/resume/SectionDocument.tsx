@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip
 import { cn } from "@/lib/utils";
 import { CvSuggestion, SectionFields } from "@/lib/types";
 import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
+import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -64,7 +65,7 @@ interface SectionDocumentProps<T extends SectionFields & { id: number }> {
   onSuggestionClick?: (id: number) => void;
   /** The card closed: Escape, a click away, or after a successful resolve. */
   onSuggestionClose?: () => void;
-  /** Called after the text change (if any) is applied here. */
+  /** Records the decision; the text changes here only once this resolves. A rejection is shown as a toast. */
   onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
   /** Pending suggestions whose quote is no longer in the text. Called when the set changes. */
   onStaleChange?: (staleIds: number[]) => void;
@@ -241,9 +242,6 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
 
   // Used only when the parent doesn't control the card (activeSuggestionId undefined).
   const [localOpenId, setLocalOpenId] = useState<number | null>(null);
-  // Accepted here but not yet marked on the server: their quote is gone on
-  // purpose, so they aren't stale.
-  const [resolvingIds, setResolvingIds] = useState<number[]>([]);
   const isStale = (s: CvSuggestion): boolean => {
     if (fieldOf(s) === "description") return findQuote(description, s.quote) === null;
     if (!editor) return false;
@@ -252,7 +250,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
 
   const cardId = openSuggestionId(activeSuggestionId, localOpenId, (id) => {
     const s = pending.find((p) => p.id === id);
-    return s !== undefined && !resolvingIds.includes(id) && !isStale(s);
+    return s !== undefined && !isStale(s);
   });
   const cardSuggestion = cardId === null ? null : pending.find((s) => s.id === cardId)!;
 
@@ -272,14 +270,14 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
   useEffect(() => {
     if (!onStaleChange || !editor) return;
     if (pending.length === 0 && reportedStale.current === "") return;
-    const ids = pending.filter((s) => !resolvingIds.includes(s.id) && isStale(s)).map((s) => s.id);
+    const ids = pending.filter(isStale).map((s) => s.id);
     const key = ids.join(",");
     if (key === reportedStale.current) return;
     reportedStale.current = key;
     onStaleChange(ids);
     // isStale reads editor and description, both listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onStaleChange, editor, pending, resolvingIds, description, dirty]);
+  }, [onStaleChange, editor, pending, description, dirty]);
 
   const cardAnchor = useMemo(() => {
     if (!cardSuggestion || !editor) return null;
@@ -315,27 +313,31 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     onSuggestionClose?.();
   };
 
+  // Records the decision first and changes the text only once it's saved, so
+  // a refused request (e.g. the review was replaced elsewhere) leaves the CV
+  // as it was.
   const resolveSuggestion = async (s: CvSuggestion, action: SuggestionAction, text?: string) => {
-    if (action !== "reject" && text !== undefined) {
-      if (fieldOf(s) === "description") {
-        const match = findQuote(description, s.quote);
-        if (!match) return;
-        setDescription(description.slice(0, match.from) + text + description.slice(match.to));
-        markDirty();
-      } else if (!editor || !replaceQuote(editor, s.quote, text)) {
-        return;
-      }
-      setResolvingIds((ids) => [...ids, s.id]);
-    }
+    const changesText = action !== "reject" && text !== undefined;
+    if (changesText && isStale(s)) return;
     try {
       await onSuggestionResolve?.(s, action, text);
-      closeCard();
     } catch (error) {
       console.error(error);
-      toast.error("Couldn't update the suggestion. Try again.");
-    } finally {
-      setResolvingIds((ids) => (ids.includes(s.id) ? ids.filter((id) => id !== s.id) : ids));
+      toast.error(apiErrorMessage(error, "Couldn't update the suggestion. Try again."));
+      return;
     }
+    if (changesText) {
+      if (fieldOf(s) === "description") {
+        setDescription((current) => {
+          const match = findQuote(current, s.quote);
+          return match ? current.slice(0, match.from) + text + current.slice(match.to) : current;
+        });
+        markDirty();
+      } else if (editor) {
+        replaceQuote(editor, s.quote, text);
+      }
+    }
+    closeCard();
   };
 
   const onConfirmDelete = async () => {

@@ -22,7 +22,7 @@ import SectionPreview from "@/components/resume/SectionPreview";
 import { resolveDesign } from "@/lib/resume/design";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import { trackSave, waitForSaves } from "@/lib/resume/saveTracker";
-import { apiErrorMessage, statusForAction } from "@/lib/resume/reviewPanel";
+import { apiErrorMessage, isConflict, statusForAction } from "@/lib/resume/reviewPanel";
 import { isTailoringActive } from "@/lib/resume/suggestions";
 import { pollUntil, PollTimeoutError } from "@/lib/poll";
 import { Button } from "@/components/ui/Button";
@@ -170,18 +170,35 @@ const ResumePage = ({ params }: ResumePageProps) => {
     []
   );
 
-  // SectionDocument has already applied the text; this records the outcome.
-  // It toasts on failure itself, so errors are rethrown, not shown here.
+  // The suggestion or review changed elsewhere (e.g. a re-run in another
+  // tab): show the latest review instead of the one on screen.
+  const refreshTailoring = useCallback(async () => {
+    try {
+      setActiveSuggestionId(null);
+      setStaleBySection({});
+      setTailoring((await getLatestCvTailoring(Number(id))).cv_tailoring);
+    } catch (error) {
+      console.error(error);
+    }
+  }, [id]);
+
+  // Records the decision; SectionDocument changes the text once this resolves
+  // and toasts a failure itself, so errors are rethrown, not shown here.
   const onSuggestionResolve = useCallback(
     async (s: CvSuggestion, action: SuggestionAction, text?: string) => {
       const status = statusForAction(action);
-      const { suggestion } = await updateCvSuggestion(
-        s.id,
-        status === "edited" ? { status, replacement: text ?? "" } : { status }
-      );
-      replaceSuggestion(suggestion);
+      try {
+        const { suggestion } = await updateCvSuggestion(
+          s.id,
+          status === "edited" ? { status, replacement: text ?? "" } : { status }
+        );
+        replaceSuggestion(suggestion);
+      } catch (error) {
+        if (isConflict(error)) void refreshTailoring();
+        throw error;
+      }
     },
-    [replaceSuggestion]
+    [replaceSuggestion, refreshTailoring]
   );
 
   const onSuggestionClose = useCallback(() => setActiveSuggestionId(null), []);
@@ -255,7 +272,8 @@ const ResumePage = ({ params }: ResumePageProps) => {
       if (activeSuggestionId === s.id) setActiveSuggestionId(null);
     } catch (error) {
       console.error(error);
-      toast.error("Couldn't save that change");
+      toast.error(apiErrorMessage(error, "Couldn't save that change"));
+      if (isConflict(error)) void refreshTailoring();
     }
   };
 

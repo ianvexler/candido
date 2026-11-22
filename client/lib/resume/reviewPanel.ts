@@ -59,3 +59,7 @@ export const apiErrorMessage = (error: unknown, fallback: string): string => {
   const message = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
   return typeof message === "string" && message.trim() ? message : fallback;
 };
+
+/** The API refused because the suggestion or review changed elsewhere (409). */
+export const isConflict = (error: unknown): boolean =>
+  (error as { response?: { status?: unknown } } | undefined)?.response?.status === 409;

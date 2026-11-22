@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CvSuggestion } from "@/lib/types";
-import { apiErrorMessage, progressStep, reviewGroups, sectionLabel, statusForAction } from "./reviewPanel";
+import { apiErrorMessage, isConflict, progressStep, reviewGroups, sectionLabel, statusForAction } from "./reviewPanel";
 
 const suggestion = (id: number, overrides: Partial<CvSuggestion> = {}): CvSuggestion => ({
   id,
@@ -77,5 +77,14 @@ describe("apiErrorMessage", () => {
   it("falls back when there is none", () => {
     expect(apiErrorMessage(new Error("Network"), "Try again")).toBe("Try again");
     expect(apiErrorMessage({ response: { data: { error: "" } } }, "Try again")).toBe("Try again");
+  });
+});
+
+describe("isConflict", () => {
+  it("is true only for a 409 response", () => {
+    expect(isConflict({ response: { status: 409 } })).toBe(true);
+    expect(isConflict({ response: { status: 422 } })).toBe(false);
+    expect(isConflict(new Error("network"))).toBe(false);
+    expect(isConflict(undefined)).toBe(false);
   });
 });
