@@ -235,7 +235,7 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
 
   return (
     <section className="space-y-2">
-      <h3 className="text-sm font-medium">CV</h3>
+      <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">CV</h3>
       {body}
 
       <input ref={fileInput} type="file" accept="application/pdf" className="hidden" onChange={handleFile} />

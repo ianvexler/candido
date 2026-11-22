@@ -622,17 +622,17 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         </div>
 
         {!isCreate && entry && (
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Attachments
-            </h3>
+          <>
+            <CvSlot entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
 
-            <SheetFileInputs entry={entry} />
-          </div>
-        )}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Cover letter
+              </h3>
 
-        {!isCreate && entry && (
-          <CvSlot entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+              <SheetFileInputs entry={entry} />
+            </div>
+          </>
         )}
 
         <div className="flex flex-col gap-2">

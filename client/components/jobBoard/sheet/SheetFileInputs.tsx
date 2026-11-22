@@ -2,7 +2,6 @@ import { JobBoardEntry } from "@/lib/types";
 import { useState, useRef, useEffect, ChangeEvent } from "react";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import toast from "react-hot-toast";
-import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
 import { uploadCoverLetterJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCoverLetterJobBoardEntry";
 import FileAttachment from "../FileAttachment";
 
@@ -11,24 +10,11 @@ interface SheetFileInputsProps {
 }
 
 const SheetFileInputs = ({ entry }: SheetFileInputsProps) => {
-  const initialCVKey = entry.cv_key ?? entry.cv_filename ?? null;
   const initialCoverLetterKey = entry.cover_letter_key ?? entry.cover_letter_filename ?? null;
 
-  const [cvFile, setCvFile] = useState<File | null>(null);
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null);
 
-  const cvFileInput = useRef<HTMLInputElement>(null);
   const coverLetterFileInput = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!initialCVKey) {
-      return;
-    }
-
-    getFileUpload(initialCVKey).then((response) => {
-      setCvFile(new File([response], entry.cv_filename ?? initialCVKey));
-    });
-  }, [initialCVKey, entry.cv_filename]);
 
   useEffect(() => {
     if (!initialCoverLetterKey) {
@@ -39,24 +25,6 @@ const SheetFileInputs = ({ entry }: SheetFileInputsProps) => {
       setCoverLetterFile(new File([response], entry.cover_letter_filename ?? initialCoverLetterKey));
     });
   }, [initialCoverLetterKey, entry.cover_letter_filename]);
-
-  const handleCvUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || file.type !== "application/pdf") {
-      toast.error("Please upload a valid PDF file");
-      return;
-    }
-
-    try {
-      await uploadCVJobBoardEntry(entry.id, undefined, file);
-      setCvFile(file);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to upload CV");
-    }
-
-    e.target.value = "";
-  };
 
   const handleCoverLetterUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,7 +63,6 @@ const SheetFileInputs = ({ entry }: SheetFileInputsProps) => {
       return;
     }
 
-    setCvFile(null);
     setCoverLetterFile(null);
 
     try {
@@ -107,15 +74,7 @@ const SheetFileInputs = ({ entry }: SheetFileInputsProps) => {
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <FileAttachment
-        label="CV"
-        file={cvFile}
-        onUpload={handleCvUpload}
-        onDownload={() => handleDownload(cvFile)}
-        onDelete={() => handleDelete(cvFile)}
-        fileInputRef={cvFileInput}
-      />
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <FileAttachment
         label="Cover Letter"
         file={coverLetterFile}
