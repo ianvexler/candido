@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { cvSlotState, entryWithCopy, entryWithUpload, isReviewUnavailable } from "./cvSlot";
+import { describe, expect, it, vi } from "vitest";
+import { afterCopyCreated, cvSlotState, entryWithCopy, entryWithUpload, isReviewUnavailable } from "./cvSlot";
 import { JobBoardEntry } from "@/lib/types";
 
 const base = {
@@ -33,6 +33,33 @@ describe("entryWithCopy", () => {
     expect(result.cv_filename).toBeUndefined();
     expect(result.cv_text).toBeUndefined();
     expect(result.company).toBe("Acme");
+  });
+});
+
+describe("afterCopyCreated", () => {
+  const copy = { id: 3, title: "Main – Acme", updated_at: "2026-11-22T10:00:00Z" as unknown as Date };
+
+  it("links the copy before asking to leave, then opens it", () => {
+    const calls: string[] = [];
+    afterCopyCreated({
+      entry: base,
+      copy,
+      onUpdateEntry: (entry) => calls.push(`update:${entry.cv_curriculum?.id}`),
+      beforeLeave: (action) => {
+        calls.push("beforeLeave");
+        action();
+      },
+      navigate: (href) => calls.push(`navigate:${href}`),
+    });
+    expect(calls).toEqual(["update:3", "beforeLeave", "navigate:/resume/3"]);
+  });
+
+  it("stays on the page with the copy linked when the leave is held back", () => {
+    const onUpdateEntry = vi.fn();
+    const navigate = vi.fn();
+    afterCopyCreated({ entry: base, copy, onUpdateEntry, beforeLeave: () => {}, navigate });
+    expect(onUpdateEntry).toHaveBeenCalledOnce();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 

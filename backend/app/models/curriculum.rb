@@ -41,10 +41,12 @@ class Curriculum < ApplicationRecord
   has_many :cv_tailorings, dependent: :nullify
   # The newest succeeded review with its fit pulled out of the report, so listing jobs skips the
   # full reports. Every other column loads; only `report` is left out, and the record is read-only.
+  # DISTINCT ON keeps preloading to one row per CV instead of every succeeded run.
   has_one :latest_fit_tailoring, -> {
+    columns = (CvTailoring.column_names - [ "report" ]).map { |c| "cv_tailorings.#{connection.quote_column_name(c)}" }
     where(status: "succeeded")
-      .select(*(CvTailoring.column_names - [ "report" ]), Arel.sql("report ->> 'fit' AS fit"))
-      .order(created_at: :desc, id: :desc)
+      .select(Arel.sql("DISTINCT ON (cv_tailorings.curriculum_id) #{columns.join(', ')}, report ->> 'fit' AS fit"))
+      .order(:curriculum_id, created_at: :desc, id: :desc)
       .readonly
   }, class_name: "CvTailoring", inverse_of: false
   # Set on a copy made for one job; the links clear if either is deleted.

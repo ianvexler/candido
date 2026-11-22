@@ -6,7 +6,7 @@ import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import { Textarea } from "@/components/ui/Textarea";
-import { cvSlotState, entryWithCopy, entryWithUpload } from "@/lib/jobBoard/cvSlot";
+import { afterCopyCreated, cvSlotState, entryWithUpload } from "@/lib/jobBoard/cvSlot";
 import { FIT_LABELS, FIT_STYLES } from "@/lib/resume/reviewPanel";
 import { JobBoardEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,9 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
   // Responses can arrive after the entry changed; merge onto the latest one, not the one at call time.
   const latestEntry = useRef(entry);
   latestEntry.current = entry;
+  // Same for the leave wrapper: the sheet's save reads the latest fields and entry.
+  const latestBeforeLeave = useRef(beforeLeave);
+  latestBeforeLeave.current = beforeLeave;
 
   const save = async (text?: string, file?: File, success?: string) => {
     setSaving(true);
@@ -251,11 +254,15 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         entry={entry}
-        onCreated={(result) => {
-          onUpdateEntry(entryWithCopy(latestEntry.current, result.curriculum));
-          // The copy is already linked, so staying here to keep unsaved edits loses nothing.
-          beforeLeave(() => router.push(`/resume/${result.curriculum.id}`));
-        }}
+        onCreated={(result) =>
+          afterCopyCreated({
+            entry: latestEntry.current,
+            copy: result.curriculum,
+            onUpdateEntry,
+            beforeLeave: latestBeforeLeave.current,
+            navigate: (href) => router.push(href),
+          })
+        }
       />
 
       <ConfirmationModal

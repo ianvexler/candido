@@ -24,6 +24,27 @@ export const entryWithCopy = (
   cv_filename: undefined,
 });
 
+/**
+ * After a copy was made: link it on the entry first, then go to it through the leave check.
+ * The copy is already linked, so staying to keep unsaved job edits loses nothing.
+ */
+export const afterCopyCreated = ({
+  entry,
+  copy,
+  onUpdateEntry,
+  beforeLeave,
+  navigate,
+}: {
+  entry: JobBoardEntry;
+  copy: Pick<Curriculum, "id" | "title" | "updated_at">;
+  onUpdateEntry: (entry: JobBoardEntry) => void;
+  beforeLeave: (action: () => void) => void;
+  navigate: (href: string) => void;
+}) => {
+  onUpdateEntry(entryWithCopy(entry, copy));
+  beforeLeave(() => navigate(`/resume/${copy.id}`));
+};
+
 /** The entry after the upload endpoint answered; any linked copy is unlinked. */
 export const entryWithUpload = (
   entry: JobBoardEntry,

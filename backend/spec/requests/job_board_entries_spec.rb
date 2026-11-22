@@ -36,6 +36,24 @@ RSpec.describe "Job board entries" do
       )
     end
 
+    it "shows the newest succeeded fit for each job's CV" do
+      [ %w[weak strong], %w[good partial] ].each_with_index do |(older, newer), i|
+        job = create(:job_board_entry, user: user, number: i + 1)
+        copy = create(:curriculum, user: user, job_board_entry: job)
+        job.use_cv_copy!(copy)
+        create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => older },
+          created_at: 2.hours.ago)
+        create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => newer },
+          created_at: 1.hour.ago)
+      end
+
+      get "/api/v1/job_board_entries", headers: headers
+
+      fits = response.parsed_body["job_board_entries"].sort_by { |e| e["number"] }.map { |e| e["cv_curriculum"]["fit"] }
+      expect(fits).to eq(%w[strong partial])
+      expect(Curriculum.first.latest_fit_tailoring.read_attribute(:fit)).to be_in(%w[strong partial])
+    end
+
     it "lists jobs without a query per job's CV" do
       add_job = lambda do |number|
         job = create(:job_board_entry, user: user, number: number)

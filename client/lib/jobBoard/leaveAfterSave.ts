@@ -7,7 +7,7 @@ interface LeaveAfterSaveOptions {
   editedSinceInFlight: () => boolean;
   /** Saves the sheet's current fields; resolves false when it couldn't. */
   save: () => Promise<boolean>;
-  /** The action the user wanted (open the picker, open the CV editor). */
+  /** The action the user wanted (open the CV editor). */
   run: () => void;
   /** The save couldn't happen: let the user discard and continue, or keep editing. */
   onBlocked: () => void;

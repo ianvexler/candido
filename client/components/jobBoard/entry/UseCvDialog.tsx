@@ -70,19 +70,22 @@ const UseCvDialog = ({ open, onClose, entry, onCreated }: UseCvDialogProps) => {
     if (pendingId !== null) return;
     setPendingId(curriculum.id);
     setError(null);
+    let result: UseCvResult;
     try {
-      const result = await createCvTailoring(entry.id, curriculum.id, { review });
-      setPendingId(null);
-      reset();
-      onClose();
-      onCreated(result);
+      result = await createCvTailoring(entry.id, curriculum.id, { review });
     } catch (err) {
       console.error(err);
       setError(apiErrorMessage(err, "Couldn't copy the CV. Try again."));
       // Nothing was made; untick so the next pick makes a plain copy.
       if (review && isReviewUnavailable(err)) setReview(false);
       setPendingId(null);
+      return;
     }
+    // The copy exists now: close first, and keep the caller's errors out of the copy-failed message.
+    setPendingId(null);
+    reset();
+    onClose();
+    onCreated(result);
   };
 
   const busy = pendingId !== null;

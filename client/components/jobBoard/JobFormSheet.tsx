@@ -100,7 +100,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
   const [detailsTab, setDetailsTab] = useState<"description" | "notes">("description");
   const [closingDate, setClosingDate] = useState<string>(initialClosingDate);
-  // An action (open the CV picker, open the CV editor) waiting on the discard-edits prompt.
+  // An action that leaves the sheet (open the CV editor) waiting on the discard-edits prompt.
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const isTitleValid = title.trim().length > 0;
@@ -169,7 +169,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const performSaveRef = useRef<() => Promise<boolean>>(async () => false);
 
   const performCreate = useCallback(async (): Promise<boolean> => {
-    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: html, tags: tags } =
+    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: html, tags: tags, closingDate } =
       stateRef.current;
 
     if (!title.trim() || !company.trim()) {
@@ -197,11 +197,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     } finally {
       setLoading(false);
     }
-  }, [closingDate, props]);
+  }, [props]);
 
   const performUpdate = useCallback(async (): Promise<boolean> => {
     if (isCreate || !entry) return false;
-    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: editorHtml, tags: tags } =
+    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: editorHtml, tags: tags, closingDate } =
       stateRef.current;
 
     if (!title.trim() || !company.trim()) {
@@ -249,12 +249,12 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     } finally {
       setLoading(false);
     }
-  }, [isCreate, entry, closingDate, props]);
+  }, [isCreate, entry, props]);
 
   const performSave = isCreate ? performCreate : performUpdate;
   // What the newest save sent, to tell whether anything was edited while it was in flight.
   const sentRef = useRef<string | null>(null);
-  // Reads the ref, so it sees edits made after this render (a stale closure would miss them).
+  // Saves and this snapshot all read the ref, so they agree on what was sent even from an old render.
   const fieldsSnapshot = () => JSON.stringify(stateRef.current);
   const trackedUpdate = useCallback(() => {
     sentRef.current = JSON.stringify(stateRef.current);

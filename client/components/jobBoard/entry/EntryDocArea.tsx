@@ -11,7 +11,7 @@ import { JobBoardEntry } from "@/lib/types";
 interface EntryDocAreaProps {
   entry: JobBoardEntry;
   onUpdateEntry: (entry: JobBoardEntry) => void;
-  /** Wraps CV actions that open the picker or leave the page. */
+  /** Wraps CV actions that leave the page. */
   beforeLeave?: (action: () => void) => void;
 }
 
