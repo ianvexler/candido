@@ -11,7 +11,6 @@ import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import { Curriculum, CvTailoring, JobBoardEntry } from "@/lib/types";
 import { ChevronRightIcon, Loader2Icon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
 
@@ -21,12 +20,12 @@ interface UseCvDialogProps {
   open: boolean;
   onClose: () => void;
   entry: JobBoardEntry;
+  /** Called with the new copy; the dialog has closed by then and the caller decides where to go. */
   onCreated: (result: UseCvResult) => void;
 }
 
 /** Pick a master CV to copy for this job, optionally reviewed against it. */
 const UseCvDialog = ({ open, onClose, entry, onCreated }: UseCvDialogProps) => {
-  const router = useRouter();
   const [masters, setMasters] = useState<Curriculum[] | null>(null);
   const [review, setReview] = useState(true);
   const [pendingId, setPendingId] = useState<number | null>(null);
@@ -54,12 +53,16 @@ const UseCvDialog = ({ open, onClose, entry, onCreated }: UseCvDialogProps) => {
     };
   }, [open]);
 
-  const close = () => {
-    if (pendingId !== null) return;
+  const reset = () => {
     setMasters(null);
     setReview(true);
     setError(null);
     setLoadFailed(false);
+  };
+
+  const close = () => {
+    if (pendingId !== null) return;
+    reset();
     onClose();
   };
 
@@ -69,8 +72,10 @@ const UseCvDialog = ({ open, onClose, entry, onCreated }: UseCvDialogProps) => {
     setError(null);
     try {
       const result = await createCvTailoring(entry.id, curriculum.id, { review });
+      setPendingId(null);
+      reset();
+      onClose();
       onCreated(result);
-      router.push(`/resume/${result.curriculum.id}`);
     } catch (err) {
       console.error(err);
       setError(apiErrorMessage(err, "Couldn't copy the CV. Try again."));

@@ -105,6 +105,16 @@ RSpec.describe "CV tailorings" do
       expect(response.parsed_body["cv_tailoring"]).to include("status" => "pending")
     end
 
+    it "treats an empty review as the default and reviews the copy" do
+      expect { start(review: "") }.to have_enqueued_job(CvTailoringJob)
+    end
+
+    it "makes a plain copy when review is false" do
+      expect { start(review: false) }.not_to have_enqueued_job(CvTailoringJob)
+
+      expect(response.parsed_body["cv_tailoring"]).to be_nil
+    end
+
     it "doesn't count plain copies toward the daily limit" do
       create_list(:cv_tailoring, CvTailoring::DAILY_LIMIT, user: user, status: "failed")
 

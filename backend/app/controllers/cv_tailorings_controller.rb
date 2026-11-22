@@ -5,7 +5,8 @@ class CvTailoringsController < ApplicationController
   before_action -> { CvTailoring.expire_stale! }, only: %i[create create_for_job]
 
   def create_for_job
-    review = params[:review].nil? || ActiveModel::Type::Boolean.new.cast(params[:review])
+    # Missing or empty means the default, a review; to_s keeps a JSON false from counting as empty.
+    review = params[:review].to_s.empty? || ActiveModel::Type::Boolean.new.cast(params[:review])
     ensure_available! if review
     job = JobBoardEntry.find_owned!(
       current_user, params[:job_board_entry_id],

@@ -39,11 +39,13 @@ class Curriculum < ApplicationRecord
   has_many :curriculum_sections, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum
   # Runs outlive the CV so they keep counting toward the daily limit.
   has_many :cv_tailorings, dependent: :nullify
-  # The newest succeeded review, read for its fit only, so listing jobs skips the full reports.
+  # The newest succeeded review with its fit pulled out of the report, so listing jobs skips the
+  # full reports. Every other column loads; only `report` is left out, and the record is read-only.
   has_one :latest_fit_tailoring, -> {
     where(status: "succeeded")
-      .select(:id, :curriculum_id, :created_at, Arel.sql("report ->> 'fit' AS fit"))
+      .select(*(CvTailoring.column_names - [ "report" ]), Arel.sql("report ->> 'fit' AS fit"))
       .order(created_at: :desc, id: :desc)
+      .readonly
   }, class_name: "CvTailoring", inverse_of: false
   # Set on a copy made for one job; the links clear if either is deleted.
   belongs_to :job_board_entry, optional: true

@@ -20,7 +20,7 @@ import UseCvDialog from "./UseCvDialog";
 interface CvSlotProps {
   entry: JobBoardEntry;
   onUpdateEntry: (entry: JobBoardEntry) => void;
-  /** Wraps actions that open the picker or navigate away (e.g. a discard-changes prompt). */
+  /** Wraps actions that navigate away (e.g. a discard-changes prompt). */
   beforeLeave?: (action: () => void) => void;
 }
 
@@ -71,7 +71,7 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
   const fill = (way: FillWay) => {
     if (way === "upload") fileInput.current?.click();
     else if (way === "paste") setDraft("");
-    else beforeLeave(() => setPickerOpen(true));
+    else setPickerOpen(true);
   };
 
   // Replacing an upload or text deletes it, so ask first; a copy is kept, so don't.
@@ -251,7 +251,11 @@ const CvSlot = ({ entry, onUpdateEntry, beforeLeave = runNow }: CvSlotProps) => 
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         entry={entry}
-        onCreated={(result) => onUpdateEntry(entryWithCopy(latestEntry.current, result.curriculum))}
+        onCreated={(result) => {
+          onUpdateEntry(entryWithCopy(latestEntry.current, result.curriculum));
+          // The copy is already linked, so staying here to keep unsaved edits loses nothing.
+          beforeLeave(() => router.push(`/resume/${result.curriculum.id}`));
+        }}
       />
 
       <ConfirmationModal

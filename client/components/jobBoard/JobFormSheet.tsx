@@ -162,8 +162,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     );
   }, [isCreate, entry, title, company, location, salary, url, status, closingDate, editorHtml, initialDescription, tags]);
 
-  const stateRef = useRef({ title, company, location, salary, url, status, editorHtml, tags });
-  stateRef.current = { title, company, location, salary, url, status, editorHtml, tags };
+  const stateRef = useRef({ title, company, location, salary, url, status, editorHtml, tags, closingDate });
+  stateRef.current = { title, company, location, salary, url, status, editorHtml, tags, closingDate };
 
   const inFlightRef = useRef<Promise<boolean> | null>(null);
   const performSaveRef = useRef<() => Promise<boolean>>(async () => false);
@@ -254,16 +254,17 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const performSave = isCreate ? performCreate : performUpdate;
   // What the newest save sent, to tell whether anything was edited while it was in flight.
   const sentRef = useRef<string | null>(null);
-  const fieldsSnapshot = () => JSON.stringify({ ...stateRef.current, closingDate });
+  // Reads the ref, so it sees edits made after this render (a stale closure would miss them).
+  const fieldsSnapshot = () => JSON.stringify(stateRef.current);
   const trackedUpdate = useCallback(() => {
-    sentRef.current = JSON.stringify({ ...stateRef.current, closingDate });
+    sentRef.current = JSON.stringify(stateRef.current);
     const p = performUpdate();
     inFlightRef.current = p;
     void p.finally(() => {
       if (inFlightRef.current === p) inFlightRef.current = null;
     });
     return p;
-  }, [performUpdate, closingDate]);
+  }, [performUpdate]);
   performSaveRef.current = isCreate ? performCreate : trackedUpdate;
 
   const debouncedSave = useMemo(

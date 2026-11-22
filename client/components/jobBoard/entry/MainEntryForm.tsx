@@ -61,11 +61,12 @@ const MainEntryForm = ({ entry, onUpdateEntry, onDirtyChange }: MainEntryFormPro
     e.preventDefault();
 
     setFormSubmitted(true);
-    setLoading(true);
 
     if (!isFormValid) {
       return;
     }
+
+    setLoading(true);
 
     try {
       const response = await updateJobBoardEntry(entry.id, title, company, location, salary, url, editor?.getHTML() ?? "", status, entry.number);
