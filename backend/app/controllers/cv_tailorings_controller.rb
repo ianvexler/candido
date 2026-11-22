@@ -5,7 +5,8 @@ class CvTailoringsController < ApplicationController
   before_action -> { CvTailoring.expire_stale! }, only: %i[create create_for_job]
 
   def create_for_job
-    ensure_available!
+    review = ActiveModel::Type::Boolean.new.cast(params.fetch(:review, true))
+    ensure_available! if review
     job = JobBoardEntry.find_owned!(
       current_user, params[:job_board_entry_id],
       unauthorized_message: "You are not authorized to tailor a CV for this job board entry"
@@ -14,9 +15,10 @@ class CvTailoringsController < ApplicationController
 
     copy, cv_tailoring = ActiveRecord::Base.transaction do
       copy = source.duplicate_for_job!(job)
-      [ copy, start_run(copy, job) ]
+      job.use_cv_copy!(copy)
+      [ copy, (start_run(copy, job) if review) ]
     end
-    CvTailoringJob.perform_later(cv_tailoring.id)
+    CvTailoringJob.perform_later(cv_tailoring.id) if cv_tailoring
     render_curriculum_with(copy, cv_tailoring)
   end
 
@@ -72,7 +74,7 @@ class CvTailoringsController < ApplicationController
     curriculum = Curriculum.includes(:user, curriculum_sections: :section_template).find(curriculum.id)
     render json: {
       curriculum: serialize(curriculum, with: CurriculumBlueprint, view: :full),
-      cv_tailoring: serialize(cv_tailoring, with: CvTailoringBlueprint)
+      cv_tailoring: cv_tailoring && serialize(cv_tailoring, with: CvTailoringBlueprint)
     }, status: :created
   end
 end

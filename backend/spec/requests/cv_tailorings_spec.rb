@@ -13,8 +13,8 @@ RSpec.describe "CV tailorings" do
     allow(CvTailorings::Reviewer).to receive(:configured?).and_return(true)
   end
 
-  def start(job_id: job.id, curriculum_id: source.id)
-    post "/api/v1/job_board_entries/#{job_id}/tailorings", params: { curriculum_id: curriculum_id }, headers: headers, as: :json
+  def start(job_id: job.id, curriculum_id: source.id, **extra)
+    post "/api/v1/job_board_entries/#{job_id}/tailorings", params: { curriculum_id: curriculum_id, **extra }, headers: headers, as: :json
   end
 
   describe "POST /job_board_entries/:id/tailorings" do
@@ -59,6 +59,52 @@ RSpec.describe "CV tailorings" do
 
       expect(response).to have_http_status(:too_many_requests)
       expect(response.parsed_body["error"]).to eq("You've tailored a lot of CVs today. Try again tomorrow.")
+    end
+
+    it "makes and links a plain copy without a review" do
+      allow(CvTailorings::Reviewer).to receive(:configured?).and_return(false)
+
+      expect { start(review: false) }.not_to have_enqueued_job(CvTailoringJob)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["cv_tailoring"]).to be_nil
+      expect(job.reload.cv_curriculum_id).to eq(response.parsed_body["curriculum"]["id"])
+      expect(CvTailoring.count).to eq(0)
+    end
+
+    it "replaces an uploaded CV with the reviewed copy" do
+      job.update!(cv_text: "old")
+
+      start
+
+      expect(response).to have_http_status(:created)
+      expect(job.reload.cv_text).to be_nil
+      expect(job.cv_curriculum_id).to eq(response.parsed_body["curriculum"]["id"])
+    end
+
+    it "creates nothing when the review can't start" do
+      job.update!(cv_text: "old")
+      source
+      allow(CvTailorings::Reviewer).to receive(:configured?).and_return(false)
+      expect { start(review: true) }.not_to change(Curriculum, :count)
+      expect(response).to have_http_status(:service_unavailable)
+
+      allow(CvTailorings::Reviewer).to receive(:configured?).and_return(true)
+      create_list(:cv_tailoring, CvTailoring::DAILY_LIMIT, user: user, status: "failed")
+      expect { start(review: true) }.not_to change(Curriculum, :count)
+      expect(response).to have_http_status(:too_many_requests)
+
+      job.reload
+      expect(job.cv_text).to eq("old")
+      expect(job.cv_curriculum_id).to be_nil
+    end
+
+    it "doesn't count plain copies toward the daily limit" do
+      create_list(:cv_tailoring, CvTailoring::DAILY_LIMIT, user: user, status: "failed")
+
+      start(review: false)
+
+      expect(response).to have_http_status(:created)
     end
   end
 
