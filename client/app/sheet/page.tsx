@@ -1,6 +1,7 @@
 "use client";
 
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
+import { applyEntryPatch, EntryPatch } from "@/lib/jobBoard/docSlot";
 import { getNotes } from "@/api/resources/notes/getNotes";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
@@ -140,11 +141,9 @@ const SheetPage = () => {
     setJobBoardEntries((prev) => [...prev, job]);
   }, []);
 
-  const onUpdateJob = useCallback((job: JobBoardEntry) => {
-    setJobBoardEntries((prev) =>
-      prev.map((entry) => (entry.id === job.id ? job : entry))
-    );
-    setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
+  const onPatchJob = useCallback((id: number, patch: EntryPatch) => {
+    setJobBoardEntries((prev) => prev.map((entry) => applyEntryPatch(entry, id, patch)));
+    setSelectedJob((prev) => prev && applyEntryPatch(prev, id, patch));
   }, []);
 
   const handleSelectJob = useCallback((job: JobBoardEntry) => {
@@ -351,11 +350,14 @@ const SheetPage = () => {
             />
           ) : (
             <JobFormSheet
+              // One sheet per job: its fields start from the job, so a reused sheet would save
+              // the previous job's fields onto this one.
+              key={selectedJob!.id}
               mode="edit"
               entry={selectedJob!}
               allEntries={jobBoardEntries}
               onClose={() => handleSheetOpenChange(false)}
-              onUpdateJob={onUpdateJob}
+              onPatchJob={onPatchJob}
               onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
               notes={notesByEntryId[selectedJob!.id] ?? []}
               notesLoading={notesByEntryId[selectedJob!.id] === undefined}

@@ -1,6 +1,7 @@
 "use client";
 
 import { deleteJobBoardEntry } from "@/api/resources/jobBoardEntries/deleteJobBoardEntry";
+import { applyEntryPatch, EntryPatch } from "@/lib/jobBoard/docSlot";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { getNotes } from "@/api/resources/notes/getNotes";
@@ -199,9 +200,9 @@ const BoardPage = () => {
 
   useEffect(() => () => { if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current); }, []);
 
-  const onUpdateJob = (job: JobBoardEntry) => {
-    setJobBoardEntries((prev) => prev.map((entry) => entry.id === job.id ? job : entry));
-    setSelectedJob((prev) => (prev?.id === job.id ? job : prev));
+  const onPatchJob = (id: number, patch: EntryPatch) => {
+    setJobBoardEntries((prev) => prev.map((entry) => applyEntryPatch(entry, id, patch)));
+    setSelectedJob((prev) => prev && applyEntryPatch(prev, id, patch));
   };
 
   const handleDeleteDrop = (entry: JobBoardEntry) => {
@@ -450,11 +451,14 @@ const BoardPage = () => {
             />
           ) : (
             <JobFormSheet
+              // One sheet per job: its fields start from the job, so a reused sheet would save
+              // the previous job's fields onto this one.
+              key={selectedJob!.id}
               mode="edit"
               entry={selectedJob!}
               allEntries={jobBoardEntries}
               onClose={() => handleSheetOpenChange(false)}
-              onUpdateJob={onUpdateJob}
+              onPatchJob={onPatchJob}
               onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
               notes={notesByEntryId[selectedJob!.id] ?? []}
               notesLoading={notesByEntryId[selectedJob!.id] === undefined}

@@ -1,5 +1,5 @@
 import { JobBoardEntry } from "@/lib/types";
-import { cvSlotState } from "./cvSlot";
+import { cvSlotState } from "./docSlot";
 
 export type SheetCvAction = "download" | "upload" | "replace" | "open" | "replace-with-file";
 

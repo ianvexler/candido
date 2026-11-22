@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
 import DocSlot from "./entry/DocSlot";
 import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
+import { EntryPatch, jobSavePatch } from "@/lib/jobBoard/docSlot";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -39,7 +40,8 @@ type JobFormSheetProps =
       entry: JobBoardEntry;
       allEntries: JobBoardEntry[];
       onClose: () => void;
-      onUpdateJob: (job: JobBoardEntry) => void;
+      /** Applies a change to one job; see EntryPatch. */
+      onPatchJob: (id: number, patch: EntryPatch) => void;
       onDelete?: (entry: JobBoardEntry) => void;
       notes: Note[];
       notesLoading: boolean;
@@ -238,7 +240,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         closingDateDate
       );
 
-      props.onUpdateJob(response.job_board_entry);
+      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry));
       setClosingDate(toDateInputValue(response.job_board_entry.closing_date));
       return true;
     } catch (error) {
@@ -411,7 +413,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         stateRef.current.tags,
       );
 
-      props.onUpdateJob(response.job_board_entry);
+      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry));
       toast.success(`Moved to ${capitalize(newStatus.toLowerCase())}`);
       props.onClose();
     } catch (error) {
@@ -630,14 +632,14 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           <>
             <section className="flex flex-col gap-2">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">CV</h3>
-              <DocSlot kind="cv" entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+              <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} />
             </section>
 
             <section className="flex flex-col gap-2">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Cover letter
               </h3>
-              <DocSlot kind="cover_letter" entry={entry} onUpdateEntry={props.onUpdateJob} />
+              <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
             </section>
           </>
         )}
