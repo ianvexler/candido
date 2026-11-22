@@ -2,25 +2,32 @@
 #
 # Table name: curriculums
 #
-#  id            :bigint           not null, primary key
-#  description   :text
-#  header        :jsonb            not null
-#  layout        :string           default("single_column"), not null
-#  styles        :jsonb            not null
-#  styles_seq    :integer          default(0), not null
-#  styles_writer :string
-#  title         :string           not null
-#  created_at    :datetime         not null
-#  updated_at    :datetime         not null
-#  user_id       :bigint           not null
+#  id                   :bigint           not null, primary key
+#  description          :text
+#  header               :jsonb            not null
+#  layout               :string           default("single_column"), not null
+#  styles               :jsonb            not null
+#  styles_seq           :integer          default(0), not null
+#  styles_writer        :string
+#  tailored_for         :string
+#  title                :string           not null
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  job_board_entry_id   :integer
+#  source_curriculum_id :bigint
+#  user_id              :bigint           not null
 #
 # Indexes
 #
-#  index_curriculums_on_user_id            (user_id)
-#  index_curriculums_on_user_id_and_title  (user_id,title)
+#  index_curriculums_on_job_board_entry_id    (job_board_entry_id)
+#  index_curriculums_on_source_curriculum_id  (source_curriculum_id)
+#  index_curriculums_on_user_id               (user_id)
+#  index_curriculums_on_user_id_and_title     (user_id,title)
 #
 # Foreign Keys
 #
+#  fk_rails_...  (job_board_entry_id => job_board_entries.id) ON DELETE => nullify
+#  fk_rails_...  (source_curriculum_id => curriculums.id) ON DELETE => nullify
 #  fk_rails_...  (user_id => users.id)
 #
 class Curriculum < ApplicationRecord
@@ -30,6 +37,23 @@ class Curriculum < ApplicationRecord
 
   belongs_to :user
   has_many :curriculum_sections, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum
+  # Runs outlive the CV so they keep counting toward the daily limit.
+  has_many :cv_tailorings, dependent: :nullify
+  # The newest succeeded review with its fit pulled out of the report, so listing jobs skips the
+  # full reports. Every other column loads; only `report` is left out, and the record is read-only.
+  # DISTINCT ON keeps preloading to one row per CV instead of every succeeded run.
+  has_one :latest_fit_tailoring, -> {
+    columns = (CvTailoring.column_names - [ "report" ]).map { |c| "cv_tailorings.#{connection.quote_column_name(c)}" }
+    where(status: "succeeded")
+      .select(Arel.sql("DISTINCT ON (cv_tailorings.curriculum_id) #{columns.join(', ')}, report ->> 'fit' AS fit"))
+      .order(:curriculum_id, created_at: :desc, id: :desc)
+      .readonly
+  }, class_name: "CvTailoring", inverse_of: false
+  # Set on a copy made for one job; the links clear if either is deleted.
+  belongs_to :job_board_entry, optional: true
+  belongs_to :source_curriculum, class_name: "Curriculum", optional: true
+  # The job that uses this copy as its CV; the database empties its slot on delete.
+  has_one :cv_for_job, class_name: "JobBoardEntry", foreign_key: :cv_curriculum_id, inverse_of: :cv_curriculum
 
   validates :title, presence: true
   validates :layout, inclusion: { in: LAYOUTS }
@@ -71,6 +95,25 @@ class Curriculum < ApplicationRecord
         )
       end
     end
+  end
+
+  # Makes a copy of this resume for a job: same header, styles, layout and
+  # sections. Sections go through create! so their callbacks run.
+  def duplicate_for_job!(job)
+    transaction do
+      copy = user.curriculums.create!(
+        title: "#{title} – #{job.company}", tailored_for: job.company, job_board_entry: job, source_curriculum: self,
+        header: header.deep_dup, styles: styles.deep_dup, layout: layout, description: description
+      )
+      curriculum_sections.each do |section|
+        copy.curriculum_sections.create!(section.attributes.except("id", "curriculum_id", "created_at", "updated_at"))
+      end
+      copy
+    end
+  end
+
+  def latest_tailoring
+    cv_tailorings.order(created_at: :desc, id: :desc).first
   end
 
   # Sets section order to match `section_ids`, which must list every section once.

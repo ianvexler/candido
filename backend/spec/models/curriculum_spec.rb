@@ -38,6 +38,64 @@ RSpec.describe Curriculum do
       expect(curriculum.curriculum_sections).to be_empty
     end
   end
+
+  describe "#duplicate_for_job!" do
+    let(:job) { create(:job_board_entry, user: user, company: "Acme") }
+    let(:source) do
+      described_class.create!(user: user, title: "Main CV", layout: "two_column",
+        header: { "name" => "Ada" }, styles: { "paper" => "letter" })
+    end
+    let(:template) { create(:section_template, user: user) }
+
+    before do
+      source.curriculum_sections.create!(title: "Work", section_type: "experience", description: "d", content: "<p>Led</p>",
+        role: "Engineer", organization: "Acme", location: "London", start_date: Date.new(2022, 3, 1),
+        end_date: Date.new(2023, 1, 1), current: false, hidden: true, position: 0, placement: "main",
+        section_template: template, synced_at: Time.zone.parse("2026-01-01"), styles: { "color" => "red" })
+      source.curriculum_sections.create!(title: "Skills", section_type: "skills", content: "<p>Ruby</p>", position: 1,
+        placement: "sidebar")
+    end
+
+    it "copies header, styles, layout and every section field" do
+      copy = source.duplicate_for_job!(job)
+
+      expect(copy).to have_attributes(title: "Main CV – Acme", tailored_for: "Acme", job_board_entry: job,
+        source_curriculum: source, header: source.header, styles: source.styles, layout: "two_column", user_id: user.id)
+      fields = %w[title section_type description content role organization location start_date end_date current hidden
+        placement section_template_id synced_at styles]
+      expect(copy.curriculum_sections.map { |s| s.attributes.slice(*fields) })
+        .to eq(source.curriculum_sections.map { |s| s.attributes.slice(*fields) })
+      expect(copy.curriculum_sections.map(&:id)).not_to eq(source.curriculum_sections.map(&:id))
+      expect(copy.curriculum_sections.map(&:position)).to eq([ 0, 1 ])
+    end
+
+    it "leaves the source untouched" do
+      updated_at = source.reload.updated_at
+
+      source.duplicate_for_job!(job)
+
+      expect(source.reload.curriculum_sections.count).to eq(2)
+      expect(source.updated_at).to eq(updated_at)
+    end
+
+    it "nullifies the copy's link when the job is deleted" do
+      copy = source.duplicate_for_job!(job)
+
+      job.destroy!
+
+      expect(copy.reload.job_board_entry_id).to be_nil
+    end
+  end
+
+  describe "#latest_tailoring" do
+    it "returns the most recent tailoring or nil" do
+      expect(curriculum.latest_tailoring).to be_nil
+      create(:cv_tailoring, curriculum: curriculum, user: user, created_at: 2.hours.ago)
+      newest = create(:cv_tailoring, curriculum: curriculum, user: user)
+
+      expect(curriculum.latest_tailoring).to eq(newest)
+    end
+  end
 end
 
 RSpec.describe Curriculum, "#merge_styles!" do

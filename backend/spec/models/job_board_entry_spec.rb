@@ -43,4 +43,59 @@ RSpec.describe JobBoardEntry do
     expect(entry.job_board_tags).to include(existing)
     expect(user.job_board_tags.count).to eq(2)
   end
+
+  describe "the job's CV slot" do
+    let(:user) { create(:user) }
+    let(:entry) { create(:job_board_entry, user: user, cv_key: "k", cv_text: nil, cv_filename: "cv.pdf") }
+    let(:copy) { create(:curriculum, user: user) }
+
+    it "use_cv_copy! links the copy and clears an uploaded file" do
+      entry.update!(cover_letter_text: "Dear", cover_letter_key: "ck", cover_letter_filename: "cl.pdf")
+      allow(PdfUploader).to receive(:delete_key)
+
+      entry.use_cv_copy!(copy)
+
+      expect(entry.reload).to have_attributes(cv_curriculum: copy, cv_key: nil, cv_text: nil, cv_filename: nil,
+        cover_letter_text: "Dear", cover_letter_key: "ck", cover_letter_filename: "cl.pdf")
+      expect(PdfUploader).to have_received(:delete_key).with("k")
+    end
+
+    it "use_cv_copy! keeps the stored file when the surrounding transaction rolls back" do
+      allow(PdfUploader).to receive(:delete_key)
+      entry && copy
+
+      ActiveRecord::Base.transaction do
+        entry.use_cv_copy!(copy)
+        raise ActiveRecord::Rollback
+      end
+
+      expect(PdfUploader).not_to have_received(:delete_key)
+      expect(entry.reload).to have_attributes(cv_key: "k", cv_curriculum_id: nil)
+    end
+
+    it "use_cv_copy! deletes the stored file once the outermost transaction commits" do
+      allow(PdfUploader).to receive(:delete_key)
+
+      entry.use_cv_copy!(copy)
+
+      expect(PdfUploader).to have_received(:delete_key).with("k")
+    end
+
+    it "upload_cv! clears the linked copy but keeps it" do
+      entry.use_cv_copy!(copy)
+
+      entry.upload_cv!(text: "x")
+
+      expect(entry.reload.cv_curriculum_id).to be_nil
+      expect(Curriculum.exists?(copy.id)).to be(true)
+    end
+
+    it "deleting the linked copy empties the slot" do
+      entry.use_cv_copy!(copy)
+
+      copy.destroy!
+
+      expect(entry.reload.cv_curriculum_id).to be_nil
+    end
+  end
 end

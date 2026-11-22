@@ -175,6 +175,7 @@ const SheetPage = () => {
     async (entry: JobBoardEntry, file: File) => {
       try {
         const response = await uploadCVJobBoardEntry(entry.id, undefined, file);
+        // The server entry already has the CV fields and cv_curriculum: null.
         const updated = { ...entry, ...response.job_board_entry };
 
         setJobBoardEntries((prev) =>

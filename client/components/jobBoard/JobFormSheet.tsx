@@ -17,11 +17,12 @@ import { TextStyleKit } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
 import { useRouter } from "next/navigation";
 import ConfirmationModal from "../common/ConfirmationModal";
-import SheetFileInputs from "./sheet/SheetFileInputs";
 import TagsInput from "./TagsInput";
 import { Button } from "../ui/Button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
+import DocSlot from "./entry/DocSlot";
+import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -98,6 +99,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
   const [detailsTab, setDetailsTab] = useState<"description" | "notes">("description");
   const [closingDate, setClosingDate] = useState<string>(initialClosingDate);
+  // An action that leaves the sheet (open the CV editor) waiting on the discard-edits prompt.
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const isTitleValid = title.trim().length > 0;
   const isCompanyValid = company.trim().length > 0;
@@ -158,13 +161,14 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     );
   }, [isCreate, entry, title, company, location, salary, url, status, closingDate, editorHtml, initialDescription, tags]);
 
-  const stateRef = useRef({ title, company, location, salary, url, status, editorHtml, tags });
-  stateRef.current = { title, company, location, salary, url, status, editorHtml, tags };
+  const stateRef = useRef({ title, company, location, salary, url, status, editorHtml, tags, closingDate });
+  stateRef.current = { title, company, location, salary, url, status, editorHtml, tags, closingDate };
 
+  const inFlightRef = useRef<Promise<boolean> | null>(null);
   const performSaveRef = useRef<() => Promise<boolean>>(async () => false);
 
   const performCreate = useCallback(async (): Promise<boolean> => {
-    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: html, tags: tags } =
+    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: html, tags: tags, closingDate } =
       stateRef.current;
 
     if (!title.trim() || !company.trim()) {
@@ -192,11 +196,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     } finally {
       setLoading(false);
     }
-  }, [closingDate, props]);
+  }, [props]);
 
   const performUpdate = useCallback(async (): Promise<boolean> => {
     if (isCreate || !entry) return false;
-    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: editorHtml, tags: tags } =
+    const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: editorHtml, tags: tags, closingDate } =
       stateRef.current;
 
     if (!title.trim() || !company.trim()) {
@@ -244,10 +248,23 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     } finally {
       setLoading(false);
     }
-  }, [isCreate, entry, closingDate, props]);
+  }, [isCreate, entry, props]);
 
   const performSave = isCreate ? performCreate : performUpdate;
-  performSaveRef.current = performSave;
+  // What the newest save sent, to tell whether anything was edited while it was in flight.
+  const sentRef = useRef<string | null>(null);
+  // Saves and this snapshot all read the ref, so they agree on what was sent even from an old render.
+  const fieldsSnapshot = () => JSON.stringify(stateRef.current);
+  const trackedUpdate = useCallback(() => {
+    sentRef.current = JSON.stringify(stateRef.current);
+    const p = performUpdate();
+    inFlightRef.current = p;
+    void p.finally(() => {
+      if (inFlightRef.current === p) inFlightRef.current = null;
+    });
+    return p;
+  }, [performUpdate]);
+  performSaveRef.current = isCreate ? performCreate : trackedUpdate;
 
   const debouncedSave = useMemo(
     () =>
@@ -315,6 +332,46 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const handleDiscardChanges = () => {
     setDiscardChangesModalOpen(false);
     props.onClose();
+  };
+
+  // The sheet autosaves, so save before leaving; only if that can't happen ask the user.
+  const hasUpdatedRef = useRef(hasUpdatedFields);
+  hasUpdatedRef.current = hasUpdatedFields;
+
+  const beforeLeave = (action: () => void) => {
+    debouncedSave.cancel();
+    void leaveAfterSave({
+      hasUnsavedEdits: hasUpdatedRef.current,
+      inFlight: inFlightRef.current,
+      editedSinceInFlight: () => fieldsSnapshot() !== sentRef.current,
+      save: trackedUpdate,
+      run: action,
+      onBlocked: () => setPendingLeave(() => action),
+    });
+  };
+
+  const discardedRef = useRef(false);
+  const handleKeepEditing = () => {
+    setPendingLeave(null);
+    // The modal also calls onClose after Discard and continue; only resume autosave for Keep editing.
+    if (discardedRef.current) discardedRef.current = false;
+    else debouncedSave();
+  };
+
+  const handleDiscardAndContinue = () => {
+    const action = pendingLeave;
+    discardedRef.current = true;
+    setTitle(initialTitle);
+    setCompany(initialCompany);
+    setLocation(initialLocation);
+    setSalary(initialSalary);
+    setUrl(initialUrl);
+    setStatus(initialStatus);
+    setTags(initialTags);
+    setClosingDate(initialClosingDate);
+    setEditorHtml(initialDescription);
+    editor?.commands.setContent(initialDescription);
+    action?.();
   };
 
   const handleSaveChanges = async () => {
@@ -570,13 +627,19 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         </div>
 
         {!isCreate && entry && (
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Attachments
-            </h3>
+          <>
+            <section className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">CV</h3>
+              <DocSlot kind="cv" entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+            </section>
 
-            <SheetFileInputs entry={entry} />
-          </div>
+            <section className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Cover letter
+              </h3>
+              <DocSlot kind="cover_letter" entry={entry} onUpdateEntry={props.onUpdateJob} />
+            </section>
+          </>
         )}
 
         <div className="flex flex-col gap-2">
@@ -700,6 +763,17 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         }
         confirmLabel={isCreate ? "Create" : "Update"}
         cancelLabel="Discard"
+      />
+
+      <ConfirmationModal
+        isOpen={pendingLeave !== null}
+        onClose={handleKeepEditing}
+        onConfirm={handleDiscardAndContinue}
+        title="Couldn't save your changes"
+        description="Discard them and continue, or keep editing?"
+        confirmLabel="Discard and continue"
+        cancelLabel="Keep editing"
+        variant="destructive"
       />
 
       {!isCreate && entry && (

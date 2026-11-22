@@ -2,7 +2,7 @@
 
 import { JobBoardEntry, JobStatus, jobStatusColors } from "@/lib/types";
 import { format } from "date-fns";
-import { UploadIcon, DownloadIcon, ChevronDownIcon } from "lucide-react";
+import { UploadIcon, DownloadIcon, ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +38,9 @@ import Spy from "@/lib/images/Spy.png";
 import Restock from "@/lib/images/Restock.png";
 import Image from "next/image";
 import Loader from "@/components/common/Loader";
+import ConfirmationModal from "@/components/common/ConfirmationModal";
+import { useRouter } from "next/navigation";
+import { SheetCvMenuItem, sheetCvMenu } from "@/lib/jobBoard/sheetCvMenu";
 
 interface SheetTableProps {
   entries: JobBoardEntry[];
@@ -63,9 +67,26 @@ const SheetTable = ({
 }: SheetTableProps) => {
   const [pendingCvEntryId, setPendingCvEntryId] = useState<number | null>(null);
   const [pendingCoverEntryId, setPendingCoverEntryId] = useState<number | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState<{ entry: JobBoardEntry; item: SheetCvMenuItem } | null>(null);
+  const router = useRouter();
 
   const cvInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const pickCvFile = (entry: JobBoardEntry) => {
+    setPendingCvEntryId(entry.id);
+    cvInputRef.current?.click();
+  };
+
+  const handleCvMenuItem = (entry: JobBoardEntry, item: SheetCvMenuItem) => {
+    if (item.confirm) {
+      setConfirmReplace({ entry, item });
+      return;
+    }
+    if (item.action === "download") onCvDownload(entry);
+    else if (item.action === "open" && entry.cv_curriculum) router.push(`/resume/${entry.cv_curriculum.id}`);
+    else pickCvFile(entry);
+  };
 
   const handleCvInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const entry = entries.find((x) => x.id === pendingCvEntryId);
@@ -121,6 +142,17 @@ const SheetTable = ({
             accept="application/pdf"
             className="hidden"
             onChange={handleCoverInputChange}
+          />
+          <ConfirmationModal
+            isOpen={confirmReplace !== null}
+            onClose={() => setConfirmReplace(null)}
+            onConfirm={() => {
+              if (confirmReplace) pickCvFile(confirmReplace.entry);
+            }}
+            title={confirmReplace?.item.confirm?.title ?? ""}
+            description={confirmReplace?.item.confirm?.description}
+            confirmLabel={confirmReplace?.item.confirm?.confirmLabel}
+            variant={confirmReplace?.item.confirm?.destructive ? "destructive" : undefined}
           />
           {entries.length === 0 && (
             <TableEmpty>
@@ -236,38 +268,32 @@ const SheetTable = ({
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent align="start" className="min-w-[120px]">
-                      {entry.cv_key ? (
-                        <>
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            onClick={() => onCvDownload(entry)}
-                          >
-                            <DownloadIcon className="size-4" />
-                            Download
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setPendingCvEntryId(entry.id);
-                              cvInputRef.current?.click();
-                            }}
-                          >
-                            <UploadIcon className="size-4" />
-                            Replace
-                          </DropdownMenuItem>
-                        </>
-                      ) : (
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setPendingCvEntryId(entry.id);
-                            cvInputRef.current?.click();
-                          }}
-                        >
-                          <UploadIcon className="size-4" />
-                          Upload
-                        </DropdownMenuItem>
-                      )}
+                      {(() => {
+                        const menu = sheetCvMenu(entry);
+                        return (
+                          <>
+                            {menu.heading && (
+                              <DropdownMenuLabel className="max-w-[220px] truncate">{menu.heading}</DropdownMenuLabel>
+                            )}
+                            {menu.items.map((item) => (
+                              <DropdownMenuItem
+                                key={item.action}
+                                className="cursor-pointer"
+                                onClick={() => handleCvMenuItem(entry, item)}
+                              >
+                                {item.action === "download" ? (
+                                  <DownloadIcon className="size-4" />
+                                ) : item.action === "open" ? (
+                                  <ExternalLinkIcon className="size-4" />
+                                ) : (
+                                  <UploadIcon className="size-4" />
+                                )}
+                                {item.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        );
+                      })()}
                     </DropdownMenuContent>
                   </DropdownMenu>
 

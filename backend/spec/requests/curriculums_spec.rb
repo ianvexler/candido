@@ -17,6 +17,20 @@ RSpec.describe "Curriculums" do
         .to eq([ { "title" => "Mine", "section_count" => 1 } ])
     end
 
+    it "marks the copy a job uses as its CV" do
+      job = create(:job_board_entry, user: user, number: 1)
+      copy = create(:curriculum, user: user, title: "Copy", job_board_entry: job)
+      master = create(:curriculum, user: user, title: "Master")
+      job.use_cv_copy!(copy)
+
+      get "/api/v1/curriculums", headers: headers
+
+      by_title = response.parsed_body["curriculums"].index_by { |item| item["title"] }
+      expect(by_title["Copy"]["cv_for_job"]).to eq("id" => job.id, "company" => job.company)
+      expect(by_title["Master"]["cv_for_job"]).to be_nil
+      expect(master).to be_persisted
+    end
+
     it "requires authentication" do
       get "/api/v1/curriculums"
 

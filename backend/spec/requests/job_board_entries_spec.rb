@@ -21,6 +21,62 @@ RSpec.describe "Job board entries" do
         .to eq([ "Remote" ])
     end
 
+    it "includes the job's CV with its review fit" do
+      job = create(:job_board_entry, user: user, number: 1)
+      copy = create(:curriculum, user: user, title: "Copy", job_board_entry: job)
+      job.use_cv_copy!(copy)
+      create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => "strong" },
+        created_at: 2.hours.ago)
+      create(:cv_tailoring, user: user, curriculum: copy, status: "failed", created_at: 1.hour.ago)
+
+      get "/api/v1/job_board_entries", headers: headers
+
+      expect(response.parsed_body["job_board_entries"].first["cv_curriculum"]).to eq(
+        "id" => copy.id, "title" => "Copy", "updated_at" => copy.updated_at.as_json, "fit" => "strong"
+      )
+    end
+
+    it "shows the newest succeeded fit for each job's CV" do
+      [ %w[weak strong], %w[good partial] ].each_with_index do |(older, newer), i|
+        job = create(:job_board_entry, user: user, number: i + 1)
+        copy = create(:curriculum, user: user, job_board_entry: job)
+        job.use_cv_copy!(copy)
+        create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => older },
+          created_at: 2.hours.ago)
+        create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => newer },
+          created_at: 1.hour.ago)
+      end
+
+      get "/api/v1/job_board_entries", headers: headers
+
+      fits = response.parsed_body["job_board_entries"].sort_by { |e| e["number"] }.map { |e| e["cv_curriculum"]["fit"] }
+      expect(fits).to eq(%w[strong partial])
+      expect(Curriculum.first.latest_fit_tailoring.read_attribute(:fit)).to be_in(%w[strong partial])
+    end
+
+    it "lists jobs without a query per job's CV" do
+      add_job = lambda do |number|
+        job = create(:job_board_entry, user: user, number: number)
+        copy = create(:curriculum, user: user, job_board_entry: job)
+        job.use_cv_copy!(copy)
+        create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => "good" })
+      end
+      count_selects = lambda do
+        count = 0
+        counter = ->(*, payload) { count += 1 if payload[:sql].start_with?("SELECT") && payload[:name] != "SCHEMA" }
+        ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+          get "/api/v1/job_board_entries", headers: headers
+        end
+        count
+      end
+      3.times { |i| add_job.call(i + 1) }
+      count_selects.call # warm up per-process caches
+      before = count_selects.call
+      add_job.call(4)
+
+      expect(count_selects.call).to eq(before)
+    end
+
     it "requires authentication" do
       get "/api/v1/job_board_entries"
 
@@ -36,6 +92,7 @@ RSpec.describe "Job board entries" do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["job_board_entry"]["title"]).to eq("Engineer")
+      expect(response.parsed_body["job_board_entry"]["cv_curriculum"]).to be_nil
     end
 
     it "forbids another user's entry" do
@@ -134,6 +191,7 @@ RSpec.describe "Job board entries" do
       body = response.parsed_body["job_board_entry"]
       expect(body["title"]).to eq("Staff Engineer")
       expect(body["job_board_tags"].map { |item| item["name"] }).to eq([ "New" ])
+      expect(body["cv_curriculum"]).to be_nil
     end
 
     it "reorders within a status" do
@@ -237,6 +295,7 @@ RSpec.describe "Job board entries" do
       expect(body["cv_text"]).to eq("Cover of skills")
       expect(body["cv_key"]).to be_nil
       expect(body["cv_filename"]).to be_nil
+      expect(body["cv_curriculum"]).to be_nil
     end
 
     it "stores a PDF file and serves it from /uploads" do
@@ -294,6 +353,7 @@ RSpec.describe "Job board entries" do
       body = response.parsed_body["job_board_entry"]
       expect(body["cover_letter_filename"]).to eq("letter.pdf")
       expect(body["cover_letter_key"]).to end_with(".pdf")
+      expect(body["cv_curriculum"]).to be_nil
     end
   end
 

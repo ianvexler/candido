@@ -4,25 +4,35 @@ import ConfirmationModal from "@/components/common/ConfirmationModal";
 import "@/components/richEditor/styles.scss";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
-import { SectionFields } from "@/lib/types";
+import { CvSuggestion, SectionFields } from "@/lib/types";
+import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
+import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
 import { CalendarMinusIcon, CalendarPlusIcon, Trash2Icon } from "lucide-react";
-import { ReactNode, Ref, useEffect, useState } from "react";
+import { ReactNode, Ref, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import HiddenMark from "./HiddenMark";
 import IconAction from "./IconAction";
 import { normalizeContent } from "./documentContent";
 import { markPending, markSettled, trackSave } from "@/lib/resume/saveTracker";
+import SuggestionCard, { SuggestionAction } from "./review/SuggestionCard";
+import { SuggestionHighlight, replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
 import { ghostInput } from "./styles";
 import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
 
 const SAVE_DELAY_MS = 600;
+const NO_SUGGESTIONS: CvSuggestion[] = [];
 
+const highlightClasses =
+  "[&_.cv-suggestion]:cursor-pointer [&_.cv-suggestion]:rounded-sm [&_.cv-suggestion]:bg-amber-100/70 [&_.cv-suggestion]:underline [&_.cv-suggestion]:decoration-amber-500 [&_.cv-suggestion]:decoration-dotted [&_.cv-suggestion]:underline-offset-4 [&_.cv-suggestion-active]:bg-amber-100 [&_.cv-suggestion-active]:decoration-solid";
+
+/** A suggestion's target field; older ones without a field are about the content. */
+const fieldOf = (s: CvSuggestion) => s.field ?? "content";
 
 interface SectionDocumentProps<T extends SectionFields & { id: number }> {
   section: T;
@@ -44,6 +54,21 @@ interface SectionDocumentProps<T extends SectionFields & { id: number }> {
   dimmed?: boolean;
   articleRef?: Ref<HTMLElement>;
   className?: string;
+  /** Review suggestions for this section. Pending ones are highlighted. */
+  suggestions?: CvSuggestion[];
+  /**
+   * The suggestion whose card is open. When passed (even null) the parent
+   * controls the card: set it on onSuggestionClick, clear it on onSuggestionClose.
+   * Left undefined, a click on a highlight opens the card locally.
+   */
+  activeSuggestionId?: number | null;
+  onSuggestionClick?: (id: number) => void;
+  /** The card closed: Escape, a click away, or after a successful resolve. */
+  onSuggestionClose?: () => void;
+  /** Records the decision; the text changes here only once this resolves. A rejection is shown as a toast. */
+  onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
+  /** Pending suggestions whose quote is no longer in the text. Called when the set changes. */
+  onStaleChange?: (staleIds: number[]) => void;
 }
 
 /**
@@ -65,6 +90,12 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
   dimmed = false,
   articleRef,
   className,
+  suggestions = NO_SUGGESTIONS,
+  activeSuggestionId,
+  onSuggestionClick,
+  onSuggestionClose,
+  onSuggestionResolve,
+  onStaleChange,
 }: SectionDocumentProps<T>) => {
   const [sectionType, setSectionType] = useState(section.section_type);
   const [title, setTitle] = useState(section.title);
@@ -114,6 +145,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
       StarterKit,
       Link.configure({ openOnClick: false }),
       HiddenMark,
+      SuggestionHighlight,
       Placeholder.configure({ placeholder: "Write here. Start a line with - for bullets." }),
     ],
     immediatelyRender: false,
@@ -121,8 +153,10 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     editorProps: {
       attributes: {
         "aria-label": "Section content",
-        class:
+        class: cn(
           "cv-document-editor outline-none min-h-16 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
+          highlightClasses
+        ),
       },
     },
     onUpdate: markDirty,
@@ -196,6 +230,116 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     startMonth, endMonth, current, endBeforeStart, section, save, onSaved, editKey,
   ]);
 
+  // --- Review suggestions -------------------------------------------------
+  const pending = useMemo(() => suggestions.filter((s) => s.status === "pending"), [suggestions]);
+  const contentItems = useMemo(
+    () => pending.filter((s) => fieldOf(s) === "content").map((s) => ({ id: s.id, quote: s.quote })),
+    [pending]
+  );
+  // Used as an effect dependency so a new array with the same items is a no-op.
+  const contentItemsKey = JSON.stringify(contentItems);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Used only when the parent doesn't control the card (activeSuggestionId undefined).
+  const [localOpenId, setLocalOpenId] = useState<number | null>(null);
+  const isStale = (s: CvSuggestion): boolean => {
+    if (fieldOf(s) === "description") return findQuote(description, s.quote) === null;
+    if (!editor) return false;
+    return suggestionRanges(editor.state.doc, [{ id: s.id, quote: s.quote }]).get(s.id) === null;
+  };
+
+  const cardId = openSuggestionId(activeSuggestionId, localOpenId, (id) => {
+    const s = pending.find((p) => p.id === id);
+    return s !== undefined && !isStale(s);
+  });
+  const cardSuggestion = cardId === null ? null : pending.find((s) => s.id === cardId)!;
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    // Nothing to show and nothing shown: leave the editor alone.
+    if (contentItems.length === 0 && !editor.view.dom.querySelector("[data-suggestion-id]")) return;
+    // The active (solid) highlight is the one whose card is open.
+    editor.commands.setSuggestions(contentItems, cardId);
+    // contentItemsKey stands in for contentItems.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, contentItemsKey, cardId]);
+
+  // Reports stale ids when they change. Runs after edits (dirty) and when the
+  // suggestions or summary change; with no suggestions it does nothing.
+  const reportedStale = useRef("");
+  useEffect(() => {
+    if (!onStaleChange || !editor) return;
+    if (pending.length === 0 && reportedStale.current === "") return;
+    const ids = pending.filter(isStale).map((s) => s.id);
+    const key = ids.join(",");
+    if (key === reportedStale.current) return;
+    reportedStale.current = key;
+    onStaleChange(ids);
+    // isStale reads editor and description, both listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onStaleChange, editor, pending, description, dirty]);
+
+  const cardAnchor = useMemo(() => {
+    if (!cardSuggestion || !editor) return null;
+    const editorDom = editor.view.dom;
+    const fallback = () => (descriptionRef.current ?? editorDom).getBoundingClientRect();
+    if (fieldOf(cardSuggestion) === "description") {
+      return { getBoundingClientRect: fallback, contextElement: descriptionRef.current ?? undefined };
+    }
+    const id = cardSuggestion.id;
+    return {
+      contextElement: editorDom,
+      // Highlights are re-rendered as the text changes, so look them up each time.
+      getBoundingClientRect: () => {
+        const spans = editorDom.querySelectorAll(`[data-suggestion-id="${id}"]`);
+        if (spans.length === 0) return fallback();
+        const first = spans[0].getBoundingClientRect();
+        const last = spans[spans.length - 1].getBoundingClientRect();
+        return first.top === last.top ? new DOMRect(first.left, first.top, last.right - first.left, first.height) : first;
+      },
+    };
+  }, [cardSuggestion, editor]);
+
+  const onEditorClick = (event: React.MouseEvent) => {
+    const target = (event.target as HTMLElement).closest?.("[data-suggestion-id]");
+    if (!target) return;
+    const id = Number(target.getAttribute("data-suggestion-id"));
+    if (activeSuggestionId === undefined) setLocalOpenId(id);
+    onSuggestionClick?.(id);
+  };
+
+  const closeCard = () => {
+    if (activeSuggestionId === undefined) setLocalOpenId(null);
+    onSuggestionClose?.();
+  };
+
+  // Records the decision first and changes the text only once it's saved, so
+  // a refused request (e.g. the review was replaced elsewhere) leaves the CV
+  // as it was.
+  const resolveSuggestion = async (s: CvSuggestion, action: SuggestionAction, text?: string) => {
+    const changesText = action !== "reject" && text !== undefined;
+    if (changesText && isStale(s)) return;
+    try {
+      await onSuggestionResolve?.(s, action, text);
+    } catch (error) {
+      console.error(error);
+      toast.error(apiErrorMessage(error, "Couldn't update the suggestion. Try again."));
+      return;
+    }
+    if (changesText) {
+      if (fieldOf(s) === "description") {
+        setDescription((current) => {
+          const match = findQuote(current, s.quote);
+          return match ? current.slice(0, match.from) + text + current.slice(match.to) : current;
+        });
+        markDirty();
+      } else if (editor) {
+        replaceQuote(editor, s.quote, text);
+      }
+    }
+    closeCard();
+  };
+
   const onConfirmDelete = async () => {
     setDirty(0);
     await onDelete();
@@ -205,6 +349,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     <>
       <article
         ref={articleRef}
+        data-section-id={section.id}
         className={cn(
           "group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-10 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14 transition-opacity",
           dimmed && "opacity-55",
@@ -329,6 +474,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
         )}
 
         <textarea
+          ref={descriptionRef}
           value={description}
           onChange={edit(setDescription)}
           placeholder="Add a one-line summary"
@@ -344,7 +490,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
 
         <div className="relative mt-4">
           {editor && <FormatBubble editor={editor} />}
-          <EditorContent editor={editor} className="cv-document-body" />
+          <EditorContent editor={editor} className="cv-document-body" onClick={pending.length > 0 ? onEditorClick : undefined} />
           {editor && (
             <BlockToolbar
               editor={editor}
@@ -353,6 +499,16 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
           )}
         </div>
       </article>
+
+      {cardSuggestion && cardAnchor && (
+        <SuggestionCard
+          key={cardSuggestion.id}
+          suggestion={cardSuggestion}
+          anchor={cardAnchor}
+          onResolve={(action, text) => resolveSuggestion(cardSuggestion, action, text)}
+          onClose={closeCard}
+        />
+      )}
 
       <ConfirmationModal
         isOpen={deleteOpen}

@@ -4,15 +4,17 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/Tabs"
-import EntryDocCard from "./EntryDocCard";
+import DocSlot from "./DocSlot";
 import { JobBoardEntry } from "@/lib/types";
 
 interface EntryDocAreaProps {
   entry: JobBoardEntry;
   onUpdateEntry: (entry: JobBoardEntry) => void;
+  /** Wraps document actions that leave the page. */
+  beforeLeave?: (action: () => void) => void;
 }
 
-const EntryDocArea = ({ entry, onUpdateEntry }: EntryDocAreaProps) => {
+const EntryDocArea = ({ entry, onUpdateEntry, beforeLeave }: EntryDocAreaProps) => {
   return (
     <Tabs defaultValue="cv" className="w-full">
       <TabsList>
@@ -21,12 +23,13 @@ const EntryDocArea = ({ entry, onUpdateEntry }: EntryDocAreaProps) => {
       </TabsList>
 
       <TabsContent value="cv">
-        <EntryDocCard type="CV" entry={entry} onUpdateEntry={onUpdateEntry} />
+        <DocSlot kind="cv" entry={entry} onUpdateEntry={onUpdateEntry} beforeLeave={beforeLeave} />
       </TabsContent>
 
       <TabsContent value="cover-letter">
-        <EntryDocCard type="Cover Letter" entry={entry} onUpdateEntry={onUpdateEntry} />
+        <DocSlot kind="cover_letter" entry={entry} onUpdateEntry={onUpdateEntry} />
       </TabsContent>
+
     </Tabs>
   )
 }

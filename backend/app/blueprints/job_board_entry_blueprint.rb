@@ -5,4 +5,13 @@ class JobBoardEntryBlueprint < ApplicationBlueprint
     :cover_letter_text, :cover_letter_key, :cover_letter_filename
 
   association :job_board_tags, blueprint: JobBoardTagBlueprint
+
+  # `fit` is deliberately the latest *succeeded* run's (last known fit), not the latest run's.
+  # Preload `cv_curriculum: :latest_fit_tailoring` when listing jobs.
+  field :cv_curriculum do |entry, _options|
+    copy = entry.cv_curriculum
+    next nil if copy.nil?
+
+    { id: copy.id, title: copy.title, updated_at: copy.updated_at, fit: copy.latest_fit_tailoring&.read_attribute(:fit) }
+  end
 end
