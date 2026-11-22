@@ -1,11 +1,10 @@
 "use client";
 
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
-import { applyEntryPatch, EntryPatch } from "@/lib/jobBoard/docSlot";
+import { saveDocument } from "@/lib/jobBoard/docSlot";
+import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
 import { getNotes } from "@/api/resources/notes/getNotes";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
-import { uploadCVJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCVJobBoardEntry";
-import { uploadCoverLetterJobBoardEntry } from "@/api/resources/jobBoardEntries/uploadCoverLetterJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import Description from "@/components/common/Description";
 import Title from "@/components/common/Title";
@@ -141,10 +140,7 @@ const SheetPage = () => {
     setJobBoardEntries((prev) => [...prev, job]);
   }, []);
 
-  const onPatchJob = useCallback((id: number, patch: EntryPatch) => {
-    setJobBoardEntries((prev) => prev.map((entry) => applyEntryPatch(entry, id, patch)));
-    setSelectedJob((prev) => prev && applyEntryPatch(prev, id, patch));
-  }, []);
+  const onPatchJob = usePatchJob(setJobBoardEntries, setSelectedJob);
 
   const handleSelectJob = useCallback((job: JobBoardEntry) => {
     if (closeTimeoutRef.current) {
@@ -173,42 +169,27 @@ const SheetPage = () => {
   const handleCvUpload = useCallback(
     async (entry: JobBoardEntry, file: File) => {
       try {
-        const response = await uploadCVJobBoardEntry(entry.id, undefined, file);
-        // The server entry already has the CV fields and cv_curriculum: null.
-        const updated = { ...entry, ...response.job_board_entry };
-
-        setJobBoardEntries((prev) =>
-          prev.map((e) => (e.id === entry.id ? updated : e))
-        );
-
-        setSelectedJob((prev) => (prev?.id === entry.id ? updated : prev));
+        onPatchJob(entry.id, await saveDocument("cv", entry.id, undefined, file));
         toast.success("CV uploaded");
       } catch (error) {
         console.error(error);
         toast.error("Failed to upload CV");
       }
     },
-    []
+    [onPatchJob]
   );
 
   const handleCoverLetterUpload = useCallback(
     async (entry: JobBoardEntry, file: File) => {
       try {
-        const response = await uploadCoverLetterJobBoardEntry(entry.id, undefined, file);
-        const updated = { ...entry, ...response.job_board_entry };
-
-        setJobBoardEntries((prev) =>
-          prev.map((e) => (e.id === entry.id ? updated : e))
-        );
-
-        setSelectedJob((prev) => (prev?.id === entry.id ? updated : prev));
+        onPatchJob(entry.id, await saveDocument("cover_letter", entry.id, undefined, file));
         toast.success("Cover letter uploaded");
       } catch (error) {
         console.error(error);
         toast.error("Failed to upload cover letter");
       }
     },
-    []
+    [onPatchJob]
   );
 
   const handleCvDownload = useCallback(async (entry: JobBoardEntry) => {
@@ -249,13 +230,8 @@ const SheetPage = () => {
     async (entry: JobBoardEntry, newStatus: JobStatus) => {
       const countInStatus = jobBoardEntries.filter((e) => e.status === newStatus).length;
       const newNumber = countInStatus + 1;
-      const updated = { ...entry, status: newStatus, number: newNumber };
-      
-      setJobBoardEntries((prev) =>
-        prev.map((e) => (e.id === entry.id ? updated : e))
-      );
-      
-      setSelectedJob((prev) => (prev?.id === entry.id ? updated : prev));
+      // Only status and number change here, so other saves landing meanwhile are kept.
+      onPatchJob(entry.id, { status: newStatus, number: newNumber });
       
       try {
         await updateJobBoardEntry(
@@ -273,13 +249,10 @@ const SheetPage = () => {
         console.error(error);
         toast.error(`Failed to update ${entry.title}`);
 
-        setJobBoardEntries((prev) =>
-          prev.map((e) => (e.id === entry.id ? entry : e))
-        );
-        setSelectedJob((prev) => (prev?.id === entry.id ? entry : prev));
+        onPatchJob(entry.id, { status: entry.status, number: entry.number });
       }
     },
-    [jobBoardEntries]
+    [jobBoardEntries, onPatchJob]
   );
 
   return (

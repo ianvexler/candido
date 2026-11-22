@@ -59,7 +59,7 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
         <div className="min-w-0">
           <MainEntryForm
             entry={jobEntry}
-            onUpdateEntry={(saved) => patchEntry(saved.id, jobSavePatch(saved))}
+            onUpdateEntry={(saved, startedAt) => patchEntry(saved.id, jobSavePatch(saved, startedAt))}
             onDirtyChange={onDirtyChange}
           />
         </div>
