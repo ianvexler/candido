@@ -2,11 +2,25 @@
 
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
-import { COVERAGE_LABELS, FIT_LABELS, FIT_STYLES, progressStep, reviewGroups, sectionLabel } from "@/lib/resume/reviewPanel";
+import {
+  COVERAGE_LABELS,
+  FIT_LABELS,
+  FIT_STYLES,
+  progressStep,
+  reviewGroups,
+  sectionLabel,
+} from "@/lib/resume/reviewPanel";
 import { isTailoringActive } from "@/lib/resume/suggestions";
 import { CurriculumSection, CvSuggestion, CvTailoring } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { CheckIcon, ChevronRightIcon, ContrastIcon, InfoIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  ContrastIcon,
+  InfoIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import SuggestionRow, { DoneRow } from "./SuggestionRow";
 
@@ -24,6 +38,8 @@ interface ReviewPanelProps {
   jobRemoved: boolean;
   /** The job has a posting URL, so not reading it is worth mentioning. */
   jobHasUrl?: boolean;
+  /** Company of the job, for the empty state of a copy that hasn't been reviewed. */
+  company?: string | null;
   /** Shown inline above the footer, e.g. why a re-run couldn't start. */
   error?: string | null;
 }
@@ -49,7 +65,9 @@ const ReviewProgress = () => {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center">
       <Loader size="sm" message={progressStep(tick)} />
-      <p className="text-xs text-muted-foreground">Takes a minute or two. You can keep editing.</p>
+      <p className="text-xs text-muted-foreground">
+        Takes a minute or two. You can keep editing.
+      </p>
     </div>
   );
 };
@@ -66,18 +84,28 @@ const ReviewPanel = ({
   rerunning,
   jobRemoved,
   jobHasUrl = false,
+  company,
   error,
 }: ReviewPanelProps) => {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doneOpen, setDoneOpen] = useState(false);
   const [dismissing, setDismissing] = useState<number[]>([]);
 
-  const sectionsById = useMemo(() => new Map(sections.map((s) => [s.id, s])), [sections]);
-  const groups = useMemo(
-    () => reviewGroups(tailoring?.suggestions ?? [], staleIds, new Set(sectionsById.keys())),
-    [tailoring, staleIds, sectionsById]
+  const sectionsById = useMemo(
+    () => new Map(sections.map((s) => [s.id, s])),
+    [sections],
   );
-  const labelOf = (s: CvSuggestion) => sectionLabel(sectionsById.get(s.curriculum_section_id));
+  const groups = useMemo(
+    () =>
+      reviewGroups(
+        tailoring?.suggestions ?? [],
+        staleIds,
+        new Set(sectionsById.keys()),
+      ),
+    [tailoring, staleIds, sectionsById],
+  );
+  const labelOf = (s: CvSuggestion) =>
+    sectionLabel(sectionsById.get(s.curriculum_section_id));
 
   const dismiss = async (s: CvSuggestion) => {
     setDismissing((ids) => [...ids, s.id]);
@@ -92,16 +120,33 @@ const ReviewPanel = ({
   const report = tailoring?.status === "succeeded" ? tailoring.report : null;
 
   const footer = jobRemoved ? (
-    <p className="text-xs text-muted-foreground">This job was removed from your board.</p>
+    <p className="text-xs text-muted-foreground">
+      This job was removed from your board.
+    </p>
   ) : (
+    tailoring &&
     !active &&
-    tailoring?.status !== "failed" && (
+    tailoring.status !== "failed" && (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Button type="button" variant="outline" size="sm" onClick={onRerun} disabled={rerunning}>
-          <RotateCcwIcon className={cn(rerunning && "animate-spin [animation-direction:reverse]")} />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRerun}
+          disabled={rerunning}
+        >
+          <RotateCcwIcon
+            className={cn(
+              rerunning && "animate-spin [animation-direction:reverse]",
+            )}
+          />
           Re-run review
         </Button>
-        {groups.left > 0 && <span className="text-xs text-muted-foreground">Open suggestions are replaced.</span>}
+        {groups.left > 0 && (
+          <span className="text-xs text-muted-foreground">
+            Open suggestions are replaced.
+          </span>
+        )}
       </div>
     )
   );
@@ -119,7 +164,7 @@ const ReviewPanel = ({
                 <span
                   className={cn(
                     "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
-                    FIT_STYLES[report.fit]
+                    FIT_STYLES[report.fit],
                   )}
                 >
                   <i className="size-1.5 rounded-full" aria-hidden />
@@ -136,7 +181,7 @@ const ReviewPanel = ({
                 aria-expanded={summaryOpen}
                 className={cn(
                   "block w-full text-left text-sm text-muted-foreground",
-                  !summaryOpen && "line-clamp-2"
+                  !summaryOpen && "line-clamp-2",
                 )}
               >
                 {report.summary}
@@ -146,21 +191,46 @@ const ReviewPanel = ({
             {report && !tailoring.used_posting && jobHasUrl && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <InfoIcon className="mt-px size-3 shrink-0" aria-hidden />
-                Couldn&apos;t open the posting; reviewed from the saved description.
+                Couldn&apos;t open the posting; reviewed from the saved
+                description.
               </p>
             )}
           </div>
         )}
 
-        {!tailoring && <p className="text-sm text-muted-foreground">No review yet.</p>}
+        {!tailoring && !jobRemoved && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {company
+                ? `Get suggestions to fit this CV to the ${company} job.`
+                : "Get suggestions to fit this CV to the job."}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={onRerun}
+              disabled={rerunning}
+            >
+              {rerunning ? "Starting review…" : "Review against this job"}
+            </Button>
+          </div>
+        )}
 
         {active && <ReviewProgress key={tailoring?.id} />}
 
         {tailoring?.status === "failed" && (
           <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3">
-            <p className="text-sm">{tailoring.error_message || "The review didn't finish."}</p>
+            <p className="text-sm">
+              {tailoring.error_message || "The review didn't finish."}
+            </p>
             {!jobRemoved && (
-              <Button type="button" size="sm" variant="outline" onClick={onRerun} disabled={rerunning}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onRerun}
+                disabled={rerunning}
+              >
                 <RotateCcwIcon />
                 Try again
               </Button>
@@ -179,7 +249,9 @@ const ReviewPanel = ({
                   title={`${COVERAGE_LABELS[requirement.covered]}: ${requirement.text}`}
                 >
                   {COVERAGE_ICONS[requirement.covered]}
-                  <span className="sr-only">{COVERAGE_LABELS[requirement.covered]}: </span>
+                  <span className="sr-only">
+                    {COVERAGE_LABELS[requirement.covered]}:{" "}
+                  </span>
                   <span className="truncate">{requirement.text}</span>
                 </li>
               ))}
@@ -201,7 +273,8 @@ const ReviewPanel = ({
         {report && (
           <section>
             <Heading>
-              Suggestions <span className="font-normal">· {groups.left} left</span>
+              Suggestions{" "}
+              <span className="font-normal">· {groups.left} left</span>
             </Heading>
             {groups.left === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -232,7 +305,12 @@ const ReviewPanel = ({
                   aria-expanded={doneOpen}
                   className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
-                  <ChevronRightIcon className={cn("size-3.5 transition-transform", doneOpen && "rotate-90")} />
+                  <ChevronRightIcon
+                    className={cn(
+                      "size-3.5 transition-transform",
+                      doneOpen && "rotate-90",
+                    )}
+                  />
                   Done ({groups.done.length})
                 </button>
                 {doneOpen && (
@@ -254,7 +332,11 @@ const ReviewPanel = ({
         )}
       </div>
 
-      {footer && <div className="sticky bottom-0 border-t border-border bg-background px-5 py-3">{footer}</div>}
+      {footer && (
+        <div className="sticky bottom-0 border-t border-border bg-background px-5 py-3">
+          {footer}
+        </div>
+      )}
     </div>
   );
 };

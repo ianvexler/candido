@@ -108,9 +108,6 @@ const ResumesPage = () => {
                 className="flex h-full flex-col rounded-lg border border-border bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:border-foreground/30"
               >
                 <span className="pr-8 font-semibold">{curriculum.title}</span>
-                {curriculum.tailored_for && (
-                  <span className="mt-0.5 truncate text-xs text-muted-foreground">For {curriculum.tailored_for}</span>
-                )}
                 {curriculum.description && (
                   <span className="mt-1 line-clamp-2 text-sm text-muted-foreground">{curriculum.description}</span>
                 )}

@@ -388,6 +388,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
             rerunning={rerunning}
             jobRemoved={tailoring ? tailoring.job_board_entry_id === null : curriculum.job_board_entry_id === null}
             jobHasUrl={jobHasUrl}
+            company={curriculum.tailored_for}
             error={reviewError}
           />
         ) : undefined
