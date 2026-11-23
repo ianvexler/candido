@@ -58,9 +58,53 @@ RSpec.describe "Curriculum sections" do
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["section"]).to include("hidden" => true)
       expect(response.parsed_body["section"]["entries"].sole).to include(
-        "id" => section.entries.first["id"], "content" => "<p>Tailored</p>"
+        "id" => section.entries.first["id"], "content" => a_string_including(">Tailored</p>")
       )
-      expect(template.reload.entries.first["content"]).to eq("<p>Original</p>")
+      expect(without_item_ids(template.reload.entries.first["content"])).to eq("<p>Original</p>")
+    end
+
+    it "keeps an unticked item unticked when the content is saved without ids" do
+      section.update!(entries: [ { id: "one", content: '<p data-cv-item="a">A</p><p data-cv-item="b" data-cv-off="true">B</p>' } ])
+
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}",
+        params: { entries: [ { id: "new", content: "<p>B</p>" }, { id: "one", content: "<p>New</p><p>A</p><p>B</p>" } ] },
+        headers: headers,
+        as: :json
+
+      expect(response).to have_http_status(:ok)
+      added, saved = section.reload.entries.map { |entry| CvItems.list(entry["content"]) }
+      expect(saved.last(2).map { |item| item.values_at(:id, :off) }).to eq([ [ "a", false ], [ "b", true ] ])
+      expect(added.sole).to include(off: false)
+    end
+
+    it "keeps the first of two entries sent with the same id, with its ticks" do
+      section.update!(entries: [ { id: "one", content: '<p data-cv-item="a" data-cv-off="true">A</p>' } ])
+
+      section.update!(entries: [ { id: "one", content: "<p>A</p>" }, { id: "one", content: "<p>A</p>" } ])
+
+      first, second = section.entries.map { |entry| CvItems.list(entry["content"]).sole }
+      expect(first).to include(id: "a", off: true)
+      expect(second).to include(off: false)
+      expect(second[:id]).not_to eq("a")
+    end
+
+    it "replaces an item id over 64 characters" do
+      long = "a" * 65
+
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}",
+        params: { entries: [ { content: "<p data-cv-item=\"#{long}\">A</p><p data-cv-item=\"#{'b' * 64}\">B</p>" } ] },
+        headers: headers,
+        as: :json
+
+      ids = CvItems.list(section.reload.entries.sole["content"]).pluck(:id)
+      expect(ids.first).to match(SectionContent::ENTRY_ID)
+      expect(ids.last).to eq("b" * 64)
+    end
+
+    it "drops a trailing empty paragraph that carries an item id" do
+      section.update!(entries: [ { content: '<p data-cv-item="a">A</p><p data-cv-item="b"></p>' } ])
+
+      expect(section.entries.sole["content"]).to eq('<p data-cv-item="a">A</p>')
     end
 
     it "places the section in the sidebar or main column of this resume" do
@@ -147,7 +191,7 @@ RSpec.describe "Curriculum sections" do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["section"]).to include("library_updated" => false)
-      expect(response.parsed_body["section"]["entries"].sole).to include("content" => "<p>Improved</p>", "role" => "Lead engineer")
+      expect(response.parsed_body["section"]["entries"].sole).to include("content" => a_string_including(">Improved</p>"), "role" => "Lead engineer")
     end
 
     it "still leaves out the entries this resume left out" do

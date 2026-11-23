@@ -4,7 +4,8 @@
 #
 # An entry's `content` is the editor's HTML. Hidden text is wrapped in
 # <span data-cv-hidden> and stays in the stored HTML; preview and export drop
-# it. An entry may also carry a role, organization, location and month range.
+# it. Each block is an item that can be left out of a CV; see CvItems. An entry
+# may also carry a role, organization, location and month range.
 # The same entry has the same id in the library and in every copy.
 module SectionContent
   extend ActiveSupport::Concern
@@ -12,9 +13,9 @@ module SectionContent
   ALLOWED_TAGS = %w[
     p br strong b em i s u code a ul ol li h1 h2 h3 h4 h5 h6 blockquote hr span
   ].freeze
-  ALLOWED_ATTRIBUTES = %w[href target rel style data-cv-hidden].freeze
+  ALLOWED_ATTRIBUTES = %w[href target rel style data-cv-hidden data-cv-item data-cv-off].freeze
   # The editor keeps an empty paragraph after a trailing list; it is not content.
-  TRAILING_EMPTY_PARAGRAPHS = %r{(?:<p>(?:\s|&nbsp;|<br\s*/?>)*</p>)+\z}
+  TRAILING_EMPTY_PARAGRAPHS = %r{(?:<p(?: data-cv-(?:item|off)="[^"]*")*>(?:\s|&nbsp;|<br\s*/?>)*</p>)+\z}
 
   MAX_ENTRIES = 60
   MAX_LINE = 200
@@ -57,16 +58,18 @@ module SectionContent
   def normalize_entries
     list = Array(entries).grep(Hash)
     list = [ {} ] if list.empty?
+    contents = Array(entries_was).grep(Hash).to_h { |entry| entry.values_at("id", "content") }
     seen = Set.new
     self.entries = list.map do |raw|
-      entry = normalize_entry(raw.stringify_keys)
+      raw = raw.stringify_keys
+      entry = normalize_entry(raw, contents.delete(raw["id"].to_s))
       entry["id"] = SecureRandom.uuid unless entry["id"].match?(ENTRY_ID) && seen.exclude?(entry["id"])
       seen << entry["id"]
       entry
     end
   end
 
-  def normalize_entry(raw)
+  def normalize_entry(raw, previous_content)
     current = boolean(raw["current"])
     {
       "id" => raw["id"].to_s,
@@ -76,9 +79,13 @@ module SectionContent
       "end_date" => current ? nil : month(raw["end_date"]),
       "current" => current,
       "description" => raw["description"].to_s.strip.presence,
-      "content" => self.class.sanitize_content(raw["content"]),
+      "content" => normalize_content(raw["content"], previous_content),
       "hidden" => boolean(raw["hidden"])
     }
+  end
+
+  def normalize_content(html, previous)
+    CvItems.assign(self.class.sanitize_content(html), previous: previous)
   end
 
   def boolean(value)
