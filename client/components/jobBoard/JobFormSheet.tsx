@@ -397,9 +397,10 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const skipFinalSave = useRef(false);
   useEffect(
     () => () => {
-      if (!skipFinalSave.current && hasUpdatedRef.current) void performSaveRef.current();
+      // Only edits: a new job is added by its own button, never by closing the sheet.
+      if (!isCreate && !skipFinalSave.current && hasUpdatedRef.current) void performSaveRef.current();
     },
-    []
+    [isCreate]
   );
 
   const discardedRef = useRef(false);
