@@ -16,8 +16,8 @@ import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
 
 interface TailorToJobProps {
-  /** The CV to tailor; null while closed. */
-  curriculum: Curriculum | null;
+  /** The CV to tailor. */
+  curriculum: Curriculum;
   onClose: () => void;
 }
 
@@ -43,8 +43,6 @@ const TailorToJob = ({ curriculum, onClose }: TailorToJobProps) => {
       cancelled = true;
     };
   }, []);
-
-  if (!curriculum) return null;
 
   const start = async (job: JobBoardEntry) => {
     if (await tailor(curriculum.id, job.id)) onClose();
@@ -119,11 +117,13 @@ const TailorToJob = ({ curriculum, onClose }: TailorToJobProps) => {
       <Sheet open={adding} onOpenChange={(open) => !open && setAdding(false)}>
         {adding && (
           <JobFormSheet
-            mode="create"
-            entry={null}
             allEntries={entries ?? []}
             onClose={() => setAdding(false)}
-            onAddJob={(job) => void start(job)}
+            onAddJob={(job) => {
+              // Listed too, so it isn't added again if copying fails.
+              setEntries((current) => [...(current ?? []), job]);
+              void start(job);
+            }}
           />
         )}
       </Sheet>

@@ -273,7 +273,7 @@ const SheetPageContent = () => {
         <button
           onClick={() => {
             if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                setOpenAddJobModal(true);
+            setOpenAddJobModal(true);
             setIsSheetOpen(true);
           }}
           className="cursor-pointer fixed bottom-6 right-6 size-15 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center"
@@ -286,8 +286,6 @@ const SheetPageContent = () => {
       <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>
         {openAddJobModal && (
           <JobFormSheet
-            mode="create"
-            entry={null}
             allEntries={jobBoardEntries}
             onClose={() => handleSheetOpenChange(false)}
             onAddJob={onAddJob}

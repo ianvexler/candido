@@ -82,7 +82,9 @@ export const postingUrl = (url: string | null | undefined): string | null => {
   const trimmed = url?.trim();
   if (!trimmed) return null;
   try {
-    const parsed = new URL(/^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`);
+    // "jobs.example.com:8443/1" is a host and port, not a scheme.
+    const hasScheme = /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(trimmed);
+    const parsed = new URL(hasScheme ? trimmed : `https://${trimmed}`);
     return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
   } catch {
     return null;

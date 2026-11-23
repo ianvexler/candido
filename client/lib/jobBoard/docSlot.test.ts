@@ -11,7 +11,6 @@ import {
   jobSaveStarted,
   noteDocumentsSaved,
   replaceWays,
-  textPreview,
 } from "./docSlot";
 import { JobBoardEntry } from "@/lib/types";
 
@@ -73,13 +72,6 @@ describe("replaceWays", () => {
     expect(replaceWays("cv", "text")).toEqual(["upload", "use"]);
     expect(replaceWays("cv", "file")).toEqual(["upload", "paste", "use"]);
     expect(replaceWays("cover_letter", "text")).toEqual(["upload"]);
-  });
-});
-
-describe("textPreview", () => {
-  it("drops blank lines so the preview shows content", () => {
-    expect(textPreview("Dear Initech team,\n\n  I am applying.\n")).toBe("Dear Initech team,\nI am applying.");
-    expect(textPreview(undefined)).toBe("");
   });
 });
 

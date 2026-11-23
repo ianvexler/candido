@@ -6,7 +6,7 @@ import { EntryPatch } from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import JobFormSheet from "./JobFormSheet";
+import JobPanel from "./JobPanel";
 
 interface JobSheetProps {
   /** The open job; undefined while closed. */
@@ -32,11 +32,10 @@ const JobSheet = ({ entry, allEntries, from, onClose, onPatchJob, onDelete }: Jo
   return (
     <Sheet open={entry !== undefined} onOpenChange={(open) => !open && onClose()}>
       {job && (
-        <JobFormSheet
-          // One sheet per job: its fields start from the job, so a reused sheet would save
-          // the previous job's fields onto this one.
+        <JobPanel
+          // One panel per job: its fields start from the job, so a reused one would save the
+          // previous job's fields onto this one.
           key={job.id}
-          mode="edit"
           entry={job}
           allEntries={allEntries}
           onClose={onClose}

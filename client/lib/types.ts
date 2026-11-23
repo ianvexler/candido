@@ -236,8 +236,8 @@ export type Curriculum = {
   source_curriculum_id: number | null;
   tailored_for: string | null;
   cv_for_job: { id: number; company: string } | null;
-  /** What a copy was made for and how its review stands; null for one of the user's own CVs. */
-  tailoring: {
+  /** What a copy was made for and how its review stands; null for one of the user's own CVs. Listed CVs only. */
+  tailoring?: {
     /** Null if the job was removed. */
     job: { id: number; title: string; company: string; status: JobStatus } | null;
     source_title: string | null;
