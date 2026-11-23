@@ -21,6 +21,7 @@ describe("findQuote", () => {
 const suggestion = (id: number, position: number, status: CvSuggestion["status"]): CvSuggestion => ({
   id,
   curriculum_section_id: 1,
+  entry_id: null,
   kind: "rewrite",
   field: "content",
   quote: `q${id}`,

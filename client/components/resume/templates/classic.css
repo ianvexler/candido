@@ -62,6 +62,11 @@
   margin-top: var(--rc-section-gap);
 }
 
+/* Entries sit closer to each other than sections do. */
+.resume-classic .rc-entry + .rc-entry {
+  margin-top: calc(var(--rc-section-gap) * 0.6);
+}
+
 .resume-classic .rc-heading {
   font-size: var(--rc-heading-size);
   font-weight: 600;

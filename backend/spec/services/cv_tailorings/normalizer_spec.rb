@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe CvTailorings::Normalizer do
   let(:sections) do
-    [ { id: 1, heading: "experience · Acme", description: "Backend engineer",
+    [ { id: 1, curriculum_section_id: 11, entry_id: "a", heading: "experience · Acme", description: "Backend engineer",
        blocks: [ "Built APIs", "Led a team of five" ] } ]
   end
 
@@ -19,7 +19,7 @@ RSpec.describe CvTailorings::Normalizer do
     result = run([ suggestion("quote" => "Built  APIs"), suggestion("quote" => "Led a team") ])
 
     expect(result[:suggestions].map { |s| s[:position] }).to eq([ 0, 1 ])
-    expect(result[:suggestions].first).to include(curriculum_section_id: 1, kind: "rewrite", field: "content")
+    expect(result[:suggestions].first).to include(curriculum_section_id: 11, entry_id: "a", kind: "rewrite", field: "content")
   end
 
   it "keeps one suggestion per piece of text, preferring a rewrite over a note" do
@@ -93,11 +93,11 @@ RSpec.describe CvTailorings::Normalizer do
     elsewhere = suggestion("quote" => "Documented internal APIs", "replacement" => "Documented REST APIs")
 
     kept = described_class.call({ "suggestions" => [ *notes, rewrite, elsewhere ] },
-                                [ { id: 1, heading: "", description: "", blocks: blocks } ])[:suggestions]
+                                [ { id: 1, curriculum_section_id: 11, entry_id: "a", heading: "", description: "", blocks: blocks } ])[:suggestions]
 
     expect(kept.map { |s| s[:quote] }).to eq([ "Built APIs", "Documented internal APIs" ])
     both = described_class.call({ "suggestions" => [ suggestion("kind" => "note", "quote" => "APIs", "replacement" => ""), elsewhere ] },
-                                [ { id: 1, heading: "", description: "", blocks: blocks } ])[:suggestions]
+                                [ { id: 1, curriculum_section_id: 11, entry_id: "a", heading: "", description: "", blocks: blocks } ])[:suggestions]
     expect(both.size).to eq(2)
   end
 
@@ -155,7 +155,7 @@ RSpec.describe CvTailorings::Normalizer do
     result = described_class.call(
       { "suggestions" => many, "requirements" => Array.new(10) { { "text" => "r", "covered" => "yes" } },
         "gaps" => Array.new(6) { "g" } },
-      [ { id: 1, heading: "experience · Acme", description: "", blocks: blocks } ]
+      [ { id: 1, curriculum_section_id: 11, entry_id: "a", heading: "experience · Acme", description: "", blocks: blocks } ]
     )
 
     expect(result[:report][:requirements].size).to eq(8)

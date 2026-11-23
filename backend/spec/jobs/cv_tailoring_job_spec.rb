@@ -4,13 +4,13 @@ RSpec.describe CvTailoringJob do
   let(:user) { create(:user) }
   let(:curriculum) { create(:curriculum, user: user) }
   let(:job) { create(:job_board_entry, user: user) }
-  let!(:section) { curriculum.curriculum_sections.create!(title: "Work", section_type: "experience", content: "<p>Led a team</p>") }
+  let!(:section) { curriculum.curriculum_sections.create!(section_type: "experience", entries: [ { title: "Work", content: "<p>Led a team</p>" } ]) }
   let(:tailoring) { create(:cv_tailoring, user: user, curriculum: curriculum, job_board_entry: job) }
   let(:output) do
     {
       "fit" => "strong", "summary" => "Good match.", "requirements" => [], "gaps" => [],
       "suggestions" => [
-        { "section_id" => section.id, "kind" => "rewrite", "field" => "content", "quote" => "Led a team",
+        { "section_id" => 1, "kind" => "rewrite", "field" => "content", "quote" => "Led a team",
           "replacement" => "Led a team of five", "reason" => "Adds scope" }
       ]
     }
@@ -29,11 +29,13 @@ RSpec.describe CvTailoringJob do
     expect(tailoring.used_posting).to be(true)
     expect(tailoring.report["fit"]).to eq("strong")
     expect(tailoring.suggestions.count).to eq(1)
-    expect(tailoring.suggestions.first.quote).to eq("Led a team")
+    expect(tailoring.suggestions.first).to have_attributes(
+      quote: "Led a team", curriculum_section_id: section.id, entry_id: section.entries.first["id"]
+    )
   end
 
   it "keeps only missing sections the CV doesn't have, counting hidden sections" do
-    curriculum.curriculum_sections.create!(title: "Uni", section_type: "Education", hidden: true, position: 1)
+    curriculum.curriculum_sections.create!(section_type: "Education", hidden: true, position: 1)
     missing = [ { "section" => "Education", "reason" => "Add your degree" }, { "section" => "Skills", "reason" => "List your tools" } ]
     allow(reviewer).to receive(:call).and_return({ output: output.merge("missing_sections" => missing), used_posting: false })
 
@@ -77,8 +79,8 @@ RSpec.describe CvTailoringJob do
   end
 
   it "keeps the review when a section is removed while it runs" do
-    other = curriculum.curriculum_sections.create!(title: "Skills", section_type: "skills", content: "<p>Ruby</p>")
-    output["suggestions"] << { "section_id" => other.id, "kind" => "note", "field" => "content", "quote" => "Ruby",
+    other = curriculum.curriculum_sections.create!(section_type: "skills", position: 1, entries: [ { content: "<p>Ruby</p>" } ])
+    output["suggestions"] << { "section_id" => 2, "kind" => "note", "field" => "content", "quote" => "Ruby",
                                "replacement" => "", "reason" => "Name the Ruby version" }
     allow(reviewer).to receive(:call) do
       other.destroy!

@@ -13,21 +13,11 @@ RSpec.describe Curriculum do
 
       expect(sections.map(&:position)).to eq([ 0, 1 ])
       expect(sections.first).to have_attributes(
-        title: "Acme", section_template_id: first.id, content: first.content, hidden: false
+        section_template_id: first.id, entries: first.entries, hidden: false
       )
 
-      first.update!(content: "<p>Changed in library</p>")
-      expect(sections.first.reload.content).to include("quietly")
-    end
-
-    it "copies section details" do
-      template = create(:section_template, user: user, role: "Engineer", organization: "Acme",
-        location: "London", start_date: Date.new(2022, 3, 1), current: true)
-
-      section = curriculum.import_section_templates!(template).first
-
-      expect(section).to have_attributes(role: "Engineer", organization: "Acme", location: "London",
-        start_date: Date.new(2022, 3, 1), end_date: nil, current: true)
+      first.update!(entries: [ first.entries.first.merge("content" => "<p>Changed in library</p>") ])
+      expect(sections.first.reload.entries.first["content"]).to include("quietly")
     end
 
     it "rejects another user's template" do
@@ -48,11 +38,13 @@ RSpec.describe Curriculum do
     let(:template) { create(:section_template, user: user) }
 
     before do
-      source.curriculum_sections.create!(title: "Work", section_type: "experience", description: "d", content: "<p>Led</p>",
-        role: "Engineer", organization: "Acme", location: "London", start_date: Date.new(2022, 3, 1),
-        end_date: Date.new(2023, 1, 1), current: false, hidden: true, position: 0, placement: "main",
+      source.curriculum_sections.create!(section_type: "experience",
+        entries: [
+          { title: "Acme", role: "Engineer", start_date: "2022-03-01", content: "<p>Led</p>" },
+          { title: "Globex", hidden: true }
+        ], hidden: true, position: 0, placement: "main",
         section_template: template, synced_at: Time.zone.parse("2026-01-01"), styles: { "color" => "red" })
-      source.curriculum_sections.create!(title: "Skills", section_type: "skills", content: "<p>Ruby</p>", position: 1,
+      source.curriculum_sections.create!(section_type: "skills", entries: [ { content: "<p>Ruby</p>" } ], position: 1,
         placement: "sidebar")
     end
 
@@ -61,8 +53,7 @@ RSpec.describe Curriculum do
 
       expect(copy).to have_attributes(title: "Main CV – Acme", tailored_for: "Acme", job_board_entry: job,
         source_curriculum: source, header: source.header, styles: source.styles, layout: "two_column", user_id: user.id)
-      fields = %w[title section_type description content role organization location start_date end_date current hidden
-        placement section_template_id synced_at styles]
+      fields = %w[section_type entries hidden placement section_template_id synced_at styles]
       expect(copy.curriculum_sections.map { |s| s.attributes.slice(*fields) })
         .to eq(source.curriculum_sections.map { |s| s.attributes.slice(*fields) })
       expect(copy.curriculum_sections.map(&:id)).not_to eq(source.curriculum_sections.map(&:id))

@@ -1,4 +1,4 @@
-import type { CvSuggestion, CvSuggestionStatus, CvTailoringReport, MissingSection } from "@/lib/types";
+import type { CvSuggestion, CvSuggestionStatus, CvTailoringReport, MissingSection, SectionEntry } from "@/lib/types";
 import { splitSuggestions } from "./suggestions";
 
 export const FIT_LABELS: Record<CvTailoringReport["fit"], string> = {
@@ -27,11 +27,15 @@ export const PROGRESS_STEPS = ["Reading the posting…", "Comparing with your CV
 export const progressStep = (tick: number): string =>
   PROGRESS_STEPS[Math.min(Math.max(tick, 0), PROGRESS_STEPS.length - 1)];
 
-/** "Experience · Acme", or just the type when the title is empty or repeats it. */
-export const sectionLabel = (section: { section_type: string; title: string } | undefined): string => {
+/** "Experience · Acme", or just the type when the entry's title is empty or repeats it. */
+export const sectionLabel = (
+  section: { section_type: string; entries: Pick<SectionEntry, "id" | "title">[] } | undefined,
+  entryId: string | null,
+): string => {
   if (!section) return "Section";
   const type = section.section_type.trim() || "Section";
-  const title = section.title.trim();
+  const entry = entryId === null ? section.entries[0] : section.entries.find((item) => item.id === entryId);
+  const title = entry?.title.trim() ?? "";
   if (!title || title.toLowerCase() === type.toLowerCase()) return type;
   return `${type} · ${title}`;
 };
@@ -84,12 +88,14 @@ export const MISSING_SECTION_PATTERNS: Record<MissingSection, RegExp> = {
 /** The report's missing sections the CV still has none of, so one disappears once it's added. */
 export const stillMissing = (
   report: Pick<CvTailoringReport, "missing_sections"> | null,
-  sections: { section_type: string; title: string }[],
+  sections: { section_type: string; entries: Pick<SectionEntry, "title">[] }[],
 ): NonNullable<CvTailoringReport["missing_sections"]> =>
   (report?.missing_sections ?? []).filter(
     ({ section }) =>
       // A title only counts on a custom section: elsewhere it's often an employer.
       !sections.some((s) =>
-        MISSING_SECTION_PATTERNS[section].test(s.section_type.toLowerCase() === "custom" ? s.title : s.section_type)
+        (s.section_type.toLowerCase() === "custom" ? s.entries.map((entry) => entry.title) : [s.section_type]).some((text) =>
+          MISSING_SECTION_PATTERNS[section].test(text)
+        )
       ),
   );

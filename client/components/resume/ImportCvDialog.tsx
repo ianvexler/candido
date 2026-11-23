@@ -7,7 +7,7 @@ import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { pollUntil, PollTimeoutError } from "@/lib/poll";
-import { buildResumeDocument } from "@/lib/resume/exportDocument";
+import { buildResumeDocument, ExportSection } from "@/lib/resume/exportDocument";
 import { waitForSaves } from "@/lib/resume/saveTracker";
 import { CvImport, ResumeHeader } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,7 @@ const headerSummary = (header: ResumeHeader) =>
 /** Upload a CV, wait while it's read, then choose what to add to the library. */
 const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
   const [step, setStep] = useState<Step>({ name: "choose" });
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [fillProfile, setFillProfile] = useState(true);
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -91,7 +91,7 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
         setStep({ name: "failed", message: finished.error_message ?? "We couldn't read this CV." });
         return;
       }
-      setSelected(new Set(finished.result.sections.map((_, index) => index)));
+      setSelected(new Set(finished.result.sections.flatMap((section) => section.entries.map((entry) => entry.id))));
       setFillProfile(headerSummary(finished.result.header).length > 0 || finished.result.header.links.length > 0);
       setStep({ name: "review", cvImport: finished });
     } catch (error) {
@@ -130,7 +130,7 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
         return;
       }
       const result = await applyCvImport(step.cvImport.id, {
-        section_indexes: [...selected].sort((a, b) => a - b),
+        entry_ids: [...selected],
         fill_profile: fillProfile,
       });
       onApplied(result);
@@ -143,6 +143,11 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
       setApplying(false);
     }
   };
+
+  const sectionCount =
+    step.name === "review"
+      ? (step.cvImport.result?.sections ?? []).filter((section) => section.entries.some((entry) => selected.has(entry.id))).length
+      : 0;
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && close()}>
@@ -206,11 +211,10 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
               <ReviewList
                 cvImport={step.cvImport}
                 selected={selected}
-                onToggle={(index, checked) =>
+                onToggle={(entryIds, checked) =>
                   setSelected((current) => {
                     const next = new Set(current);
-                    if (checked) next.add(index);
-                    else next.delete(index);
+                    entryIds.forEach((entryId) => (checked ? next.add(entryId) : next.delete(entryId)));
                     return next;
                   })
                 }
@@ -246,8 +250,8 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
                     onClick={() => void apply()}
                     disabled={applying || (selected.size === 0 && !fillProfile)}
                   >
-                    {selected.size > 0
-                      ? `Add ${selected.size} ${selected.size === 1 ? "section" : "sections"}`
+                    {sectionCount > 0
+                      ? `Add ${sectionCount} ${sectionCount === 1 ? "section" : "sections"}`
                       : "Fill profile"}
                   </Button>
                 )}
@@ -262,15 +266,16 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
 
 interface ReviewListProps {
   cvImport: CvImport;
-  selected: Set<number>;
-  onToggle: (index: number, checked: boolean) => void;
+  /** Entry ids. */
+  selected: Set<string>;
+  onToggle: (entryIds: string[], checked: boolean) => void;
   fillProfile: boolean;
   onFillProfile: (checked: boolean) => void;
 }
 
 const ReviewList = ({ cvImport, selected, onToggle, fillProfile, onFillProfile }: ReviewListProps) => {
   const result = cvImport.result!;
-  // Reuse the export model to show each section's details line; ids are draft indexes.
+  // Reuse the export model to show each entry's details line; section ids are draft indexes.
   const preview = useMemo(
     () =>
       buildResumeDocument({
@@ -299,29 +304,61 @@ const ReviewList = ({ cvImport, selected, onToggle, fillProfile, onFillProfile }
 
       <ul className="divide-y divide-border rounded-md border border-border">
         {preview.sections.map((section) => (
-          <li key={section.id}>
-            <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/40">
-              <Checkbox
-                className="mt-0.5"
-                checked={selected.has(section.id)}
-                onCheckedChange={(checked) => onToggle(section.id, checked === true)}
-              />
-              <span className="min-w-0 text-sm">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {section.heading}
-                </span>
-                <span className="block font-medium">{section.title}</span>
-                {(section.subtitle || section.meta) && (
-                  <span className="block truncate text-muted-foreground">
-                    {[section.subtitle, section.meta].filter(Boolean).join(" · ")}
-                  </span>
-                )}
-              </span>
-            </label>
-          </li>
+          <ReviewSection key={section.id} section={section} selected={selected} onToggle={onToggle} />
         ))}
       </ul>
     </div>
+  );
+};
+
+interface ReviewSectionProps extends Pick<ReviewListProps, "selected" | "onToggle"> {
+  section: ExportSection;
+}
+
+/** A section to tick as a whole, with its entries listed below it when there are titles to show. */
+const ReviewSection = ({ section, selected, onToggle }: ReviewSectionProps) => {
+  const entryIds = section.entries.map((entry) => entry.id);
+  const count = entryIds.filter((id) => selected.has(id)).length;
+  const isPlain = section.entries.length === 1 && !section.entries[0].title && !section.entries[0].subtitle;
+
+  return (
+    <li>
+      <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/40">
+        <Checkbox
+          checked={count === 0 ? false : count === entryIds.length ? true : "indeterminate"}
+          onCheckedChange={(checked) => onToggle(entryIds, checked === true)}
+        />
+        <span className="min-w-0 flex-1 text-sm font-medium">{section.heading}</span>
+        {section.entries.length > 1 && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {count === entryIds.length ? `${count} entries` : `${count} of ${entryIds.length} entries`}
+          </span>
+        )}
+      </label>
+      {!isPlain && (
+        <ul className="pb-2">
+          {section.entries.map((entry) => (
+            <li key={entry.id}>
+              <label className="flex cursor-pointer items-start gap-3 py-1.5 pl-11 pr-4 hover:bg-muted/40">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={selected.has(entry.id)}
+                  onCheckedChange={(checked) => onToggle([entry.id], checked === true)}
+                />
+                <span className="min-w-0 text-sm">
+                  <span className="block">{entry.title || entry.subtitle || "Untitled"}</span>
+                  {(entry.subtitle || entry.meta) && (
+                    <span className="block truncate text-muted-foreground">
+                      {[entry.title ? entry.subtitle : "", entry.meta].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 };
 

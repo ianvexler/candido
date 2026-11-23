@@ -130,27 +130,43 @@ RSpec.describe "CV imports" do
           "links" => [ { "label" => "Site", "url" => "https://alex.example.com" }, { "label" => "GitHub", "url" => "https://github.com/alex" } ]
         },
         "sections" => [
-          { "section_type" => "Experience", "title" => "Acme", "start_month" => "2022-03", "blocks" => [ { "kind" => "bullet", "text" => "Shipped" } ] },
-          { "section_type" => "Education", "title" => "Uni" },
-          { "section_type" => "Skills", "title" => "Skills" }
+          { "section_type" => "Experience", "entries" => [
+            { "title" => "Acme", "start_month" => "2022-03", "blocks" => [ { "kind" => "bullet", "text" => "Shipped" } ] },
+            { "title" => "Globex" }
+          ] },
+          { "section_type" => "Education", "entries" => [ { "title" => "Uni" } ] },
+          { "section_type" => "Skills", "entries" => [ { "title" => "Skills" } ] }
         ]
       ).as_json
     end
     let(:cv_import) { create(:cv_import, user: user, status: "succeeded", source_data: nil, result: draft) }
 
+    def entry_id(section, entry = 0)
+      draft["sections"][section]["entries"][entry]["id"]
+    end
+
     def apply(params, import = cv_import)
       post "/api/v1/cv_imports/#{import.id}/apply", params: params, headers: headers, as: :json
     end
 
-    it "adds only the chosen sections, in order" do
-      apply(section_indexes: [ 2, 0, 7 ], fill_profile: false)
+    it "adds only the chosen entries, under their headings and in order" do
+      apply(entry_ids: [ entry_id(2), entry_id(0, 0), "unknown" ], fill_profile: false)
 
       expect(response).to have_http_status(:ok)
-      expect(user.section_templates.order(:id).map(&:title)).to eq([ "Acme", "Skills" ])
-      acme = user.section_templates.find_by(title: "Acme")
-      expect(acme).to have_attributes(start_date: Date.new(2022, 3, 1), content: "<ul><li><p>Shipped</p></li></ul>")
+      experience, skills = user.section_templates.order(:id).to_a
+      expect([ experience, skills ].map(&:section_type)).to eq([ "Experience", "Skills" ])
+      expect(experience.entries.size).to eq(1)
+      expect(experience.entries.first).to include(
+        "title" => "Acme", "start_date" => "2022-03-01", "content" => "<ul><li><p>Shipped</p></li></ul>"
+      )
       expect(response.parsed_body["section_templates"].size).to eq(2)
       expect(cv_import.reload.applied_at).to be_present
+    end
+
+    it "keeps several entries in one section" do
+      apply(entry_ids: [ entry_id(0, 0), entry_id(0, 1) ], fill_profile: false)
+
+      expect(user.section_templates.sole.entries.pluck("title")).to eq([ "Acme", "Globex" ])
     end
 
     it "fills only empty profile fields and adds new links" do
@@ -159,7 +175,7 @@ RSpec.describe "CV imports" do
         links: [ { label: "Site", url: "https://alex.example.com" } ]
       )
 
-      apply(section_indexes: [], fill_profile: true)
+      apply(entry_ids: [], fill_profile: true)
 
       profile = response.parsed_body["profile"]
       expect(profile).to include("name" => "Kept Name", "headline" => "Backend engineer", "location" => "Lisbon", "email" => "kept@example.com")
@@ -167,35 +183,35 @@ RSpec.describe "CV imports" do
     end
 
     it "leaves the profile alone when not asked" do
-      apply(section_indexes: [ 0 ], fill_profile: false)
+      apply(entry_ids: [ entry_id(0) ], fill_profile: false)
 
       expect(user.reload.resume_profile).to eq({})
     end
 
-    it "rejects section indexes that aren't numbers" do
-      apply(section_indexes: [ "abc" ], fill_profile: false)
+    it "rejects ids that aren't text" do
+      apply(entry_ids: [ 1 ], fill_profile: false)
 
       expect(response).to have_http_status(:bad_request)
       expect(user.section_templates.count).to eq(0)
       expect(cv_import.reload.applied_at).to be_nil
     end
 
-    it "rejects section indexes that aren't a list" do
-      apply(section_indexes: { "0" => "1" }, fill_profile: false)
+    it "rejects ids that aren't a list" do
+      apply(entry_ids: { "0" => "1" }, fill_profile: false)
 
       expect(response).to have_http_status(:bad_request)
     end
 
     it "can't be applied twice" do
-      apply(section_indexes: [ 0 ], fill_profile: false)
-      apply(section_indexes: [ 0 ], fill_profile: false)
+      apply(entry_ids: [ entry_id(0) ], fill_profile: false)
+      apply(entry_ids: [ entry_id(0) ], fill_profile: false)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(user.section_templates.count).to eq(1)
     end
 
     it "can't apply an import that hasn't been read" do
-      apply({ section_indexes: [ 0 ], fill_profile: false }, create(:cv_import, user: user))
+      apply({ entry_ids: [ entry_id(0) ], fill_profile: false }, create(:cv_import, user: user))
 
       expect(response).to have_http_status(:unprocessable_content)
     end
@@ -203,7 +219,7 @@ RSpec.describe "CV imports" do
     it "forbids another user's import" do
       other = create(:cv_import, status: "succeeded", source_data: nil, result: draft)
 
-      apply({ section_indexes: [ 0 ], fill_profile: true }, other)
+      apply({ entry_ids: [ entry_id(0) ], fill_profile: true }, other)
 
       expect(response).to have_http_status(:forbidden)
       expect(user.section_templates.count).to eq(0)

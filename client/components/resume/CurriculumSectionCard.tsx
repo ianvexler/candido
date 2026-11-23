@@ -144,6 +144,7 @@ const CurriculumSectionCard = ({
         articleRef={ref}
         className={isDragging ? "shadow-xl ring-1 ring-foreground/10" : undefined}
         dimmed={section.hidden}
+        canHideEntries
         notice={notice}
         save={async (fields) => (await updateCurriculumSection(curriculumId, section.id, fields)).section}
         onSaved={onChange}

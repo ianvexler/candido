@@ -74,21 +74,24 @@ class CvImport < ApplicationRecord
     user.cv_imports.where(created_at: 24.hours.ago..).count >= DAILY_LIMIT
   end
 
-  # Adds the chosen draft sections to the user's library, in the CV's order,
-  # and optionally fills profile fields that are still empty. Never overwrites
+  # Adds the chosen draft entries to the user's library, in the CV's order
+  # and under its headings, and optionally fills profile fields that are still empty. Never overwrites
   # what the user has written, and can only be applied once.
-  def apply!(section_indexes:, fill_profile:)
+  def apply!(entry_ids:, fill_profile:)
     raise ApiError.new("This CV hasn't been read yet.", status: :unprocessable_content) unless status == "succeeded"
     raise ApiError.new("This CV import has already been added.", status: :unprocessable_content) if applied_at
 
     drafts = result.fetch("sections", [])
-    chosen = section_indexes.map(&:to_i).uniq.sort.filter_map { |index| drafts[index] if index >= 0 }
+    chosen = drafts.filter_map do |draft|
+      entries = Array(draft["entries"]).select { |entry| entry_ids.include?(entry["id"]) }
+      { section_type: draft["section_type"], entries: entries } if entries.any?
+    end
 
     transaction do
       lock!
       raise ApiError.new("This CV import has already been added.", status: :unprocessable_content) if applied_at
 
-      templates = chosen.map { |attributes| user.section_templates.create!(attributes.slice(*SECTION_ATTRIBUTES)) }
+      templates = chosen.map { |attributes| user.section_templates.create!(attributes) }
       user.update_resume_profile!(merged_profile) if fill_profile
       update!(applied_at: Time.current)
       { section_templates: templates, profile: user.resume_header_profile }
@@ -96,10 +99,6 @@ class CvImport < ApplicationRecord
   end
 
   private
-
-  SECTION_ATTRIBUTES = %w[
-    title section_type description content role organization location start_date end_date current
-  ].freeze
 
   def merged_profile
     current = user.resume_header_profile

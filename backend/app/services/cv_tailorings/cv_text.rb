@@ -1,18 +1,22 @@
 module CvTailorings
   # Turns a curriculum into plain, labelled text for the tailoring prompt.
-  # Hidden sections and hidden inline text never reach the model.
+  # Each entry is its own numbered block. Hidden sections, hidden entries and
+  # hidden inline text never reach the model.
   module CvText
     BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, blockquote".freeze
 
     module_function
 
     def call(curriculum)
-      curriculum.visible_sections.map do |section|
+      pairs = curriculum.visible_sections.flat_map { |section| section.visible_entries.map { |entry| [ section, entry ] } }
+      pairs.each.with_index(1).map do |(section, entry), number|
         {
-          id: section.id,
-          heading: "#{section.section_type} · #{section.title}",
-          description: Normalizer.squish(section.description),
-          blocks: blocks_for(section.content)
+          id: number,
+          curriculum_section_id: section.id,
+          entry_id: entry["id"],
+          heading: [ section.section_type, entry["title"].presence ].compact.join(" · "),
+          description: Normalizer.squish(entry["description"]),
+          blocks: blocks_for(entry["content"])
         }
       end
     end

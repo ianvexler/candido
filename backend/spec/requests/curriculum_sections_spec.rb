@@ -17,7 +17,7 @@ RSpec.describe "Curriculum sections" do
         as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["curriculum"]["sections"].map { |item| item["title"] }).to eq([ "Acme", "Skills" ])
+      expect(response.parsed_body["curriculum"]["sections"].map { |item| item["entries"].first["title"] }).to eq([ "Acme", "Skills" ])
     end
 
     it "adds an empty section of a type at the end" do
@@ -25,7 +25,8 @@ RSpec.describe "Curriculum sections" do
 
       expect(response).to have_http_status(:ok)
       added = response.parsed_body["curriculum"]["sections"].last
-      expect(added).to include("title" => "Education", "section_type" => "Education", "content" => "", "hidden" => false)
+      expect(added).to include("section_type" => "Education", "hidden" => false)
+      expect(added["entries"].sole).to include("title" => "", "content" => "")
       expect(curriculum.curriculum_sections.order(:position).last.section_template_id).to be_nil
     end
 
@@ -50,13 +51,16 @@ RSpec.describe "Curriculum sections" do
   describe "PUT /api/v1/curriculums/:curriculum_id/sections/:id" do
     it "edits the CV copy without touching the library" do
       put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}",
-        params: { content: "<p>Tailored</p>", hidden: true },
+        params: { entries: [ section.entries.first.merge("content" => "<p>Tailored</p>") ], hidden: true },
         headers: headers,
         as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["section"]).to include("content" => "<p>Tailored</p>", "hidden" => true)
-      expect(template.reload.content).to eq("<p>Original</p>")
+      expect(response.parsed_body["section"]).to include("hidden" => true)
+      expect(response.parsed_body["section"]["entries"].sole).to include(
+        "id" => section.entries.first["id"], "content" => "<p>Tailored</p>"
+      )
+      expect(template.reload.entries.first["content"]).to eq("<p>Original</p>")
     end
 
     it "places the section in the sidebar or main column of this resume" do
@@ -87,7 +91,7 @@ RSpec.describe "Curriculum sections" do
       other_section = create(:curriculum, user: user).import_section_templates!(template).first
 
       put "/api/v1/curriculums/#{curriculum.id}/sections/#{other_section.id}",
-        params: { title: "Wrong CV" },
+        params: { section_type: "Wrong CV" },
         headers: headers,
         as: :json
 
@@ -115,7 +119,7 @@ RSpec.describe "Curriculum sections" do
         as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["curriculum"]["sections"].map { |item| item["title"] }).to eq([ "Skills", "Acme" ])
+      expect(response.parsed_body["curriculum"]["sections"].map { |item| item["entries"].first["title"] }).to eq([ "Skills", "Acme" ])
     end
 
     it "rejects a list that doesn't match the CV's sections" do
@@ -131,7 +135,7 @@ RSpec.describe "Curriculum sections" do
   describe "POST /api/v1/curriculums/:curriculum_id/sections/:id/sync" do
     it "flags library edits and pulls them in on request" do
       travel 1.minute do
-        template.update!(content: "<p>Improved</p>", role: "Lead engineer")
+        template.update!(entries: [ template.entries.first.merge("content" => "<p>Improved</p>", "role" => "Lead engineer") ])
       end
 
       get "/api/v1/curriculums/#{curriculum.id}", headers: headers
@@ -142,14 +146,25 @@ RSpec.describe "Curriculum sections" do
       end
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["section"]).to include(
-        "content" => "<p>Improved</p>", "role" => "Lead engineer", "library_updated" => false
-      )
+      expect(response.parsed_body["section"]).to include("library_updated" => false)
+      expect(response.parsed_body["section"]["entries"].sole).to include("content" => "<p>Improved</p>", "role" => "Lead engineer")
+    end
+
+    it "still leaves out the entries this resume left out" do
+      template.update!(entries: [ { id: "one", title: "One" }, { id: "two", title: "Two" } ])
+      section.update!(entries: [ { id: "one", title: "One" }, { id: "two", title: "Two", hidden: true } ])
+      template.update!(entries: [ { id: "two", title: "Two, improved" }, { id: "three", title: "Three" } ])
+
+      post "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}/sync", headers: headers
+
+      expect(section.reload.entries.map { |entry| entry.values_at("title", "hidden") })
+        .to eq([ [ "Two, improved", true ], [ "Three", false ] ])
+      expect(template.reload.entries.pluck("hidden")).to eq([ false, false ])
     end
 
     it "keeps this resume's placement when pulling the library version" do
       section.update!(placement: "sidebar")
-      travel(1.minute) { template.update!(content: "<p>Improved</p>") }
+      travel(1.minute) { template.update!(entries: [ { content: "<p>Improved</p>" } ]) }
 
       travel(2.minutes) { post "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}/sync", headers: headers }
 

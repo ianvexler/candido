@@ -6,7 +6,7 @@ RSpec.describe CvImportJob do
   let(:output) do
     {
       "header" => { "name" => "Alex Rivera", "links" => [] },
-      "sections" => [ { "section_type" => "Experience", "title" => "Acme", "blocks" => [ { "kind" => "bullet", "text" => "Shipped" } ] } ]
+      "sections" => [ { "section_type" => "Experience", "entries" => [ { "title" => "Acme", "blocks" => [ { "kind" => "bullet", "text" => "Shipped" } ] } ] } ]
     }
   end
 
@@ -20,7 +20,7 @@ RSpec.describe CvImportJob do
     cv_import.reload
     expect(cv_import.status).to eq("succeeded")
     expect(cv_import.source_data).to be_nil
-    expect(cv_import.result["sections"].first).to include("title" => "Acme", "content" => "<ul><li><p>Shipped</p></li></ul>")
+    expect(cv_import.result["sections"].first["entries"].first).to include("title" => "Acme", "content" => "<ul><li><p>Shipped</p></li></ul>")
     expect(cv_import.result["header"]["name"]).to eq("Alex Rivera")
   end
 

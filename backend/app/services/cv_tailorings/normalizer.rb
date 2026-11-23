@@ -100,7 +100,7 @@ module CvTailorings
         attrs = suggestion(raw, by_id)
         next unless attrs
 
-        clashes = kept.select { |other| overlap?(other, attrs, by_id) }
+        clashes = kept.select { |other| overlap?(other, attrs, sections) }
         if clashes.empty?
           kept << attrs
         elsif attrs[:kind] == "rewrite" && clashes.all? { |other| other[:kind] == "note" }
@@ -112,14 +112,14 @@ module CvTailorings
     end
 
     # Overlapping quotes in the same block. A quote is marked at the first block containing it.
-    def overlap?(one, other, by_id)
-      return false unless one[:curriculum_section_id] == other[:curriculum_section_id] && one[:field] == other[:field]
+    def overlap?(one, other, sections)
+      return false unless one.values_at(:curriculum_section_id, :entry_id) == other.values_at(:curriculum_section_id, :entry_id) && one[:field] == other[:field]
 
       a = squish(one[:quote])
       b = squish(other[:quote])
       return false unless a.include?(b) || b.include?(a)
 
-      section = by_id[one[:curriculum_section_id]]
+      section = sections.find { |item| item.values_at(:curriculum_section_id, :entry_id) == one.values_at(:curriculum_section_id, :entry_id) }
       one[:field] == "description" || block_of(section, a) == block_of(section, b)
     end
 
@@ -142,7 +142,7 @@ module CvTailorings
       replacement = kind == "rewrite" ? raw["replacement"].to_s : nil
       return if kind == "rewrite" && !valid_replacement?(replacement, quote)
 
-      { curriculum_section_id: section[:id], kind: kind, field: field, quote: quote,
+      { curriculum_section_id: section[:curriculum_section_id], entry_id: section[:entry_id], kind: kind, field: field, quote: quote,
         replacement: replacement, reason: reason }
     end
 

@@ -16,6 +16,7 @@
 #  updated_at            :datetime         not null
 #  curriculum_section_id :bigint           not null
 #  cv_tailoring_id       :bigint           not null
+#  entry_id              :string
 #
 # Indexes
 #

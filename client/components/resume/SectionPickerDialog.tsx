@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { entryTitles } from "@/lib/resume/sectionEntries";
 import { SectionTemplate } from "@/lib/types";
 import NextLink from "next/link";
 import { Dialog } from "radix-ui";
@@ -158,11 +159,8 @@ const SectionPickerDialog = ({
                           <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                             {template.section_type}
                           </span>
-                          <span className="block truncate text-sm font-medium">{template.title}</span>
-                          {template.description && (
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {template.description}
-                            </span>
+                          {entryTitles(template) && (
+                            <span className="block truncate text-sm font-medium">{entryTitles(template)}</span>
                           )}
                         </span>
                       </label>

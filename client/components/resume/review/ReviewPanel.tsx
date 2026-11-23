@@ -85,7 +85,7 @@ const ReviewPanel = ({
     () => reviewGroups(tailoring?.suggestions ?? [], staleIds, new Set(sectionsById.keys())),
     [tailoring, staleIds, sectionsById]
   );
-  const labelOf = (s: CvSuggestion) => sectionLabel(sectionsById.get(s.curriculum_section_id));
+  const labelOf = (s: CvSuggestion) => sectionLabel(sectionsById.get(s.curriculum_section_id), s.entry_id);
 
   const dismiss = async (s: CvSuggestion) => {
     setDismissing((ids) => [...ids, s.id]);

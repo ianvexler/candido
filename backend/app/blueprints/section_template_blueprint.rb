@@ -1,5 +1,4 @@
 class SectionTemplateBlueprint < ApplicationBlueprint
   identifier :id
-  fields :user_id, :title, :section_type, :description, :content, :styles,
-    :role, :organization, :location, :start_date, :end_date, :current, :created_at, :updated_at
+  fields :user_id, :section_type, :entries, :styles, :created_at, :updated_at
 end

@@ -56,20 +56,30 @@ export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeH
   );
 };
 
-/** One section: heading, title, role and dates, summary and content. */
-export const ResumeSectionBlock = ({ section }: { section: ExportSection }) => (
-  <section className="rc-section">
-    <div className="rc-section-head">
-      {section.heading && <h2 className="rc-heading">{section.heading}</h2>}
-      {section.title && <h3 className="rc-title">{section.title}</h3>}
-      {(section.subtitle || section.meta) && (
-        <div className="rc-entry-line">
-          <span className="rc-subtitle">{section.subtitle}</span>
-          <span className="rc-meta">{section.meta}</span>
+/** One section: its heading, then each entry's title, role and dates, summary and content. */
+export const ResumeSectionBlock = ({ section }: { section: ExportSection }) => {
+  // The heading sits in the first entry's head, so print keeps the two together.
+  const heading = section.heading && <h2 className="rc-heading">{section.heading}</h2>;
+
+  return (
+    <section className="rc-section">
+      {section.entries.length === 0 && heading}
+      {section.entries.map((entry, index) => (
+        <div key={entry.id} className="rc-entry">
+          <div className="rc-section-head">
+            {index === 0 && heading}
+            {entry.title && <h3 className="rc-title">{entry.title}</h3>}
+            {(entry.subtitle || entry.meta) && (
+              <div className="rc-entry-line">
+                <span className="rc-subtitle">{entry.subtitle}</span>
+                <span className="rc-meta">{entry.meta}</span>
+              </div>
+            )}
+            {entry.summary && <p className="rc-summary">{entry.summary}</p>}
+          </div>
+          {entry.html && <div className="rc-body" dangerouslySetInnerHTML={{ __html: entry.html }} />}
         </div>
-      )}
-      {section.summary && <p className="rc-summary">{section.summary}</p>}
-    </div>
-    {section.html && <div className="rc-body" dangerouslySetInnerHTML={{ __html: section.html }} />}
-  </section>
-);
+      ))}
+    </section>
+  );
+};

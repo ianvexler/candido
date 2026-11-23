@@ -5,6 +5,7 @@ import { apiErrorMessage, isConflict, progressStep, reviewGroups, sectionLabel, 
 const suggestion = (id: number, overrides: Partial<CvSuggestion> = {}): CvSuggestion => ({
   id,
   curriculum_section_id: 1,
+  entry_id: null,
   kind: "rewrite",
   field: "content",
   quote: "Built APIs",
@@ -17,16 +18,23 @@ const suggestion = (id: number, overrides: Partial<CvSuggestion> = {}): CvSugges
 
 describe("sectionLabel", () => {
   it("joins type and title", () => {
-    expect(sectionLabel({ section_type: "Experience", title: "Acme" })).toBe("Experience · Acme");
+    expect(sectionLabel({ section_type: "Experience", entries: [{ id: "a", title: "Acme" }] }, "a")).toBe("Experience · Acme");
   });
 
   it("uses the type alone when the title is empty or repeats it", () => {
-    expect(sectionLabel({ section_type: "Skills", title: "  " })).toBe("Skills");
-    expect(sectionLabel({ section_type: "Skills", title: "skills" })).toBe("Skills");
+    expect(sectionLabel({ section_type: "Skills", entries: [{ id: "a", title: "  " }] }, "a")).toBe("Skills");
+    expect(sectionLabel({ section_type: "Skills", entries: [{ id: "a", title: "skills" }] }, "a")).toBe("Skills");
+  });
+
+  it("names the entry a suggestion is about, and the first one when it isn't known", () => {
+    const section = { section_type: "Projects", entries: [{ id: "a", title: "One" }, { id: "b", title: "Two" }] };
+    expect(sectionLabel(section, "b")).toBe("Projects · Two");
+    expect(sectionLabel(section, null)).toBe("Projects · One");
+    expect(sectionLabel(section, "gone")).toBe("Projects");
   });
 
   it("falls back when the section is unknown", () => {
-    expect(sectionLabel(undefined)).toBe("Section");
+    expect(sectionLabel(undefined, null)).toBe("Section");
   });
 });
 
@@ -98,19 +106,19 @@ describe("stillMissing", () => {
   };
 
   it("keeps sections the CV has none of", () => {
-    expect(stillMissing(report, [{ section_type: "Experience", title: "Acme" }]).map((m) => m.section)).toEqual([
+    expect(stillMissing(report, [{ section_type: "Experience", entries: [{ title: "Acme" }] }]).map((m) => m.section)).toEqual([
       "Education",
       "Skills",
     ]);
   });
   it("drops one once a section of that kind exists, by type or title", () => {
-    expect(stillMissing(report, [{ section_type: "Education", title: "Education" }]).map((m) => m.section)).toEqual(["Skills"]);
-    expect(stillMissing(report, [{ section_type: "custom", title: "Technical skills" }]).map((m) => m.section)).toEqual([
+    expect(stillMissing(report, [{ section_type: "Education", entries: [{ title: "Education" }] }]).map((m) => m.section)).toEqual(["Skills"]);
+    expect(stillMissing(report, [{ section_type: "custom", entries: [{ title: "Technical skills" }] }]).map((m) => m.section)).toEqual([
       "Education",
     ]);
   });
   it("doesn't take an employer's name for a section", () => {
-    expect(stillMissing(report, [{ section_type: "Experience", title: "University of Leeds" }])).toHaveLength(2);
+    expect(stillMissing(report, [{ section_type: "Experience", entries: [{ title: "University of Leeds" }] }])).toHaveLength(2);
   });
   it("is empty for reviews from before missing sections existed", () => {
     expect(stillMissing({}, [])).toEqual([]);
