@@ -41,9 +41,13 @@ RSpec.describe CvImports::Extractor do
   end
 
   it "sends a PDF as a document with structured output, low effort and fallbacks" do
+    allow(ENV).to receive(:fetch).and_call_original
+    allow(ENV).to receive(:fetch).with("CV_IMPORT_MODEL", anything) { |_key, default| default }
+
     extract
 
     params = client.params
+    expect(params[:model]).to eq("claude-sonnet-5-5")
     document = params[:messages].first[:content].first
     expect(document).to eq(type: "document", source: { type: "base64", media_type: "application/pdf", data: Base64.strict_encode64(pdf) })
     expect(params[:fallbacks]).to eq(:default)

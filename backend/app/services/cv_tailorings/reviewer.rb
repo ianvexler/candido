@@ -92,7 +92,7 @@ module CvTailorings
     # Returns { output: Hash matching SCHEMA, used_posting: Boolean }.
     # `heartbeat` is called before each request to the model.
     def call(job:, cv_text:, declined_quotes: [], heartbeat: -> { })
-      model = ENV.fetch("CV_TAILOR_MODEL", "claude-opus-5-5")
+      model = ENV.fetch("CV_TAILOR_MODEL", "claude-sonnet-5-5")
       params = {
         model: model,
         max_tokens: MAX_TOKENS,
