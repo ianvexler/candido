@@ -359,7 +359,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
           <div className="mb-2 flex items-center justify-between gap-4">
             <NextLink
               // A tailored CV belongs to its job, so that's where back goes.
-              href={curriculum.job_board_entry_id ? `/board/${curriculum.job_board_entry_id}` : "/resume"}
+              href={curriculum.job_board_entry_id ? `/board?job=${curriculum.job_board_entry_id}` : "/resume"}
               className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
             >
               <ArrowLeftIcon className="size-4" />

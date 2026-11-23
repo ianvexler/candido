@@ -15,9 +15,11 @@ interface TagsInputProps {
   allEntries: JobBoardEntry[];
   tags: string[];
   onTagsChange: (tags: string[]) => void;
+  /** One line, underlined like the fields beside it. */
+  compact?: boolean;
 }
 
-const TagsInput = ({ allEntries, tags, onTagsChange }: TagsInputProps) => {  
+const TagsInput = ({ allEntries, tags, onTagsChange, compact = false }: TagsInputProps) => {  
   const [newTagInput, setNewTagInput] = useState("");
   const [filterValue, setFilterValue] = useState("");
 
@@ -79,25 +81,26 @@ const TagsInput = ({ allEntries, tags, onTagsChange }: TagsInputProps) => {
           type="button"
           className={cn(
             "flex w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50",
-            tags.length > 0 ? "gap-2" : "text-muted-foreground"
+            tags.length > 0 ? "gap-2" : "text-muted-foreground",
+            compact && "h-8 rounded-none border-0 border-b border-border bg-transparent px-0 py-0"
           )}
         >
           {tags.length > 0 ? (
-            <span className="flex flex-wrap gap-1.5">
+            <span className={cn("flex gap-1.5", compact ? "min-w-0 overflow-hidden" : "flex-wrap")}>
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                  className="inline-flex shrink-0 items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
                 >
                   {tag}
                 </span>
               ))}
             </span>
           ) : (
-            "Add tags..."
+            compact ? "Add" : "Add tags..."
           )}
 
-          {tags.length > 0 && (
+          {tags.length > 0 && !compact && (
             <span className="text-xs text-muted-foreground">
               {tags.length} selected
             </span>

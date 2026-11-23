@@ -1,6 +1,7 @@
 # Candido as an application companion
 
-Status: approved 2026-11-23.
+Status: approved 2026-11-23. Revised the same day after trying the job page:
+the side panel tracks, and the full view prepares.
 
 ## Why
 The landing page promises help preparing each application ("The right CV for
@@ -59,29 +60,25 @@ The client learns this from a `reviews_available` flag on the session.
 
 ## Screens
 
-### 1. Job page (`/board/:id`)
-- Top: title, company, location, stage, closing date.
-- Steps: Job saved, Tailor CV, Cover letter (optional), Apply. They show
-  progress and never block: Apply works at any time.
-- Main card, "Your CV for <company>": fit, requirements covered or not, and one
-  main action from the table above. The requirements come from the review,
-  loaded with the existing latest-tailoring endpoint. Without a CV it offers
-  "Tailor one of my CVs", then upload and paste as quieter options. Replace and
-  remove stay available.
-- Cover letter card: the existing slot.
-- Side: details with Edit (today's form), then notes.
-- Apply: "Open posting" opens the job's link, if it has one, and then asks "Did
-  you apply?". Yes moves the job to Applied. A job without a link shows "Mark as
-  applied".
-- From Applied onward the steps disappear; the CV and cover letter that were
-  used, the details and the notes remain.
-- Edits not yet saved still ask before leaving, as today.
-- On a phone: steps, CV card, cover letter, details, notes, in one column.
+### 1. Job
+Editing a job is the easiest thing to do, and preparing is one button away.
 
-### Opening a job
-Clicking a board card or a sheet row opens the job page. The side panel stays
-for adding a job. Dragging, the sheet's inline controls and its CV menu are
-unchanged. Going back returns to the same board or sheet, with its filters.
+**Side panel** (from a board card or sheet row): the labelled fields, always
+editable and saved as they're typed, with Description, Notes and Documents
+tabs. A strip under the title says where the application stands and leads to
+the full view: Prepare, Continue, Finish, or View application once applied.
+The address holds the open job (`?job=12`). Closing keeps edits, and asks only
+if they can't be saved.
+
+**Full view** (`/board/:id`): the same fields in a row at the top; "What they
+ask" (the description) beside "What you send" (the CV, what it covers, cover
+letter, notes, and the CV's text). Both sides share the window's height, so a
+long one scrolls instead of outgrowing the other. A bar at the bottom says
+what's left and applies: "Open posting" opens the link and asks "Did you
+apply?"; "Mark as applied" works at any time. The bar goes after applying. On a
+phone it stacks, with what you send first.
+
+Adding a job keeps its own panel.
 
 ### 2. First run
 Replaces the welcome modal. Three steps, each skippable, and it can be left and
@@ -121,7 +118,7 @@ One word for the feature everywhere: **Tailor**. "Use one of my CVs" becomes
 this job". "CV" is used throughout in place of "resume", including the menu.
 
 ## Pull requests
-1. Readiness fields and function; job page; opening a job; names.
+1. Readiness fields and function; side panel and full view; names.
 2. First run; Resume page; a CV made on import.
 3. Dashboard "Next up"; board badges.
 
@@ -132,8 +129,8 @@ Each works without the next.
 - Listing jobs: query count doesn't grow with the number of jobs.
 - Import: makes the CV once, with the chosen sections in order, and a profile-only
   import makes none.
-- In the app: first run from a new account to an open review; the job page at
-  phone width; leaving with unsaved edits; reviews unavailable.
+- In the app: first run from a new account to an open review; the full view at
+  phone width; edits kept on close and back; reviews unavailable.
 
 ## Left to the builder
 Exact spacing and wording within these rules, motion, and how the steps look,

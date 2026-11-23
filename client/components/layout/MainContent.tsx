@@ -18,7 +18,7 @@ const MainContent = ({ children }: MainContentProps) => {
 
   const isLanding = pathname === "/";
   // Pages that manage their own scrolling panes.
-  const isFullHeight = pathname === "/board" || pathname.startsWith("/resume/");
+  const isFullHeight = pathname === "/board" || pathname.startsWith("/board/") || pathname.startsWith("/resume/");
 
   return (
     <div

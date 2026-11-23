@@ -20,17 +20,19 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { move } from "@dnd-kit/helpers";
 import { PlusIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
+import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
+import JobSheet from "@/components/jobBoard/JobSheet";
 import JobFormSheet from "@/components/jobBoard/JobFormSheet";
 import BoardFilters from "@/components/jobBoard/BoardFilters";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { useJobsRefresh } from "@/contexts/JobsRefreshContext";
 
-const BoardPage = () => {
-  const router = useRouter();
+const BoardPageContent = () => {
+  const { jobId, openJob, closeJob } = useOpenJob();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
@@ -153,7 +155,9 @@ const BoardPage = () => {
     return result;
   };
 
-  const handleSelectJob = (job: JobBoardEntry) => router.push(`/board/${job.id}`);
+  const handleSelectJob = (job: JobBoardEntry) => openJob(job.id);
+
+  const onPatchJob = usePatchJob(setJobBoardEntries);
 
   const handleSheetOpenChange = (open: boolean) => {
     if (!open) {
@@ -412,8 +416,24 @@ const BoardPage = () => {
           />
         )}
       </Sheet>
+
+      <JobSheet
+        entry={jobBoardEntries.find((entry) => entry.id === jobId)}
+        allEntries={jobBoardEntries}
+        from="board"
+        onClose={closeJob}
+        onPatchJob={onPatchJob}
+        onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
+      />
     </>
   );
 };
+
+// Reading the open job from the address needs a boundary to prerender the page.
+const BoardPage = () => (
+  <Suspense>
+    <BoardPageContent />
+  </Suspense>
+);
 
 export default BoardPage;

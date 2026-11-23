@@ -1,9 +1,9 @@
-import { XIcon, ArchiveIcon, XCircleIcon, Trash2Icon } from "lucide-react";
+import { MoreHorizontalIcon, XIcon, ArchiveIcon, XCircleIcon, Trash2Icon } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 import { SheetContent, SheetTitle } from "../ui/Sheet";
 import { JobBoardEntry, JobStatus, jobStatusColors } from "@/lib/types";
-import { capitalize } from "@/lib/utils";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { capitalize, cn } from "@/lib/utils";
+import { ReactNode, useState, useMemo, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 import debounce from "lodash.debounce";
 import InlineInput from "../ui/InlineInput";
@@ -18,7 +18,17 @@ import StarterKit from "@tiptap/starter-kit";
 import ConfirmationModal from "../common/ConfirmationModal";
 import TagsInput from "./TagsInput";
 import { Button } from "../ui/Button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/DropdownMenu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
+import NotesArea from "./NotesArea";
+import ApplyBar from "./entry/ApplyBar";
+import JobSend from "./entry/JobSend";
+import { useAuth } from "@/contexts/AuthContext";
+import { prepareAction, readiness } from "@/lib/jobBoard/readiness";
+import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
+import DocSlot from "./entry/DocSlot";
 import { EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
+import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
 type JobFormSheetProps =
@@ -31,12 +41,21 @@ type JobFormSheetProps =
     }
   | {
       mode: "edit";
+      /** The side panel tracks the job; the full page is for preparing the application. */
+      layout?: "panel" | "page";
+      /** Opens the full view, from the panel. */
+      onPrepare?: () => void;
+      /** The way back, on the full page. */
+      back?: ReactNode;
       entry: JobBoardEntry;
       allEntries: JobBoardEntry[];
       onClose: () => void;
       /** Applies a change to one job; see EntryPatch. */
       onPatchJob: (id: number, patch: EntryPatch) => void;
       onDelete?: (entry: JobBoardEntry) => void;
+      notes: Note[];
+      notesLoading: boolean;
+      onNoteAdded: (note: Note) => void;
     };
 
 const defaultValues = {
@@ -62,8 +81,22 @@ const toDateInputValue = (date: Date | string | null | undefined): string => {
 const toClosingDatePayload = (date: string): Date | null =>
   date ? parse(date, "yyyy-MM-dd", new Date()) : null;
 
+const factInput = "h-8 py-0 text-sm";
+
+/** One of the job's facts on the full page. */
+const Fact = ({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) => (
+  <div className="min-w-0">
+    <label htmlFor={htmlFor} className="text-xs text-muted-foreground">
+      {label}
+    </label>
+    {children}
+  </div>
+);
+
 const JobFormSheet = (props: JobFormSheetProps) => {
   const isCreate = props.mode === "create";
+  const isPage = props.mode === "edit" && props.layout === "page";
+  const { user } = useAuth();
 
   const entry = props.entry;
   const initialTitle = entry?.title ?? defaultValues.title;
@@ -89,9 +122,13 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   // Saving edits: doesn't lock the fields, since disabling one drops its focus and what's typed next.
   const [saving, setSaving] = useState<boolean>(false);
   const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">("idle");
   const [discardChangesModalOpen, setDiscardChangesModalOpen] = useState<boolean>(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [detailsTab, setDetailsTab] = useState<"description" | "notes" | "documents">("description");
   const [closingDate, setClosingDate] = useState<string>(initialClosingDate);
+  // An action that leaves the sheet (open the CV editor) waiting on the discard-edits prompt.
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const isTitleValid = title.trim().length > 0;
   const isCompanyValid = company.trim().length > 0;
@@ -106,8 +143,18 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     },
   });
 
-  // The parent remounts the sheet for each job, so the editor starts from this job and
-  // is never reset from props: a save's response would otherwise replace text typed meanwhile.
+  // The parent remounts the sheet for each job, so the editor and tabs start from this job and
+  // are never reset from props: a save's response would otherwise replace text typed meanwhile.
+
+  const handleDetailsTabChange = (value: string) => {
+    setDetailsTab(value as "description" | "notes" | "documents");
+    
+    if (value === "description") {
+      requestAnimationFrame(() => {
+        editor?.commands.focus("end");
+      });
+    }
+  };
 
   const hasUpdatedFields = useMemo(() => {
     if (isCreate) {
@@ -220,9 +267,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
       if (stateRef.current.closingDate === closingDate) {
         setClosingDate(toDateInputValue(response.job_board_entry.closing_date));
       }
+      setSaveState("saved");
       return true;
     } catch (error) {
       console.error(error);
+      setSaveState("failed");
       failedRef.current = sent;
       toast.error("Failed to update job");
       return false;
@@ -231,7 +280,12 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     }
   }, [isCreate, entry, props]);
 
+  // What the newest save sent, to tell whether anything was edited while it was in flight.
+  const sentRef = useRef<string | null>(null);
+  // Saves and this snapshot all read the ref, so they agree on what was sent even from an old render.
+  const fieldsSnapshot = () => JSON.stringify(stateRef.current);
   const trackedUpdate = useCallback(() => {
+    sentRef.current = JSON.stringify(stateRef.current);
     const p = performUpdate();
     inFlightRef.current = p;
     void p.finally(() => {
@@ -257,7 +311,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
   useEffect(() => {
     // While a prompt asks whether to keep the edits, saving them would answer for the user.
-    if (isCreate || !hasUpdatedFields || loading || saving || discardChangesModalOpen) {
+    if (isCreate || !hasUpdatedFields || loading || saving || discardChangesModalOpen || pendingLeave !== null) {
       return;
     }
     if (failedRef.current === JSON.stringify(stateRef.current)) return;
@@ -267,7 +321,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     return () => {
       debouncedSave.cancel();
     };
-  }, [isCreate, title, company, location, salary, url, status, closingDate, editorHtml, tags, hasUpdatedFields, loading, saving, discardChangesModalOpen, debouncedSave]);
+  }, [isCreate, title, company, location, salary, url, status, closingDate, editorHtml, tags, hasUpdatedFields, loading, saving, discardChangesModalOpen, pendingLeave, debouncedSave]);
 
   const isCreateFormEqualToDefaults =
     title.trim() === defaultValues.title &&
@@ -286,10 +340,9 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         props.onClose();
       }
 
-    } else if (hasUpdatedFields) {
-      setDiscardChangesModalOpen(true);
     } else {
-      props.onClose();
+      // Edits save by themselves, so closing only asks when saving isn't possible.
+      beforeLeave(props.onClose);
     }
   };
 
@@ -308,9 +361,51 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
   const handleDiscardChanges = () => {
     setDiscardChangesModalOpen(false);
+    skipFinalSave.current = true;
     // The sheet stays mounted while it closes, so dropped edits must not autosave.
     resetFields();
     props.onClose();
+  };
+
+  // The sheet autosaves, so save before leaving; only if that can't happen ask the user.
+  const hasUpdatedRef = useRef(hasUpdatedFields);
+  hasUpdatedRef.current = hasUpdatedFields;
+
+  const beforeLeave = (action: () => void) => {
+    debouncedSave.cancel();
+    void leaveAfterSave({
+      hasUnsavedEdits: hasUpdatedRef.current,
+      inFlight: inFlightRef.current,
+      editedSinceInFlight: () => fieldsSnapshot() !== sentRef.current,
+      save: trackedUpdate,
+      run: action,
+      onBlocked: () => setPendingLeave(() => action),
+    });
+  };
+
+  // However the sheet goes away (the browser's back button too), what was typed is saved.
+  const skipFinalSave = useRef(false);
+  useEffect(
+    () => () => {
+      if (!skipFinalSave.current && hasUpdatedRef.current) void performSaveRef.current();
+    },
+    []
+  );
+
+  const discardedRef = useRef(false);
+  const handleKeepEditing = () => {
+    setPendingLeave(null);
+    // The modal also calls onClose after Discard and continue; only resume autosave for Keep editing.
+    if (discardedRef.current) discardedRef.current = false;
+    else debouncedSave();
+  };
+
+  const handleDiscardAndContinue = () => {
+    const action = pendingLeave;
+    discardedRef.current = true;
+    skipFinalSave.current = true;
+    resetFields();
+    action?.();
   };
 
   const handleSaveChanges = async () => {
@@ -353,6 +448,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
       );
 
       props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry, startedAt));
+      setStatus(newStatus);
       toast.success(`Moved to ${capitalize(newStatus.toLowerCase())}`);
       props.onClose();
     } catch (error) {
@@ -377,6 +473,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     try {
       await deleteJobBoardEntry(entry.id);
 
+      skipFinalSave.current = true;
       props.onDelete?.(entry);
       toast.success(`Deleted ${entry.title}`);
       props.onClose();
@@ -395,24 +492,25 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     if (success) props.onClose();
   };
   
-  return (
-    <SheetContent
-      showCloseButton={false}
-      onOpenAutoFocus={(e) => e.preventDefault()}
-      onInteractOutside={(e) => {
-        e.preventDefault();
-        handleCancelClick();
-      }}
-      onEscapeKeyDown={(e) => {
-        e.preventDefault();
-        handleCancelClick();
-      }}
-      className="sm:max-w-2xl p-0 gap-0 flex flex-col border-l border-border"
-    >
-      <VisuallyHidden.Root>
-        <SheetTitle>{isCreate ? "Create job" : `Edit job: ${title || "Untitled"}`}</SheetTitle>
-      </VisuallyHidden.Root>
+  const ready = entry ? readiness(entry, user?.reviews_available ?? true) : null;
+  const prepare = prepareAction(ready);
+  const notesArea = (
+              <NotesArea
+                jobBoardEntry={entry}
+                notes={entry ? props.notes : []}
+                loading={entry ? props.notesLoading : false}
+                onNoteAdded={entry ? props.onNoteAdded : () => { return }}
+              />
+  );
 
+  const saveStatus = !isCreate && (
+    <span role="status" className={cn("text-xs", saveState === "failed" ? "text-destructive" : "text-muted-foreground")}>
+      {saving ? "Saving…" : saveState === "failed" ? "Not saved" : saveState === "saved" ? "Saved" : ""}
+    </span>
+  );
+
+  const panel = (
+    <>
       <div className="shrink-0 border-b border-border bg-muted/30">
         <div className="flex items-start justify-between gap-4 px-6 py-5">
           <div className="min-w-0 flex-1 flex flex-col gap-1">
@@ -438,6 +536,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             )}
           </div>
 
+          <div className="flex shrink-0 items-center gap-1">
+          {saveStatus}
           <button
             type="button"
             onClick={handleCancelClick}
@@ -446,8 +546,33 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           >
             <XIcon className="size-5" />
           </button>
+          </div>
         </div>
       </div>
+
+      {!isCreate && (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-6 py-2.5">
+          <p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+            <span
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                !ready ? "bg-border" : ready.state === "ready" ? "bg-emerald-500" : "bg-candido"
+              )}
+              aria-hidden
+            />
+            <span className="truncate">{prepare.detail ?? capitalize(entry!.status.toLowerCase())}</span>
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant={ready ? "candido" : "ghost"}
+            className="shrink-0"
+            onClick={() => props.onPrepare && beforeLeave(props.onPrepare)}
+          >
+            {prepare.label}
+          </Button>
+        </div>
+      )}
 
       <form
         onSubmit={handleCreateSubmit}
@@ -580,13 +705,35 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Description
-          </h3>
-          <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
-            <SimpleMenuBar editor={editor} />
-            <EditorContent editor={editor} className="min-h-[140px]" />
-          </div>
+          <Tabs value={detailsTab} onValueChange={handleDetailsTabChange} className="w-full">
+            <TabsList>
+              <TabsTrigger value="description" className="px-4">Description</TabsTrigger>
+              <TabsTrigger value="notes" className="px-4" disabled={isCreate}>Notes</TabsTrigger>
+              {!isCreate && <TabsTrigger value="documents" className="px-4">Documents</TabsTrigger>}
+            </TabsList>
+
+            <TabsContent value="notes">{notesArea}</TabsContent>
+            {!isCreate && entry && (
+              // Kept mounted, so switching tabs doesn't lose a half-typed document.
+              <TabsContent value="documents" forceMount className="data-[state=inactive]:hidden">
+                <div className="divide-y divide-border rounded-lg border border-border [&>*]:px-4 [&>*]:py-3">
+                  <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} canTailor={false} />
+                  <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
+                </div>
+              </TabsContent>
+            )}
+
+            <TabsContent
+              value="description"
+              forceMount
+              className="data-[state=inactive]:hidden"
+            >
+              <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
+                {editor && <SimpleMenuBar editor={editor} />}
+                <EditorContent editor={editor} className="min-h-[140px]" />
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -647,7 +794,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </div>
         </div>
       </form>
+    </>
+  );
 
+  const prompts = (
+    <>
       <ConfirmationModal
         isOpen={discardChangesModalOpen}
         onConfirm={handleSaveChanges}
@@ -663,6 +814,17 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         cancelLabel="Discard"
       />
 
+      <ConfirmationModal
+        isOpen={pendingLeave !== null}
+        onClose={handleKeepEditing}
+        onConfirm={handleDiscardAndContinue}
+        title="Couldn't save your changes"
+        description="Discard them and continue, or keep editing?"
+        confirmLabel="Discard and continue"
+        cancelLabel="Keep editing"
+        variant="destructive"
+      />
+
       {!isCreate && entry && (
         <ConfirmationModal
           isOpen={deleteModalOpen}
@@ -675,6 +837,145 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           variant="destructive"
         />
       )}
+    </>
+  );
+
+  if (isPage) {
+    return (
+      <>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
+          <header className="shrink-0 border-b border-border px-4 pt-4 pb-5 sm:px-6">
+            {props.back}
+            <div className="mt-2 flex items-center gap-3">
+              <span className={cn("size-4 shrink-0 rounded-sm", jobStatusColors[status])} aria-hidden />
+              <InlineInput
+                id="title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={loading}
+                aria-label="Job title"
+                aria-invalid={!isTitleValid || undefined}
+                placeholder="Job title"
+                className={cn("min-w-0 flex-1 border-b-0 py-0 text-2xl font-semibold tracking-tight", !isTitleValid && "border-b")}
+              />
+              {saveStatus}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label="More job actions" disabled={loading || saving}>
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => void handleStatusAction(JobStatus.REJECTED)}>
+                    <XCircleIcon />
+                    Move to Rejected
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void handleStatusAction(JobStatus.ARCHIVED)}>
+                    <ArchiveIcon />
+                    Archive
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={handleDeleteClick}>
+                    <Trash2Icon />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1.3fr_1.2fr]">
+              <Fact label="Company" htmlFor="company">
+                <InlineInput id="company" value={company} onChange={(e) => setCompany(e.target.value)} disabled={loading} aria-invalid={!isCompanyValid || undefined} placeholder="Required" className={factInput} />
+              </Fact>
+              <Fact label="Status" htmlFor="status">
+                <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
+                  <SelectTrigger id="status" className="h-8! w-full rounded-none border-0 border-b border-border px-0 shadow-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    {Object.values(JobStatus).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {capitalize(s.toLowerCase())}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Fact>
+              <Fact label="Location" htmlFor="location">
+                <InlineInput id="location" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} placeholder="Add" className={factInput} />
+              </Fact>
+              <Fact label="Closing date" htmlFor="closingDate">
+                <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={factInput} />
+              </Fact>
+              <Fact label="Salary" htmlFor="salary">
+                <InlineInput id="salary" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="Add" className={factInput} />
+              </Fact>
+              <Fact label="Posting link" htmlFor="url">
+                <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={factInput} />
+              </Fact>
+              <Fact label="Tags">
+                <TagsInput compact allEntries={props.allEntries} tags={tags} onTagsChange={setTags} />
+              </Fact>
+            </div>
+          </header>
+
+          <div className="grid shrink-0 grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
+            <section className="flex min-h-0 flex-col gap-3 border-t border-border px-4 py-5 sm:px-6 lg:border-t-0 lg:border-r">
+              <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-4">
+                <h2 className="text-lg font-semibold">What they ask</h2>
+                {ready && isEditorContentEmpty(editorHtml) && (
+                  <p className="text-sm text-muted-foreground">Paste the posting. Your CV is compared with it.</p>
+                )}
+              </div>
+              <div className="simple-editor-wrapper flex min-h-56 flex-1 flex-col overflow-hidden rounded-lg border border-border lg:min-h-0">
+                {editor && <SimpleMenuBar editor={editor} />}
+                <EditorContent
+                  editor={editor}
+                  // Clicking below the text writes in it too.
+                  onClick={(event) => event.target === event.currentTarget && editor?.commands.focus("end")}
+                  className="max-h-[60vh] min-h-0 flex-1 cursor-text overflow-y-auto leading-relaxed lg:max-h-none"
+                />
+              </div>
+            </section>
+
+            <section className="order-first min-h-0 space-y-4 bg-muted/40 px-4 py-5 sm:px-6 lg:order-none lg:overflow-y-auto">
+              <JobSend entry={props.entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave}>
+                <h3 className="mb-2 text-sm font-medium">Notes</h3>
+                {notesArea}
+              </JobSend>
+            </section>
+          </div>
+
+          {ready && (
+            // Marking as applied saves like any other edit to the job.
+            <ApplyBar entry={props.entry} readiness={ready} onApplied={() => setStatus(JobStatus.APPLIED)} />
+          )}
+        </div>
+        {prompts}
+      </>
+    );
+  }
+
+  return (
+    <SheetContent
+      showCloseButton={false}
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      onInteractOutside={(e) => {
+        e.preventDefault();
+        handleCancelClick();
+      }}
+      onEscapeKeyDown={(e) => {
+        e.preventDefault();
+        handleCancelClick();
+      }}
+      className="w-full sm:max-w-2xl p-0 gap-0 flex flex-col border-l border-border"
+    >
+      <VisuallyHidden.Root>
+        <SheetTitle>{isCreate ? "Create job" : `Edit job: ${title || "Untitled"}`}</SheetTitle>
+      </VisuallyHidden.Root>
+
+      {panel}
+      {prompts}
     </SheetContent>
   );
 };

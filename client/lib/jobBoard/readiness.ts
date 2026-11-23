@@ -88,3 +88,18 @@ export const postingUrl = (url: string | null | undefined): string | null => {
     return null;
   }
 };
+
+/** The button that leads from tracking a job to preparing its application. */
+export const prepareAction = (ready: Readiness | null): { label: string; detail: string | null } => {
+  if (!ready) return { label: "View application", detail: null };
+  switch (ready.state) {
+    case "ready":
+      return { label: "Finish application", detail: "Ready to apply" };
+    case "suggestions":
+    case "reviewing":
+    case "failed":
+      return { label: "Continue application", detail: ready.label };
+    default:
+      return { label: "Prepare application", detail: ready.state === "no_cv" ? "No CV chosen yet" : "CV not tailored yet" };
+  }
+};

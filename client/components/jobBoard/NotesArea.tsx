@@ -2,9 +2,7 @@ import { JobBoardEntry, Note } from "@/lib/types";
 import Loader from "@/components/common/Loader";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { PlusIcon } from "lucide-react";
 import { Button } from "../ui/Button";
-import { Card, CardContent } from "../ui/Card";
 import { format } from "date-fns";
 import { createNote } from "@/api/resources/notes/createNote";
 import { Textarea } from "../ui/Textarea";
@@ -60,36 +58,27 @@ const NotesArea = ({ jobBoardEntry, notes, loading, onNoteAdded }: NotesAreaProp
           }}
           placeholder="Add a note"
           disabled={isAddingNote}
-          className="flex-7 min-h-10"
+          className="min-h-10 flex-1 resize-none"
           rows={1}
         />
 
-        <Button 
-          onClick={handleAddNote} 
-          disabled={isAddingNote || newNoteContent.trim().length === 0} 
-          className="flex-1"
-        >
-          {isAddingNote ? "..." : "Add"}
-          {isAddingNote ? null : <PlusIcon className="size-4" />}
-        </Button>
+        {newNoteContent.trim().length > 0 && (
+          <Button type="button" onClick={handleAddNote} disabled={isAddingNote}>
+            {isAddingNote ? "Adding…" : "Add"}
+          </Button>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        {notes.map((note) => (
-          <Card key={note.id} className="bg-muted">
-            <CardContent className="text-sm flex flex-col gap-2">
-              <p>{note.content}</p>
-
-              <div className="flex justify-end items-center">
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(note.created_at), "MM/dd/yyyy")}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      
+      {notes.length > 0 && (
+        <ul className="divide-y divide-border">
+          {notes.map((note) => (
+            <li key={note.id} className="flex items-baseline justify-between gap-4 py-2.5 text-sm first:pt-0 last:pb-0">
+              <p className="min-w-0 break-words whitespace-pre-line">{note.content}</p>
+              <p className="shrink-0 text-xs text-muted-foreground">{format(new Date(note.created_at), "d MMM yyyy")}</p>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

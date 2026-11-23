@@ -12,15 +12,16 @@ import SheetTable from "@/components/jobBoard/sheet/SheetTable";
 import { useBoardFilters } from "@/hooks/useBoardFilters";
 import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { PlusIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
+import JobSheet from "@/components/jobBoard/JobSheet";
 import JobFormSheet from "@/components/jobBoard/JobFormSheet";
 import { useJobsRefresh } from "@/contexts/JobsRefreshContext";
 
-const SheetPage = () => {
-  const router = useRouter();
+const SheetPageContent = () => {
+  const { jobId, openJob, closeJob } = useOpenJob();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
@@ -123,10 +124,7 @@ const SheetPage = () => {
 
   const onPatchJob = usePatchJob(setJobBoardEntries);
 
-  const handleSelectJob = useCallback(
-    (job: JobBoardEntry) => router.push(`/board/${job.id}?from=sheet`),
-    [router]
-  );
+  const handleSelectJob = useCallback((job: JobBoardEntry) => openJob(job.id), [openJob]);
 
   const handleSheetOpenChange = useCallback((open: boolean) => {
     if (!open) {
@@ -296,8 +294,24 @@ const SheetPage = () => {
           />
         )}
       </Sheet>
+
+      <JobSheet
+        entry={jobBoardEntries.find((entry) => entry.id === jobId)}
+        allEntries={jobBoardEntries}
+        from="sheet"
+        onClose={closeJob}
+        onPatchJob={onPatchJob}
+        onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
+      />
     </>
   );
 };
+
+// Reading the open job from the address needs a boundary to prerender the page.
+const SheetPage = () => (
+  <Suspense>
+    <SheetPageContent />
+  </Suspense>
+);
 
 export default SheetPage;

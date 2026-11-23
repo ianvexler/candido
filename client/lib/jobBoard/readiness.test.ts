@@ -1,7 +1,7 @@
 import { CvTailoring, JobBoardEntry, JobStatus } from "@/lib/types";
 import { describe, expect, it } from "vitest";
 import { applyEntryPatch } from "./docSlot";
-import { postingUrl, readiness, tailoringPatch } from "./readiness";
+import { postingUrl, prepareAction, readiness, tailoringPatch } from "./readiness";
 
 type Copy = NonNullable<JobBoardEntry["cv_curriculum"]>;
 
@@ -76,5 +76,19 @@ describe("postingUrl", () => {
   it("rejects anything else", () => {
     ["", "  ", "javascript:alert(1)", "data:text/html,x", "not a url"].forEach((url) => expect(postingUrl(url)).toBeNull());
     expect(postingUrl(undefined)).toBeNull();
+  });
+});
+
+describe("prepareAction", () => {
+  const action = (e: JobBoardEntry, available = true) => prepareAction(readiness(e, available));
+  it("follows how far the application is", () => {
+    expect(action(entry())).toEqual({ label: "Prepare application", detail: "No CV chosen yet" });
+    expect(action(withCopy({}))).toEqual({ label: "Prepare application", detail: "CV not tailored yet" });
+    expect(action(withCopy({ review_status: "processing" }))).toEqual({ label: "Continue application", detail: "Reviewing…" });
+    expect(action(withCopy({ review_status: "succeeded", pending_suggestions: 2 }))).toEqual({
+      label: "Continue application", detail: "2 suggestions left",
+    });
+    expect(action(entry({ cv_key: "k" }))).toEqual({ label: "Finish application", detail: "Ready to apply" });
+    expect(action(entry({ status: JobStatus.APPLIED }))).toEqual({ label: "View application", detail: null });
   });
 });
