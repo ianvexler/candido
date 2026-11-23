@@ -67,7 +67,10 @@ module CvItems
     kind = new_item.parent.name if list?(new_item.parent)
     items = items_in(fragment)
     index = items.index { |node| node[ID] == new_item[ID] } if new_item[ID]
-    return insert_item(fragment, new_item, kind, items.reverse.find { |node| neighbours.include?(node[ID]) }) if index.nil?
+    if index.nil?
+      by_id = items.index_by { |node| node[ID] }
+      return insert_item(fragment, new_item, kind, by_id.values_at(*neighbours).compact.last)
+    end
 
     old = items[index]
     mark(new_item, off?(old))
