@@ -102,7 +102,7 @@ const JobSend = ({ entry, onPatchEntry, beforeLeave, children }: JobSendProps) =
   return (
     <>
       <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{ready ? "What you send" : "What you sent"}</h2>
+        <h2 className="text-lg font-semibold">Your application</h2>
         {copy?.fit && <FitBadge fit={copy.fit} />}
       </div>
 

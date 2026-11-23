@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { closesLabel } from "@/lib/dashboard/chart";
 import { postingUrl, Readiness } from "@/lib/jobBoard/readiness";
 import { JobBoardEntry } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -14,8 +15,6 @@ const STATUS: Record<Exclude<Readiness["state"], "suggestions">, string> = {
   failed: "The review didn't finish",
   ready: "Ready to apply",
 };
-
-const quiet = "border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white";
 
 interface ApplyBarProps {
   entry: JobBoardEntry;
@@ -31,14 +30,14 @@ const ApplyBar = ({ entry, readiness, onApplied }: ApplyBarProps) => {
   const status = readiness.state === "suggestions" ? `${readiness.label} to review` : STATUS[readiness.state];
 
   return (
-    <div className="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 bg-candido-black px-4 py-3 text-white sm:px-6">
+    <div className="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border bg-neutral-200 px-4 py-3 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20">
       {asking ? (
         <>
           <p role="status" className="text-sm">
             Did you apply to {entry.company}?
           </p>
           <div className="flex gap-2">
-            <Button type="button" size="sm" variant="outline" className={quiet} onClick={() => setAsking(false)}>
+            <Button type="button" size="sm" variant="outline" onClick={() => setAsking(false)}>
               Not yet
             </Button>
             <Button type="button" size="sm" variant="candido" onClick={onApplied}>
@@ -49,9 +48,13 @@ const ApplyBar = ({ entry, readiness, onApplied }: ApplyBarProps) => {
       ) : (
         <>
           <p className="text-sm">
-            <span className="font-medium text-candido">{status}</span>
+            <span
+              className={cn("mr-2 inline-block size-2 rounded-full", isReady ? "bg-emerald-600" : "bg-amber-500")}
+              aria-hidden
+            />
+            <span className="font-medium">{status}</span>
             {entry.closing_date && (
-              <span className="text-white/70">. {closesLabel(new Date(entry.closing_date).toISOString())}.</span>
+              <span className="text-neutral-600">. {closesLabel(new Date(entry.closing_date).toISOString())}.</span>
             )}
           </p>
           <div className="flex gap-2">
@@ -59,13 +62,12 @@ const ApplyBar = ({ entry, readiness, onApplied }: ApplyBarProps) => {
               type="button"
               size="sm"
               variant={isReady && !url ? "candido" : "outline"}
-              className={isReady && !url ? undefined : quiet}
               onClick={onApplied}
             >
               Mark as applied
             </Button>
             {url && (
-              <Button asChild size="sm" variant={isReady ? "candido" : "outline"} className={isReady ? undefined : quiet}>
+              <Button asChild size="sm" variant={isReady ? "candido" : "outline"}>
                 <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => setAsking(true)}>
                   <ExternalLinkIcon />
                   Open posting

@@ -70,13 +70,13 @@ the full view: Prepare, Continue, Finish, or View application once applied.
 The address holds the open job (`?job=12`). Closing keeps edits, and asks only
 if they can't be saved.
 
-**Full view** (`/board/:id`): the same fields in a column; beside them "What they
-ask" (the description) beside "What you send" (the CV, what it covers, cover
-letter, notes, and the CV's text). Both sides share the window's height, so a
-long one scrolls instead of outgrowing the other. A bar at the bottom says
+**Full view** (`/board/:id`): two areas. "Job details" has the same fields and
+the description; "Your application" has the CV, what it covers, the cover
+letter, notes, and the CV's text. Both share the window's height, so a long one
+scrolls instead of outgrowing the other. A bar at the bottom says
 what's left and applies: "Open posting" opens the link and asks "Did you
 apply?"; "Mark as applied" works at any time. The bar goes after applying. On a
-phone it stacks, with what you send first.
+phone it stacks, with the application first.
 
 Adding a job keeps its own panel.
 
