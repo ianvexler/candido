@@ -61,9 +61,13 @@ RSpec.describe CvTailorings::Reviewer do
   end
 
   it "sends the job and CV with structured output, medium effort and fallbacks" do
+    allow(ENV).to receive(:fetch).and_call_original
+    allow(ENV).to receive(:fetch).with("CV_TAILOR_MODEL", anything) { |_key, default| default }
+
     review
 
     params = client.params
+    expect(params[:model]).to eq("claude-sonnet-5-5")
     expect(params[:output_config][:effort]).to eq(:medium)
     expect(params[:output_config][:format_]).to eq(type: :json_schema, schema: described_class::SCHEMA)
     expect(params[:betas]).to include("server-side-fallback-2026-07-01")

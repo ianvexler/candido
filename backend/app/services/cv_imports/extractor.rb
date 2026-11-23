@@ -67,7 +67,7 @@ module CvImports
 
     # Returns the model's reply as a Hash matching SCHEMA.
     def call(data:, media_type:)
-      model = ENV.fetch("CV_IMPORT_MODEL", "claude-opus-5-5")
+      model = ENV.fetch("CV_IMPORT_MODEL", "claude-sonnet-5-5")
       params = {
         model: model,
         max_tokens: MAX_TOKENS,
