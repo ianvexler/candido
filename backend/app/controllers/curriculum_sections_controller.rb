@@ -19,6 +19,14 @@ class CurriculumSectionsController < ApplicationController
     render_curriculum(@curriculum)
   end
 
+  # Ticks a library section, or one entry or item of it, copying in what the CV lacks.
+  def include_from_library
+    template = owned_templates(params.require(:section_template_id)).first
+    ids = params.permit(:entry_id, :item_id).to_h.symbolize_keys.transform_values { |id| id.to_s.presence }
+    @curriculum.include_from_library!(template, **ids)
+    render_curriculum(@curriculum)
+  end
+
   def update
     @section.update!(section_params)
     render json: { section: serialize(@section, with: CurriculumSectionBlueprint) }

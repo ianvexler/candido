@@ -20,9 +20,9 @@ module SectionContent
   MAX_ENTRIES = 60
   MAX_LINE = 200
   LINE_FIELDS = %w[role organization location].freeze
-  ENTRY_FIELDS = %i[
-    id title role organization location start_date end_date current description content hidden
-  ].freeze
+  # An entry's own fields, which a CV and the library compare as one unit.
+  FIELD_KEYS = %w[title role organization location start_date end_date current description].freeze
+  ENTRY_FIELDS = [ :id, *FIELD_KEYS.map(&:to_sym), :content, :hidden ].freeze
   ENTRY_ID = /\A[\w-]{1,64}\z/
   # From when a section was a single entry; a later migration drops them.
   OLD_COLUMNS = %w[title description content role organization location start_date end_date current].freeze
@@ -51,6 +51,14 @@ module SectionContent
 
   def visible_entries
     entries.reject { |entry| entry["hidden"] }
+  end
+
+  def find_entry(id)
+    entries.find { |entry| entry["id"] == id }
+  end
+
+  def entry_with_item(item_id)
+    entries.find { |entry| CvItems.list(entry["content"]).pluck(:id).include?(item_id) }
   end
 
   private

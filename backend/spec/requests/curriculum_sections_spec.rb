@@ -188,6 +188,204 @@ RSpec.describe "Curriculum sections" do
     end
   end
 
+  describe "POST /api/v1/curriculums/:curriculum_id/include" do
+    let(:library) do
+      create(:section_template, user: user, section_type: "Projects", entries: [
+        { id: "one", title: "One", content: '<p data-cv-item="a">A</p>' },
+        { id: "two", title: "Two", content: '<p data-cv-item="b">B</p><ol><li data-cv-item="c">C</li><li data-cv-item="d">D</li></ol>' },
+        { id: "three", title: "Three", content: '<p data-cv-item="e">E</p>' }
+      ])
+    end
+
+    def include_content(into: curriculum, **params)
+      post "/api/v1/curriculums/#{into.id}/include",
+        params: { section_template_id: library.id, **params }, headers: headers, as: :json
+    end
+
+    # Each entry as [id, hidden, its items], with unticked items in brackets.
+    def ticks(section)
+      section.reload.entries.map do |entry|
+        items = CvItems.list(entry["content"]).map { |item| item[:off] ? "(#{item[:id]})" : item[:id] }
+        [ entry["id"], entry["hidden"], items.join(" ") ]
+      end
+    end
+
+    def copy_with(entries, **attributes)
+      curriculum.import_section_templates!(library).sole.tap { |copy| copy.update!(entries: entries, **attributes) }
+    end
+
+    def copied = curriculum.curriculum_sections.order(:position).find_by!(section_template: library)
+
+    it "appends the section, all ticked" do
+      include_content
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["curriculum"]["sections"].pluck("section_template_id")).to eq([ template.id, library.id ])
+      expect(copied.hidden).to be(false)
+      expect(ticks(copied)).to eq([ [ "one", false, "a" ], [ "two", false, "b c d" ], [ "three", false, "e" ] ])
+      expect(copied.base_items.keys).to eq(%w[a b c d e])
+      expect(copied.base_fields.keys).to eq(%w[one two three])
+    end
+
+    it "adds an entry after its nearest earlier neighbour and leaves other ticks alone" do
+      one = library.entries.first.merge("content" => '<p data-cv-item="a" data-cv-off="true">A</p>', "hidden" => true)
+      section = copy_with([ one, { id: "own", content: '<p data-cv-item="o" data-cv-off="true">O</p>' } ], base_items: {}, base_fields: {})
+
+      include_content(entry_id: "two")
+      include_content(entry_id: "three")
+
+      expect(response).to have_http_status(:ok)
+      expect(ticks(section)).to eq([ [ "one", true, "(a)" ], [ "two", false, "b c d" ], [ "three", false, "e" ], [ "own", false, "(o)" ] ])
+      expect(section.base_items.keys).to contain_exactly("b", "c", "d", "e")
+      expect(section.base_fields.keys).to contain_exactly("two", "three")
+    end
+
+    it "puts an entry first when no earlier neighbour is in the CV" do
+      section = copy_with([ { id: "own" }, library.entries.last ])
+
+      include_content(entry_id: "one")
+
+      expect(ticks(section).map(&:first)).to eq(%w[one own three])
+    end
+
+    it "copies the section for one entry, leaving out the others" do
+      include_content(entry_id: "two")
+
+      expect(ticks(copied)).to eq([ [ "one", true, "(a)" ], [ "two", false, "b c d" ], [ "three", true, "(e)" ] ])
+    end
+
+    it "copies the section and entry for one item, with only that item ticked" do
+      include_content(entry_id: "two", item_id: "c")
+
+      expect(copied.hidden).to be(false)
+      expect(ticks(copied)).to eq([ [ "one", true, "(a)" ], [ "two", false, "(b) c (d)" ], [ "three", true, "(e)" ] ])
+    end
+
+    it "copies a missing entry for one item into a section the CV has" do
+      section = copy_with([ library.entries.last ])
+
+      include_content(entry_id: "two", item_id: "d")
+
+      expect(ticks(section)).to eq([ [ "two", false, "(b) (c) d" ], [ "three", false, "e" ] ])
+    end
+
+    it "adds a missing item to its entry, in its place and kind of list" do
+      section = copy_with([ { id: "two", hidden: true, content: '<p data-cv-item="b" data-cv-off="true">Mine</p>' } ], base_items: {}, base_fields: {})
+
+      include_content(entry_id: "two", item_id: "d")
+
+      expect(ticks(section)).to eq([ [ "two", false, "(b) d" ] ])
+      expect(section.entries.sole["content"]).to end_with('<ol><li data-cv-item="d">D</li></ol>')
+      expect(section.base_items).to eq("d" => '<li data-cv-item="d">D</li>')
+      expect(section.base_fields).to eq({})
+    end
+
+    it "ticks an item the CV has and shows its entry and section, text unchanged" do
+      section = copy_with([
+        { id: "one", hidden: true },
+        { id: "two", title: "Mine", hidden: true, content: '<p data-cv-item="b" data-cv-off="true">My B</p><p data-cv-item="c" data-cv-off="true">My C</p>' }
+      ], hidden: true)
+
+      include_content(entry_id: "two", item_id: "b")
+
+      expect(section.reload.hidden).to be(false)
+      expect(ticks(section)).to eq([ [ "one", true, "" ], [ "two", false, "b (c)" ] ])
+      expect(section.entries.last).to include("title" => "Mine", "content" => a_string_including("My B", "My C"))
+    end
+
+    it "ticks an item where the CV has it, though the library moved it to another entry" do
+      section = copy_with([ { id: "three", content: '<p data-cv-item="b" data-cv-off="true">B</p>' } ])
+
+      include_content(entry_id: "two", item_id: "b")
+
+      expect(ticks(section)).to eq([ [ "three", false, "b" ] ])
+    end
+
+    it "doesn't copy items the CV already has in another entry" do
+      section = copy_with([ { id: "three", content: '<p data-cv-item="c" data-cv-off="true">C</p>' } ])
+
+      include_content(entry_id: "two")
+
+      expect(ticks(section)).to eq([ [ "two", false, "b d" ], [ "three", false, "(c)" ] ])
+    end
+
+    it "shows an entry the CV has and adds what it lacks, leaving its ticks alone" do
+      section = copy_with([ { id: "two", hidden: true, content: '<ol><li data-cv-item="c" data-cv-off="true">My C</li></ol>' } ], hidden: true)
+
+      include_content(entry_id: "two")
+
+      expect(section.reload.hidden).to be(false)
+      expect(ticks(section)).to eq([ [ "two", false, "b (c) d" ] ])
+    end
+
+    it "shows a section the CV has and adds missing entries, leaving other ticks alone" do
+      section = copy_with([ { id: "two", hidden: true, content: '<p data-cv-item="b" data-cv-off="true">B</p>' } ], hidden: true)
+
+      include_content
+
+      expect(section.reload.hidden).to be(false)
+      expect(ticks(section)).to eq([ [ "one", false, "a" ], [ "two", true, "(b)" ], [ "three", false, "e" ] ])
+    end
+
+    it "changes the first of several copies" do
+      second, first = curriculum.import_section_templates!([ library, library ])
+      second.update!(position: 9)
+      [ first, second ].each { |copy| copy.update!(hidden: true) }
+
+      include_content(entry_id: "one")
+
+      expect([ first, second ].map { |copy| copy.reload.hidden }).to eq([ false, true ])
+    end
+
+    it "doesn't find another user's section, or an unknown entry or item" do
+      foreign = create(:section_template)
+      requests = [
+        { section_template_id: foreign.id }, { section_template_id: 0 },
+        { entry_id: "nope" }, { entry_id: "one", item_id: "nope" }, { entry_id: "one", item_id: "b" }
+      ]
+
+      requests.each do |params|
+        expect { include_content(**params) }.not_to change(CurriculumSection, :count)
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    it "forbids another user's CV" do
+      include_content(into: create(:curriculum))
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "what a copy was made from" do
+    it "can't be set by clients" do
+      before = section.attributes.slice("base_items", "base_fields")
+
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}",
+        params: { hidden: true, base_items: { a: "x" }, base_fields: { a: { title: "x" } } }, headers: headers, as: :json
+
+      expect(section.reload.attributes).to include(before)
+      expect(section.base_items).to be_present
+    end
+
+    it "is updated one value at a time" do
+      template.update!(entries: [ { id: "one", title: "New", content: '<p data-cv-item="a">A2</p><p data-cv-item="b">B2</p>' } ])
+      section.update!(base_items: { "a" => "old", "b" => "old" }, base_fields: { "one" => { "title" => "Old" } })
+
+      section.rebase!(template, entry_id: "one", item_id: "a")
+      expect(section.reload.base_items).to eq("a" => '<p data-cv-item="a">A2</p>', "b" => "old")
+      expect(section.base_fields).to eq("one" => { "title" => "Old" })
+
+      section.rebase!(template, entry_id: "one")
+      expect(section.reload.base_fields["one"]).to include("title" => "New", "current" => false)
+
+      template.update!(entries: [ { id: "two" } ])
+      section.rebase!(template, entry_id: "one", item_id: "a")
+      section.rebase!(template, entry_id: "one")
+      expect(section.reload).to have_attributes(base_items: { "b" => "old" }, base_fields: {})
+    end
+  end
+
   describe "POST /api/v1/curriculums/:curriculum_id/sections/:id/sync" do
     it "flags library edits and pulls them in on request" do
       travel 1.minute do

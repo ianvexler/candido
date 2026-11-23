@@ -176,6 +176,7 @@ RSpec.describe "CV imports" do
       expect(response.parsed_body["curriculum_id"]).to eq(curriculum.id)
       expect(curriculum.title).to eq("My CV")
       expect(curriculum.curriculum_sections.map(&:section_type)).to eq([ "Experience", "Skills" ])
+      expect(curriculum.curriculum_sections.first.base_items.values).to contain_exactly(a_string_including("Shipped"))
     end
 
     it "names a second CV apart from the first" do

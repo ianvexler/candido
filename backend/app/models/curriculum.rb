@@ -92,6 +92,14 @@ class Curriculum < ApplicationRecord
     end
   end
 
+  # "My CV", or the first free "My CV 2", "My CV 3"…
+  def self.free_title(user, base)
+    taken = user.curriculums.pluck(:title).to_set
+    return base unless taken.include?(base)
+
+    (2..).lazy.map { |number| "#{base} #{number}" }.find { |title| taken.exclude?(title) }
+  end
+
   def next_section_position
     (curriculum_sections.maximum(:position) || -1) + 1
   end
@@ -101,18 +109,24 @@ class Curriculum < ApplicationRecord
     raise ArgumentError, "templates required" if templates.empty?
 
     transaction do
-      templates.map do |template|
-        raise ArgumentError, "template must belong to curriculum owner" if template.user_id != user_id
+      templates.map { |template| copy_template!(template) }
+    end
+  end
 
-        curriculum_sections.create!(
-          section_template: template,
-          section_type: template.section_type,
-          entries: template.entries.deep_dup,
-          styles: template.styles.deep_dup,
-          position: next_section_position,
-          hidden: false,
-          synced_at: Time.current
-        )
+  # Ticks a library section, or one entry or item of it, copying in what this
+  # CV lacks. With several copies of the section, the first one changes.
+  def include_from_library!(template, entry_id: nil, item_id: nil)
+    transaction do
+      copies = curriculum_sections.where(section_template_id: template.id)
+      # Before the CV itself, the order in which saving a section takes them.
+      copies.lock.load
+      with_lock do
+        template.reload
+        entry = template.resolve_entry!(entry_id, item_id)
+        copy = copies.order(:id).first
+        next copy.include_from_library!(template, entry: entry, item_id: item_id) if copy
+
+        copy_template!(template, entry: entry, item_id: item_id)
       end
     end
   end
@@ -197,6 +211,23 @@ class Curriculum < ApplicationRecord
   end
 
   private
+
+  # All ticked, or only the given entry or item of it.
+  def copy_template!(template, entry: nil, item_id: nil)
+    raise ArgumentError, "template must belong to curriculum owner" if template.user_id != user_id
+
+    section = curriculum_sections.build(
+      section_template: template,
+      section_type: template.section_type,
+      styles: template.styles.deep_dup,
+      position: next_section_position,
+      hidden: false,
+      synced_at: Time.current
+    )
+    section.add_missing_entries(template, entry: entry, item_id: item_id)
+    section.save!
+    section
+  end
 
   def paper_size_is_known
     paper = styles&.dig("paper")

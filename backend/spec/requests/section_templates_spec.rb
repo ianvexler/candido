@@ -83,6 +83,39 @@ RSpec.describe "Section templates" do
       expect(template.reload.entries.first["content"]).to eq('<p data-cv-item="a">A</p>')
     end
 
+    it "notes when items and entries were added" do
+      template = create(:section_template, user: user, entries: [ { id: "one", content: '<p data-cv-item="a">A</p><p data-cv-item="b">B</p>' } ])
+      first = template.item_added_at
+      expect(first.keys).to contain_exactly("one", "a", "b")
+
+      travel_to(Time.zone.parse("2030-01-02 03:04:05")) do
+        put "/api/v1/section_templates/#{template.id}",
+          params: {
+            entries: [ { id: "one", title: "Renamed", content: '<p data-cv-item="a">Edited</p><p data-cv-item="c">C</p>' }, { id: "two" } ],
+            item_added_at: { a: "2000-01-01T00:00:00Z" }
+          },
+          headers: headers,
+          as: :json
+      end
+
+      now = "2030-01-02T03:04:05.000Z"
+      expect(response.parsed_body["section_template"]["item_added_at"])
+        .to eq("one" => first["one"], "a" => first["a"], "c" => now, "two" => now)
+      expect(template.reload.item_added_at).to eq(response.parsed_body["section_template"]["item_added_at"])
+    end
+
+    it "doesn't count content from before items had ids as added" do
+      template = create(:section_template, user: user, title: "Acme", content: "<p>Old</p>")
+      entry = template.entries.sole
+      template.update_columns(entries: [ entry.merge("content" => "<p>Old</p>") ], item_added_at: {})
+
+      put "/api/v1/section_templates/#{template.id}",
+        params: { entries: [ entry.merge("content" => "<p>Old</p><p>New</p>") ] }, headers: headers, as: :json
+
+      new_item = CvItems.list(template.reload.entries.sole["content"]).last
+      expect(template.item_added_at.keys).to eq([ new_item[:id] ])
+    end
+
     it "strips scripts and event handlers from content" do
       template = create(:section_template, user: user)
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_23_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_24_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -41,6 +41,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_23_100000) do
     t.boolean "current", default: false, null: false
     t.string "placement"
     t.jsonb "entries", default: [], null: false
+    t.jsonb "base_items", default: {}, null: false
+    t.jsonb "base_fields", default: {}, null: false
     t.index ["curriculum_id", "position"], name: "index_curriculum_sections_on_curriculum_id_and_position"
     t.index ["curriculum_id"], name: "index_curriculum_sections_on_curriculum_id"
     t.index ["section_template_id"], name: "index_curriculum_sections_on_section_template_id"
@@ -203,6 +205,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_23_100000) do
     t.date "end_date"
     t.boolean "current", default: false, null: false
     t.jsonb "entries", default: [], null: false
+    t.jsonb "item_added_at", default: {}, null: false
     t.index ["user_id", "section_type"], name: "index_section_templates_on_user_id_and_section_type"
     t.index ["user_id", "title"], name: "index_section_templates_on_user_id_and_title"
     t.index ["user_id"], name: "index_section_templates_on_user_id"
