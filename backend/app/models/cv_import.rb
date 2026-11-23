@@ -77,7 +77,8 @@ class CvImport < ApplicationRecord
   # Adds the chosen draft entries to the user's library, in the CV's order
   # and under its headings, and optionally fills profile fields that are still empty. Never overwrites
   # what the user has written, and can only be applied once.
-  def apply!(entry_ids:, fill_profile:)
+  # With `create_cv` it also makes a CV from the added sections.
+  def apply!(entry_ids:, fill_profile:, create_cv: false)
     raise ApiError.new("This CV hasn't been read yet.", status: :unprocessable_content) unless status == "succeeded"
     raise ApiError.new("This CV import has already been added.", status: :unprocessable_content) if applied_at
 
@@ -94,11 +95,22 @@ class CvImport < ApplicationRecord
       templates = chosen.map { |attributes| user.section_templates.create!(attributes) }
       user.update_resume_profile!(merged_profile) if fill_profile
       update!(applied_at: Time.current)
-      { section_templates: templates, profile: user.resume_header_profile }
+      curriculum = Curriculum.create_with_sections!(user, { title: new_cv_title }, templates) if create_cv && templates.any?
+      { section_templates: templates, profile: user.resume_header_profile, curriculum: curriculum }
     end
   end
 
   private
+
+  CV_TITLE = "My CV".freeze
+
+  # "My CV", or the first free "My CV 2", "My CV 3"…
+  def new_cv_title
+    taken = user.curriculums.pluck(:title).to_set
+    return CV_TITLE unless taken.include?(CV_TITLE)
+
+    (2..).lazy.map { |number| "#{CV_TITLE} #{number}" }.find { |title| taken.exclude?(title) }
+  end
 
   def merged_profile
     current = user.resume_header_profile
