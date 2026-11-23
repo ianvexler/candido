@@ -449,7 +449,6 @@ const ResumePage = ({ params }: ResumePageProps) => {
                 setSections((current) => current.filter((item) => item.id !== sectionId))
               }
               {...(tailored && {
-                tailored: true,
                 suggestions: suggestionsBySection.get(section.id) ?? NO_SUGGESTIONS,
                 activeSuggestionId,
                 onSuggestionClick: setActiveSuggestionId,

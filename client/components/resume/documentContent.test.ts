@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { hasVisibleText, stripHiddenHtml } from "./documentContent";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("stripHiddenHtml", () => {
   it("removes hidden text and keeps the rest", () => {
@@ -14,6 +16,17 @@ describe("stripHiddenHtml", () => {
     const html = stripHiddenHtml('<ul><li><p><span data-cv-hidden="true">x</span></p></li></ul><p>Kept</p>');
 
     expect(html).toBe("<p>Kept</p>");
+  });
+
+  it("keeps an item marked as ticked", () => {
+    expect(stripHiddenHtml('<p data-cv-off="false">Kept</p>')).toContain("Kept");
+  });
+
+  it("refuses unticked items without a DOM", () => {
+    vi.stubGlobal("window", undefined);
+
+    expect(() => stripHiddenHtml('<p data-cv-off="true">x</p>')).toThrow();
+    expect(stripHiddenHtml("<p>Kept</p>")).toBe("<p>Kept</p>");
   });
 });
 

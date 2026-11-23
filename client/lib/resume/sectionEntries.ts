@@ -19,7 +19,7 @@ export const emptyEntry = (): SectionEntry => ({
   current: false,
 });
 
-const cleanLine = (value: string | null) => value?.replace(/\s+/g, " ").trim() || null;
+export const cleanLine = (value: string | null) => value?.replace(/\s+/g, " ").trim() || null;
 
 /** The entry as the server stores it, with its fields in a fixed order. */
 const cleanEntry = (entry: SectionEntry): SectionEntry => ({
