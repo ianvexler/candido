@@ -2,6 +2,7 @@
 
 import { getCurriculums } from "@/api/resources/curriculums/getCurriculums";
 import { createCvTailoring } from "@/api/resources/cvTailorings/createCvTailoring";
+import InfoTip from "@/components/common/InfoTip";
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -149,19 +150,20 @@ const UseCvDialog = ({ open, onClose, entry, onCreated }: UseCvDialogProps) => {
 
           {!loadFailed && masters?.length !== 0 && (
             <div className="mt-4">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={review}
-                  onCheckedChange={(checked) => setReview(checked === true)}
-                  disabled={busy}
-                />
-                Review it against this job
-              </label>
-              {review && (
-                <p className="mt-1.5 pl-6 text-xs text-muted-foreground">
-                  Your CV and this job are sent to Anthropic. Your original CV isn&apos;t changed.
-                </p>
-              )}
+              <div className="flex items-center gap-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={review}
+                    onCheckedChange={(checked) => setReview(checked === true)}
+                    disabled={busy}
+                  />
+                  Review it against this job
+                </label>
+                <InfoTip label="About the review">
+                  Your CV and this job are sent to Anthropic&apos;s Claude for the review. Your original CV isn&apos;t
+                  changed.
+                </InfoTip>
+              </div>
             </div>
           )}
 
