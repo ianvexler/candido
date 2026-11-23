@@ -15,16 +15,10 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import SimpleMenuBar from "../richEditor/simpleEditor/SimpleMenuBar";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
-import { useRouter } from "next/navigation";
 import ConfirmationModal from "../common/ConfirmationModal";
 import TagsInput from "./TagsInput";
 import { Button } from "../ui/Button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
-import NotesArea from "./NotesArea";
-import DocSlot from "./entry/DocSlot";
-import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
 import { EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
-import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
 type JobFormSheetProps =
@@ -43,9 +37,6 @@ type JobFormSheetProps =
       /** Applies a change to one job; see EntryPatch. */
       onPatchJob: (id: number, patch: EntryPatch) => void;
       onDelete?: (entry: JobBoardEntry) => void;
-      notes: Note[];
-      notesLoading: boolean;
-      onNoteAdded: (note: Note) => void;
     };
 
 const defaultValues = {
@@ -72,7 +63,6 @@ const toClosingDatePayload = (date: string): Date | null =>
   date ? parse(date, "yyyy-MM-dd", new Date()) : null;
 
 const JobFormSheet = (props: JobFormSheetProps) => {
-  const router = useRouter();
   const isCreate = props.mode === "create";
 
   const entry = props.entry;
@@ -99,13 +89,9 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   // Saving edits: doesn't lock the fields, since disabling one drops its focus and what's typed next.
   const [saving, setSaving] = useState<boolean>(false);
   const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
-  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState<boolean>(false);
   const [discardChangesModalOpen, setDiscardChangesModalOpen] = useState<boolean>(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
-  const [detailsTab, setDetailsTab] = useState<"description" | "notes">("description");
   const [closingDate, setClosingDate] = useState<string>(initialClosingDate);
-  // An action that leaves the sheet (open the CV editor) waiting on the discard-edits prompt.
-  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const isTitleValid = title.trim().length > 0;
   const isCompanyValid = company.trim().length > 0;
@@ -120,18 +106,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     },
   });
 
-  // The parent remounts the sheet for each job, so the editor and tabs start from this job and
-  // are never reset from props: a save's response would otherwise replace text typed meanwhile.
-
-  const handleDetailsTabChange = (value: string) => {
-    setDetailsTab(value as "description" | "notes");
-    
-    if (value === "description") {
-      requestAnimationFrame(() => {
-        editor?.commands.focus("end");
-      });
-    }
-  };
+  // The parent remounts the sheet for each job, so the editor starts from this job and
+  // is never reset from props: a save's response would otherwise replace text typed meanwhile.
 
   const hasUpdatedFields = useMemo(() => {
     if (isCreate) {
@@ -255,12 +231,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     }
   }, [isCreate, entry, props]);
 
-  // What the newest save sent, to tell whether anything was edited while it was in flight.
-  const sentRef = useRef<string | null>(null);
-  // Saves and this snapshot all read the ref, so they agree on what was sent even from an old render.
-  const fieldsSnapshot = () => JSON.stringify(stateRef.current);
   const trackedUpdate = useCallback(() => {
-    sentRef.current = JSON.stringify(stateRef.current);
     const p = performUpdate();
     inFlightRef.current = p;
     void p.finally(() => {
@@ -286,7 +257,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
   useEffect(() => {
     // While a prompt asks whether to keep the edits, saving them would answer for the user.
-    if (isCreate || !hasUpdatedFields || loading || saving || discardChangesModalOpen || pendingLeave !== null) {
+    if (isCreate || !hasUpdatedFields || loading || saving || discardChangesModalOpen) {
       return;
     }
     if (failedRef.current === JSON.stringify(stateRef.current)) return;
@@ -296,26 +267,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     return () => {
       debouncedSave.cancel();
     };
-  }, [isCreate, title, company, location, salary, url, status, closingDate, editorHtml, tags, hasUpdatedFields, loading, saving, discardChangesModalOpen, pendingLeave, debouncedSave]);
-
-  const handleConfirmation = async () => {
-    if (isCreate) {
-      return;
-    }
-
-    debouncedSave.cancel();
-    const success = await saveAfterInFlight();
-
-    if (success) {
-      setIsConfirmationModalOpen(false);
-      props.onClose();
-      router.push(`/board/${entry!.id}`);
-    }
-  };
-
-  const handleConfirmationClose = () => {
-    setIsConfirmationModalOpen(false);
-  };
+  }, [isCreate, title, company, location, salary, url, status, closingDate, editorHtml, tags, hasUpdatedFields, loading, saving, discardChangesModalOpen, debouncedSave]);
 
   const isCreateFormEqualToDefaults =
     title.trim() === defaultValues.title &&
@@ -359,37 +311,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     // The sheet stays mounted while it closes, so dropped edits must not autosave.
     resetFields();
     props.onClose();
-  };
-
-  // The sheet autosaves, so save before leaving; only if that can't happen ask the user.
-  const hasUpdatedRef = useRef(hasUpdatedFields);
-  hasUpdatedRef.current = hasUpdatedFields;
-
-  const beforeLeave = (action: () => void) => {
-    debouncedSave.cancel();
-    void leaveAfterSave({
-      hasUnsavedEdits: hasUpdatedRef.current,
-      inFlight: inFlightRef.current,
-      editedSinceInFlight: () => fieldsSnapshot() !== sentRef.current,
-      save: trackedUpdate,
-      run: action,
-      onBlocked: () => setPendingLeave(() => action),
-    });
-  };
-
-  const discardedRef = useRef(false);
-  const handleKeepEditing = () => {
-    setPendingLeave(null);
-    // The modal also calls onClose after Discard and continue; only resume autosave for Keep editing.
-    if (discardedRef.current) discardedRef.current = false;
-    else debouncedSave();
-  };
-
-  const handleDiscardAndContinue = () => {
-    const action = pendingLeave;
-    discardedRef.current = true;
-    resetFields();
-    action?.();
   };
 
   const handleSaveChanges = async () => {
@@ -646,22 +567,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </div>
         </div>
 
-        {!isCreate && entry && (
-          <>
-            <section className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">CV</h3>
-              <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} />
-            </section>
-
-            <section className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Cover letter
-              </h3>
-              <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
-            </section>
-          </>
-        )}
-
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Tags
@@ -675,32 +580,13 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Tabs value={detailsTab} onValueChange={handleDetailsTabChange} className="w-full">
-            <TabsList>
-              <TabsTrigger value="description" className="px-4">Description</TabsTrigger>
-              <TabsTrigger value="notes" className="px-4" disabled={isCreate}>Notes</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="notes">
-              <NotesArea
-                jobBoardEntry={entry}
-                notes={entry ? props.notes : []}
-                loading={entry ? props.notesLoading : false}
-                onNoteAdded={entry ? props.onNoteAdded : () => { return }}
-              />
-            </TabsContent>
-
-            <TabsContent
-              value="description"
-              forceMount
-              className="data-[state=inactive]:hidden"
-            >
-              <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
-                <SimpleMenuBar editor={editor} />
-                <EditorContent editor={editor} className="min-h-[140px]" />
-              </div>
-            </TabsContent>
-          </Tabs>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Description
+          </h3>
+          <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
+            <SimpleMenuBar editor={editor} />
+            <EditorContent editor={editor} className="min-h-[140px]" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -763,15 +649,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
       </form>
 
       <ConfirmationModal
-        isOpen={isConfirmationModalOpen}
-        onClose={handleConfirmationClose}
-        onConfirm={handleConfirmation}
-        title="Confirm"
-        description="Your changes will be saved before opening the job entry."
-        confirmLabel="Confirm"
-      />
-
-      <ConfirmationModal
         isOpen={discardChangesModalOpen}
         onConfirm={handleSaveChanges}
         onCancel={handleDiscardChanges}
@@ -784,17 +661,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         }
         confirmLabel={isCreate ? "Create" : "Update"}
         cancelLabel="Discard"
-      />
-
-      <ConfirmationModal
-        isOpen={pendingLeave !== null}
-        onClose={handleKeepEditing}
-        onConfirm={handleDiscardAndContinue}
-        title="Couldn't save your changes"
-        description="Discard them and continue, or keep editing?"
-        confirmLabel="Discard and continue"
-        cancelLabel="Keep editing"
-        variant="destructive"
       />
 
       {!isCreate && entry && (

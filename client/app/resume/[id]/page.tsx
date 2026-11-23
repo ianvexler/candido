@@ -207,9 +207,9 @@ const ResumePage = ({ params }: ResumePageProps) => {
   if (loadError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="font-medium">This resume could not be loaded.</p>
+        <p className="font-medium">This CV could not be loaded.</p>
         <NextLink href="/resume" className="text-sm underline">
-          Back to your resumes
+          Back to your CVs
         </NextLink>
       </div>
     );
@@ -237,7 +237,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
       setTitle(response.curriculum.title);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to rename resume");
+      toast.error("Failed to rename CV");
     }
   };
 
@@ -358,11 +358,12 @@ const ResumePage = ({ params }: ResumePageProps) => {
         <>
           <div className="mb-2 flex items-center justify-between gap-4">
             <NextLink
-              href="/resume"
+              // A tailored CV belongs to its job, so that's where back goes.
+              href={curriculum.job_board_entry_id ? `/board/${curriculum.job_board_entry_id}` : "/resume"}
               className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
             >
               <ArrowLeftIcon className="size-4" />
-              Resumes
+              {curriculum.job_board_entry_id ? `${curriculum.tailored_for ?? "Job"} application` : "CVs"}
             </NextLink>
             <div className="flex items-center gap-4">
               <NextLink
@@ -390,11 +391,11 @@ const ResumePage = ({ params }: ResumePageProps) => {
             onKeyDown={(event) => {
               if (event.key === "Enter") event.currentTarget.blur();
             }}
-            aria-label="Resume name"
+            aria-label="CV name"
             className="border-0 py-0 text-4xl font-bold tracking-tight"
           />
           <p className="mt-1 text-base font-light text-muted-foreground">
-            Changes here only affect this resume, not your library.
+            Changes here only affect this CV, not your library.
           </p>
         </>
       }
@@ -467,7 +468,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         title="Add from library"
-        description="Ticked sections are copied to the end of this resume."
+        description="Ticked sections are copied to the end of this CV."
         confirmLabel="Add sections"
         onConfirm={onAddSections}
       />

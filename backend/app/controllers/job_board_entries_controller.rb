@@ -11,7 +11,7 @@ class JobBoardEntriesController < ApplicationController
   }.freeze
 
   def index
-    entries = current_user.job_board_entries.includes(:job_board_tags, cv_curriculum: :latest_fit_tailoring)
+    entries = current_user.job_board_entries.includes(:job_board_tags, cv_curriculum: %i[latest_fit_tailoring latest_run_summary])
     render json: {
       job_board_entries: serialize(entries, with: JobBoardEntryBlueprint),
       is_empty: entries.empty?

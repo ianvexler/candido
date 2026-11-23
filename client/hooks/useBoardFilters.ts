@@ -1,16 +1,35 @@
-import { useMemo, useState, useCallback, ChangeEvent } from "react";
+import { useEffect, useMemo, useState, useCallback, ChangeEvent } from "react";
 import debounce from "lodash.debounce";
 import { JobBoardEntry, JobStatus } from "@/lib/types";
 
+type SavedFilters = {
+  search: string;
+  tags: string[];
+  showRejected: boolean;
+  showArchived: boolean;
+  statusFilter: JobStatus[];
+};
+
+// Kept while the app is open, so going back from a job shows the same list.
+const savedFilters = new Map<string, SavedFilters>();
+
 export const useBoardFilters = (
+  /** Names the page, so each keeps its own filters. */
+  page: string,
   jobBoardEntries: JobBoardEntry[],
   setJobBoardEntries: React.Dispatch<React.SetStateAction<JobBoardEntry[]>>
 ) => {
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [showRejected, setShowRejected] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [searchInput, setSearchInput] = useState(() => savedFilters.get(page)?.search ?? "");
+  const [search, setSearch] = useState(() => savedFilters.get(page)?.search ?? "");
+  const [tags, setTags] = useState<string[]>(() => savedFilters.get(page)?.tags ?? []);
+  const [showRejected, setShowRejected] = useState(() => savedFilters.get(page)?.showRejected ?? false);
+  const [showArchived, setShowArchived] = useState(() => savedFilters.get(page)?.showArchived ?? false);
+
+  const [statusFilter, setStatusFilter] = useState<JobStatus[]>(() => savedFilters.get(page)?.statusFilter ?? []);
+
+  useEffect(() => {
+    savedFilters.set(page, { search: searchInput, tags, showRejected, showArchived, statusFilter });
+  }, [page, searchInput, tags, showRejected, showArchived, statusFilter]);
 
   const debouncedSetSearch = useMemo(() => debounce(
       ((value: string) => setSearch(value)) as (...args: unknown[]) => unknown, 300
@@ -86,6 +105,8 @@ export const useBoardFilters = (
     handleToggleRejected,
     showArchived,
     handleToggleArchived,
+    statusFilter,
+    setStatusFilter,
     filteredEntries,
   };
 }

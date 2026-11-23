@@ -2,7 +2,6 @@
 
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import FitBadge from "@/components/common/FitBadge";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import { Textarea } from "@/components/ui/Textarea";
@@ -16,10 +15,10 @@ import {
   saveDocument,
   textPreview,
 } from "@/lib/jobBoard/docSlot";
-import { JobBoardEntry } from "@/lib/types";
+import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDownIcon, ClipboardTypeIcon, CopyIcon, FileTextIcon, UploadIcon } from "lucide-react";
+import { ChevronDownIcon, ClipboardTypeIcon, CopyIcon, FileTextIcon, SparklesIcon, UploadIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, ReactNode, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -105,7 +104,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
         kind: "replace",
         description:
           state === "copy"
-            ? "Picking one of your CVs makes a new copy and deletes this one from your resumes."
+            ? "Picking one of your CVs makes a new copy and deletes this one from your CVs."
             : `Picking one of your CVs deletes the current ${state === "text" ? "text" : "file"}.`,
         run: () => fill(way),
       });
@@ -191,6 +190,36 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
         </div>
       </div>
     );
+  } else if (state === "empty" && kind === "cv" && entry.status === JobStatus.PENDING) {
+    // Not applied yet, so preparing a CV comes before filing one that was sent.
+    body = (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Make a copy of one of your CVs for this job, and get edits that help it fit. Your original isn&apos;t changed.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="candido" onClick={() => fill("use")} disabled={saving}>
+            {FILL_ICONS.use}
+            {FILL_LABELS.use}
+          </Button>
+          {config.ways
+            .filter((way) => way !== "use")
+            .map((way) => (
+              <Button
+                key={way}
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => fill(way)}
+                disabled={saving}
+              >
+                {FILL_ICONS[way]}
+                {saving && way === "upload" ? "Uploading…" : FILL_LABELS[way]}
+              </Button>
+            ))}
+        </div>
+      </div>
+    );
   } else if (state === "empty") {
     // The dashed area is the drop target and the main action; the other ways sit under it.
     body = (
@@ -228,7 +257,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-medium">
-              {saving ? "Uploading…" : `Upload the ${config.noun} you sent`}
+              {saving ? "Uploading…" : entry.status === JobStatus.PENDING ? `Upload your ${config.noun}` : `Upload the ${config.noun} you sent`}
             </span>
             <span className="block text-xs text-muted-foreground">Drop a PDF here, or click to choose one</span>
           </span>
@@ -260,12 +289,12 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
       <SlotCard
         icon={<CopyIcon />}
         title={copy.title}
-        badge={copy.fit && <FitBadge fit={copy.fit} />}
         detail={`Edited ${formatDistanceToNow(new Date(copy.updated_at), { addSuffix: true })}`}
         actions={
           <>
             <Button
               type="button"
+              variant="outline"
               size="sm"
               onClick={() => beforeLeave(() => router.push(`/resume/${copy.id}`))}
               disabled={saving}
@@ -307,7 +336,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
 
   const what = state === "copy" ? "CV copy" : state === "text" ? `pasted ${config.noun}` : `uploaded ${config.noun}`;
   const deletes = {
-    copy: "The copy is deleted from your resumes, along with its review. Your original CV isn't changed.",
+    copy: "The copy is deleted from your CVs, along with its review. Your original CV isn't changed.",
     text: "The current text is deleted.",
     file: "The current file is deleted.",
     empty: "",
@@ -352,13 +381,13 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
 const FILL_LABELS: Record<FillWay, string> = {
   upload: "Upload file",
   paste: "Paste text",
-  use: "Use one of my CVs",
+  use: "Tailor one of my CVs",
 };
 
 const FILL_ICONS: Record<FillWay, ReactNode> = {
   upload: <UploadIcon />,
   paste: <ClipboardTypeIcon />,
-  use: <CopyIcon />,
+  use: <SparklesIcon />,
 };
 
 /** A filled slot: what it holds on the left, its badge on the right, actions below. */

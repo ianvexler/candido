@@ -33,7 +33,7 @@ const ResumesPage = () => {
       .then((response) => setCurriculums(response.curriculums))
       .catch((error) => {
         console.error(error);
-        toast.error("Failed to load your resumes");
+        toast.error("Failed to load your CVs");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -43,7 +43,7 @@ const ResumesPage = () => {
       const response = await createCurriculum({ title: name, section_template_ids: sectionTemplateIds });
       router.push(`/resume/${response.curriculum.id}`);
     } catch (error) {
-      toast.error("Failed to create resume");
+      toast.error("Failed to create CV");
       throw error;
     }
   };
@@ -53,10 +53,10 @@ const ResumesPage = () => {
     try {
       await deleteCurriculum(pendingDelete.id);
       setCurriculums((current) => current.filter((item) => item.id !== pendingDelete.id));
-      toast.success("Resume deleted");
+      toast.success("CV deleted");
     } catch (error) {
       console.error(error);
-      toast.error("Failed to delete resume");
+      toast.error("Failed to delete CV");
     }
   };
 
@@ -64,9 +64,9 @@ const ResumesPage = () => {
     <PageContainer>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Title>Your resumes</Title>
+          <Title>Your CVs</Title>
           <Description className="mt-1">
-            Build a resume from sections in your library. Edits here stay with that resume.
+            Build a CV from sections in your library. Edits here stay with that CV.
           </Description>
         </div>
         <div className="flex gap-2">
@@ -78,7 +78,7 @@ const ResumesPage = () => {
           </Button>
           <Button onClick={() => setCreating(true)}>
             <PlusIcon />
-            New resume
+            New CV
           </Button>
         </div>
       </div>
@@ -91,16 +91,16 @@ const ResumesPage = () => {
         <div className="mt-10 rounded-lg border border-dashed border-border px-6 py-14 text-center">
           <FileTextIcon className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-3 font-medium">
-            {copies.length > 0 ? "No master CVs yet" : "No resumes yet"}
+            {copies.length > 0 ? "No master CVs yet" : "No CVs yet"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {copies.length > 0
               ? "Create one to reuse for applications."
-              : "Write sections in your library, then pick the ones each resume needs."}
+              : "Write sections in your library, then pick the ones each CV needs."}
           </p>
           <Button className="mt-5" onClick={() => setCreating(true)}>
             <PlusIcon />
-            New resume
+            New CV
           </Button>
         </div>
       ) : (
@@ -190,9 +190,9 @@ const ResumesPage = () => {
       <SectionPickerDialog
         open={creating}
         onClose={() => setCreating(false)}
-        title="New resume"
+        title="New CV"
         description="Name it, then tick the library sections to start from. You can add more later."
-        confirmLabel="Create resume"
+        confirmLabel="Create CV"
         nameLabel="Name"
         allowEmpty
         onConfirm={onCreate}
@@ -202,7 +202,7 @@ const ResumesPage = () => {
         isOpen={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
         onConfirm={onDelete}
-        title="Delete this resume?"
+        title="Delete this CV?"
         description={deleteDescription(pendingDelete)}
         confirmLabel="Delete"
         variant="destructive"

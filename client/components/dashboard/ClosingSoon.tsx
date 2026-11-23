@@ -23,7 +23,7 @@ const ClosingSoon = ({ jobs, total }: ClosingSoonProps) => {
 
           return (
             <li key={job.id}>
-              <Link href="/board" className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted">
+              <Link href={`/board/${job.id}`} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted">
                 <span className="flex size-10 shrink-0 flex-col items-center justify-center rounded-md bg-candido/25 leading-tight">
                   <span className="text-[10px] uppercase">{format(closingDate, "MMM")}</span>
                   <span className="text-sm font-semibold">{format(closingDate, "d")}</span>

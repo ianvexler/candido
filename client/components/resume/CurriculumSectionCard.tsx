@@ -114,7 +114,7 @@ const CurriculumSectionCard = ({
       {section.hidden && (
         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
           <EyeOffIcon className="size-3" />
-          Left out of this resume
+          Left out of this CV
         </span>
       )}
       {section.library_updated && (
@@ -149,9 +149,9 @@ const CurriculumSectionCard = ({
         save={async (fields) => (await updateCurriculumSection(curriculumId, section.id, fields)).section}
         onSaved={onChange}
         onDelete={remove}
-        deleteLabel="Remove from this resume"
-        deleteTitle="Remove this section from the resume?"
-        deleteDescription="Only this resume's copy is removed. The section stays in your library."
+        deleteLabel="Remove from this CV"
+        deleteTitle="Remove this section from the CV?"
+        deleteDescription="Only this CV's copy is removed. The section stays in your library."
         suggestions={suggestions}
         activeSuggestionId={activeSuggestionId}
         onSuggestionClick={onSuggestionClick}
@@ -180,7 +180,7 @@ const CurriculumSectionCard = ({
               </IconAction>
             )}
             <IconAction
-              label={section.hidden ? "Show in this resume" : "Leave out of this resume"}
+              label={section.hidden ? "Show in this CV" : "Leave out of this CV"}
               active={section.hidden}
               onClick={() => void toggleHidden()}
             >
@@ -203,7 +203,7 @@ const CurriculumSectionCard = ({
         description={
           tailored
             ? "This tailored copy's text is replaced by the library version. Suggestions you accepted here are lost."
-            : "This resume's copy of the section is overwritten. Edits you made only in this resume are lost."
+            : "This CV's copy of the section is overwritten. Edits you made only in this CV are lost."
         }
         confirmLabel="Replace"
       />

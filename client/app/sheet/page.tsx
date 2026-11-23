@@ -3,7 +3,6 @@
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { saveDocument } from "@/lib/jobBoard/docSlot";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
-import { getNotes } from "@/api/resources/notes/getNotes";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import Description from "@/components/common/Description";
@@ -11,8 +10,9 @@ import Title from "@/components/common/Title";
 import BoardFilters from "@/components/jobBoard/BoardFilters";
 import SheetTable from "@/components/jobBoard/sheet/SheetTable";
 import { useBoardFilters } from "@/hooks/useBoardFilters";
-import { JobBoardEntry, JobStatus, Note } from "@/lib/types";
+import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { PlusIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
@@ -20,35 +20,14 @@ import JobFormSheet from "@/components/jobBoard/JobFormSheet";
 import { useJobsRefresh } from "@/contexts/JobsRefreshContext";
 
 const SheetPage = () => {
+  const router = useRouter();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<JobBoardEntry>();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<JobStatus[]>([]);
   const [isEmpty, setIsEmpty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [notesByEntryId, setNotesByEntryId] = useState<Record<number, Note[]>>({});
-
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setNotesForEntry = useCallback((entryId: number, notesOrUpdater: Note[] | ((prev: Note[]) => Note[])) => {
-    setNotesByEntryId((prev) => ({
-      ...prev,
-      [entryId]: typeof notesOrUpdater === "function" ? notesOrUpdater(prev[entryId] ?? []) : notesOrUpdater,
-    }));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedJob || notesByEntryId[selectedJob.id] !== undefined) return;
-    void getNotes(selectedJob.id)
-      .then((response) => setNotesForEntry(selectedJob.id, response.notes))
-      .catch((error) => {
-        console.error(error);
-        toast.error("Failed to get notes");
-        setNotesForEntry(selectedJob.id, []);
-      });
-  }, [selectedJob, notesByEntryId, setNotesForEntry]);
 
   const {
     searchInput,
@@ -60,8 +39,10 @@ const SheetPage = () => {
     handleToggleRejected,
     showArchived,
     handleToggleArchived,
+    statusFilter,
+    setStatusFilter,
     filteredEntries,
-  } = useBoardFilters(jobBoardEntries, setJobBoardEntries);
+  } = useBoardFilters("sheet", jobBoardEntries, setJobBoardEntries);
 
   const initializedRef = useRef(false);
 
@@ -112,7 +93,7 @@ const SheetPage = () => {
     setStatusFilter((prev) =>
       checked ? [...prev, status] : prev.filter((s) => s !== status)
     );
-  }, []);
+  }, [setStatusFilter]);
 
   const sortedEntries = useMemo(() => {
     let entries = filteredEntries;
@@ -140,17 +121,12 @@ const SheetPage = () => {
     setJobBoardEntries((prev) => [...prev, job]);
   }, []);
 
-  const onPatchJob = usePatchJob(setJobBoardEntries, setSelectedJob);
+  const onPatchJob = usePatchJob(setJobBoardEntries);
 
-  const handleSelectJob = useCallback((job: JobBoardEntry) => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-    }
-
-    setOpenAddJobModal(false);
-    setSelectedJob(job);
-    setIsSheetOpen(true);
-  }, []);
+  const handleSelectJob = useCallback(
+    (job: JobBoardEntry) => router.push(`/board/${job.id}?from=sheet`),
+    [router]
+  );
 
   const handleSheetOpenChange = useCallback((open: boolean) => {
     if (!open) {
@@ -158,7 +134,6 @@ const SheetPage = () => {
       setIsSheetOpen(false);
       closeTimeoutRef.current = setTimeout(() => {
         setOpenAddJobModal(false);
-        setSelectedJob(undefined);
         closeTimeoutRef.current = null;
       }, 300);
     }
@@ -300,8 +275,7 @@ const SheetPage = () => {
         <button
           onClick={() => {
             if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-            setSelectedJob(undefined);
-            setOpenAddJobModal(true);
+                setOpenAddJobModal(true);
             setIsSheetOpen(true);
           }}
           className="cursor-pointer fixed bottom-6 right-6 size-15 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center"
@@ -312,31 +286,14 @@ const SheetPage = () => {
       </div>
 
       <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>
-        {(openAddJobModal || selectedJob) && (
-          openAddJobModal ? (
-            <JobFormSheet
-              mode="create"
-              entry={null}
-              allEntries={jobBoardEntries}
-              onClose={() => handleSheetOpenChange(false)}
-              onAddJob={onAddJob}
-            />
-          ) : (
-            <JobFormSheet
-              // One sheet per job: its fields start from the job, so a reused sheet would save
-              // the previous job's fields onto this one.
-              key={selectedJob!.id}
-              mode="edit"
-              entry={selectedJob!}
-              allEntries={jobBoardEntries}
-              onClose={() => handleSheetOpenChange(false)}
-              onPatchJob={onPatchJob}
-              onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
-              notes={notesByEntryId[selectedJob!.id] ?? []}
-              notesLoading={notesByEntryId[selectedJob!.id] === undefined}
-              onNoteAdded={(note) => setNotesForEntry(selectedJob!.id, (prev) => [...prev, note])}
-            />
-          )
+        {openAddJobModal && (
+          <JobFormSheet
+            mode="create"
+            entry={null}
+            allEntries={jobBoardEntries}
+            onClose={() => handleSheetOpenChange(false)}
+            onAddJob={onAddJob}
+          />
         )}
       </Sheet>
     </>

@@ -110,7 +110,7 @@ const HeaderDocument = <T extends HeaderDraft>({ value, fallback, save }: Header
     return (
       <Tooltip>
         <TooltipTrigger asChild>{input}</TooltipTrigger>
-        <TooltipContent side="right">Only on this resume. Clear it to use your profile.</TooltipContent>
+        <TooltipContent side="right">Only on this CV. Clear it to use your profile.</TooltipContent>
       </Tooltip>
     );
   };
@@ -129,8 +129,8 @@ const HeaderDocument = <T extends HeaderDraft>({ value, fallback, save }: Header
         </TooltipTrigger>
         <TooltipContent side="left" className="max-w-64">
           {isOverride
-            ? "Grey text comes from your profile. Type over a field to change it for this resume only."
-            : "Your name and contact details, shown at the top of every resume. Each resume can change them."}
+            ? "Grey text comes from your profile. Type over a field to change it for this CV only."
+            : "Your name and contact details, shown at the top of every CV. Each CV can change them."}
         </TooltipContent>
       </Tooltip>
 
@@ -156,7 +156,7 @@ const HeaderDocument = <T extends HeaderDraft>({ value, fallback, save }: Header
               </span>
             ))}
             {links.length === 0 && <span className="text-muted-foreground/70">No links</span>}
-            <IconAction label="Use different links on this resume" onClick={() => setLinks(links.map((link) => ({ ...link })))}>
+            <IconAction label="Use different links on this CV" onClick={() => setLinks(links.map((link) => ({ ...link })))}>
               <PencilIcon />
             </IconAction>
           </>

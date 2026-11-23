@@ -89,13 +89,13 @@ const SectionLibraryPage = () => {
             className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeftIcon className="size-4" />
-            Resumes
+            CVs
           </NextLink>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <Title>Section library</Title>
               <Description className="mt-1">
-                Write each section once, then reuse it in any resume.
+                Write each section once, then reuse it in any CV.
               </Description>
             </div>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
@@ -135,7 +135,7 @@ const SectionLibraryPage = () => {
           onDelete={() => removeTemplate(template.id)}
           deleteLabel="Delete from library"
           deleteTitle="Delete this section?"
-          deleteDescription="This removes the reusable section from your library. Resumes that already use it keep their copy."
+          deleteDescription="This removes the reusable section from your library. CVs that already use it keep their copy."
         />
       ))}
 

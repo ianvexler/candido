@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { axisTicks, closingLabel, donutSegments } from "./chart";
+import { axisTicks, closingLabel, closesLabel, donutSegments } from "./chart";
 
 describe("axisTicks", () => {
   it("uses whole numbers that cover the maximum", () => {
@@ -32,5 +32,14 @@ describe("closingLabel", () => {
     expect(closingLabel(new Date(2026, 7, 21).toISOString(), now)).toBe("Today");
     expect(closingLabel(new Date(2026, 7, 22).toISOString(), now)).toBe("Tomorrow");
     expect(closingLabel(new Date(2026, 7, 24).toISOString(), now)).toBe("In 3 days");
+  });
+});
+
+describe("closesLabel", () => {
+  const now = new Date(2026, 10, 23, 12);
+  it("says when the job closes, or that it has", () => {
+    expect(closesLabel(new Date(2026, 10, 27).toISOString(), now)).toBe("Closes in 4 days");
+    expect(closesLabel(new Date(2026, 10, 23).toISOString(), now)).toBe("Closes today");
+    expect(closesLabel(new Date(2026, 10, 22).toISOString(), now)).toBe("Closed");
   });
 });

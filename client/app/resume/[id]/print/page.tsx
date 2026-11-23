@@ -165,9 +165,9 @@ const PrintResumePage = ({ params }: PrintPageProps) => {
   if (loadError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-center">
-        <p className="font-medium">This resume could not be loaded.</p>
+        <p className="font-medium">This CV could not be loaded.</p>
         <NextLink href="/resume" className="text-sm underline">
-          Back to your resumes
+          Back to your CVs
         </NextLink>
       </div>
     );

@@ -1,10 +1,8 @@
 "use client";
 
 import { deleteJobBoardEntry } from "@/api/resources/jobBoardEntries/deleteJobBoardEntry";
-import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
-import { getNotes } from "@/api/resources/notes/getNotes";
 import Description from "@/components/common/Description";
 import Title from "@/components/common/Title";
 import JobBoardColumn from "@/components/jobBoard/JobBoardColumn";
@@ -16,13 +14,14 @@ import {
   ARCHIVE_DROPPABLE_ID,
   REJECTED_DROPPABLE_ID,
 } from "@/components/jobBoard/ActionDropZones";
-import { JobBoardEntry, JobStatus, Note } from "@/lib/types";
+import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { useBoardFilters } from "@/hooks/useBoardFilters";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { move } from "@dnd-kit/helpers";
 import { PlusIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
 import JobFormSheet from "@/components/jobBoard/JobFormSheet";
@@ -31,36 +30,16 @@ import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { useJobsRefresh } from "@/contexts/JobsRefreshContext";
 
 const BoardPage = () => {
+  const router = useRouter();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<JobBoardEntry>();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedFromOffered, setDraggedFromOffered] = useState(false);
   const [draggedEntryOriginalStatus, setDraggedEntryOriginalStatus] = useState<Record<number, JobStatus>>();
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState<JobBoardEntry | null>(null);
-  const [notesByEntryId, setNotesByEntryId] = useState<Record<number, Note[]>>({});
-
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setNotesForEntry = useCallback((entryId: number, notesOrUpdater: Note[] | ((prev: Note[]) => Note[])) => {
-    setNotesByEntryId((prev) => ({
-      ...prev,
-      [entryId]: typeof notesOrUpdater === "function" ? notesOrUpdater(prev[entryId] ?? []) : notesOrUpdater,
-    }));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedJob || notesByEntryId[selectedJob.id] !== undefined) return;
-    void getNotes(selectedJob.id)
-      .then((response) => setNotesForEntry(selectedJob.id, response.notes))
-      .catch((error) => {
-        console.error(error);
-        toast.error("Failed to get notes");
-        setNotesForEntry(selectedJob.id, []);
-      });
-  }, [selectedJob, notesByEntryId, setNotesForEntry]);
 
   const {
     searchInput,
@@ -73,12 +52,10 @@ const BoardPage = () => {
     showArchived,
     handleToggleArchived,
     filteredEntries,
-  } = useBoardFilters(jobBoardEntries, setJobBoardEntries);
+  } = useBoardFilters("board", jobBoardEntries, setJobBoardEntries);
 
   const snapshotRef = useRef<JobBoardEntry[]>([]);
   const latestEntriesRef = useRef<JobBoardEntry[]>([]);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollPositionRef = useRef(0);
 
   const initializedRef = useRef(false);
 
@@ -176,14 +153,7 @@ const BoardPage = () => {
     return result;
   };
 
-  const handleSelectJob = (job: JobBoardEntry) => {
-    scrollPositionRef.current = scrollContainerRef.current?.scrollLeft ?? 0;
-    
-    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-    setOpenAddJobModal(false);
-    setSelectedJob(job);
-    setIsSheetOpen(true);
-  };
+  const handleSelectJob = (job: JobBoardEntry) => router.push(`/board/${job.id}`);
 
   const handleSheetOpenChange = (open: boolean) => {
     if (!open) {
@@ -192,15 +162,12 @@ const BoardPage = () => {
 
       closeTimeoutRef.current = setTimeout(() => {
         setOpenAddJobModal(false);
-        setSelectedJob(undefined);
         closeTimeoutRef.current = null;
       }, 300);
     }
   };
 
   useEffect(() => () => { if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current); }, []);
-
-  const onPatchJob = usePatchJob(setJobBoardEntries, setSelectedJob);
 
   const handleDeleteDrop = (entry: JobBoardEntry) => {
     setPendingDeleteEntry(entry);
@@ -371,7 +338,6 @@ const BoardPage = () => {
         >
           <div className="flex-1 min-h-0 flex flex-col mt-4 sm:mt-8">
             <div
-              ref={scrollContainerRef}
               className="flex-1 min-h-0 overflow-auto pb-5"
             >
               <div className="flex justify-start items-stretch divide-x divide-border [&>div]:px-4 sm:[&>div]:px-6 [&>div]:first:pl-0 [&>div]:last:pr-0 px-1 min-w-max">
@@ -409,8 +375,7 @@ const BoardPage = () => {
           <button
           onClick={() => {
             if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-            setSelectedJob(undefined);
-            setOpenAddJobModal(true);
+                setOpenAddJobModal(true);
             setIsSheetOpen(true);
           }}
             className="cursor-pointer fixed bottom-6 right-6 size-15 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center"
@@ -437,31 +402,14 @@ const BoardPage = () => {
       />
 
       <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>
-        {(openAddJobModal || selectedJob) && (
-          openAddJobModal ? (
-            <JobFormSheet
-              mode="create"
-              entry={null}
-              allEntries={jobBoardEntries}
-              onClose={() => handleSheetOpenChange(false)}
-              onAddJob={onAddJob}
-            />
-          ) : (
-            <JobFormSheet
-              // One sheet per job: its fields start from the job, so a reused sheet would save
-              // the previous job's fields onto this one.
-              key={selectedJob!.id}
-              mode="edit"
-              entry={selectedJob!}
-              allEntries={jobBoardEntries}
-              onClose={() => handleSheetOpenChange(false)}
-              onPatchJob={onPatchJob}
-              onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
-              notes={notesByEntryId[selectedJob!.id] ?? []}
-              notesLoading={notesByEntryId[selectedJob!.id] === undefined}
-              onNoteAdded={(note) => setNotesForEntry(selectedJob!.id, (prev) => [...prev, note])}
-            />
-          )
+        {openAddJobModal && (
+          <JobFormSheet
+            mode="create"
+            entry={null}
+            allEntries={jobBoardEntries}
+            onClose={() => handleSheetOpenChange(false)}
+            onAddJob={onAddJob}
+          />
         )}
       </Sheet>
     </>

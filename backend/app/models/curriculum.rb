@@ -49,6 +49,19 @@ class Curriculum < ApplicationRecord
       .order(:curriculum_id, created_at: :desc, id: :desc)
       .readonly
   }, class_name: "CvTailoring", inverse_of: false
+  # The newest run whatever its outcome, with how many of its suggestions are still open and
+  # without its report. One row per CV when preloaded, like latest_fit_tailoring.
+  has_one :latest_run_summary, -> {
+    select(Arel.sql(<<~SQL.squish))
+      DISTINCT ON (cv_tailorings.curriculum_id) cv_tailorings.id, cv_tailorings.curriculum_id,
+      cv_tailorings.status, cv_tailorings.updated_at,
+      (SELECT COUNT(*) FROM cv_tailoring_suggestions
+       WHERE cv_tailoring_suggestions.cv_tailoring_id = cv_tailorings.id
+       AND cv_tailoring_suggestions.status = 'pending') AS pending_suggestions
+    SQL
+      .order(:curriculum_id, created_at: :desc, id: :desc)
+      .readonly
+  }, class_name: "CvTailoring", inverse_of: false
   # Set on a copy made for one job; the links clear if either is deleted.
   belongs_to :job_board_entry, optional: true
   belongs_to :source_curriculum, class_name: "Curriculum", optional: true
