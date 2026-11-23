@@ -79,13 +79,13 @@ const HomePage = () => {
               <EmptyMedia variant="icon" className="bg-candido/25">
                 <KanbanIcon aria-hidden />
               </EmptyMedia>
-              <EmptyTitle>No jobs yet</EmptyTitle>
+              <EmptyTitle>Get your first application ready</EmptyTitle>
               <EmptyDescription>
-                Add the first job you&apos;re interested in and your progress will show up here.
+                Bring in your CV, add a job, and see how well they fit. Your progress will show up here.
               </EmptyDescription>
             </EmptyHeader>
             <Button asChild variant="candido">
-              <Link href="/board">Add your first job</Link>
+              <Link href="/welcome">Get started</Link>
             </Button>
           </Empty>
         )}

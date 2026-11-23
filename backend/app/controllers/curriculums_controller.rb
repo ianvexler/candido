@@ -5,7 +5,9 @@ class CurriculumsController < ApplicationController
   before_action :set_curriculum, only: %i[show update destroy]
 
   def index
-    curriculums = current_user.curriculums.includes(:curriculum_sections, :cv_for_job).order(updated_at: :desc)
+    curriculums = current_user.curriculums
+      .includes(:curriculum_sections, :cv_for_job, :job_board_entry, :source_curriculum, :latest_fit_tailoring, :latest_run_summary)
+      .order(updated_at: :desc)
     render json: { curriculums: serialize(curriculums, with: CurriculumBlueprint) }
   end
 
@@ -14,14 +16,8 @@ class CurriculumsController < ApplicationController
   end
 
   def create
-    curriculum = Curriculum.transaction do
-      default_design = current_user.resume_designs.find_by(is_default: true)
-      record = current_user.curriculums.create!(curriculum_params.merge(styles: default_design&.settings || {}))
-      templates = owned_templates(params[:section_template_ids])
-      record.import_section_templates!(templates) if templates.any?
-      record
-    end
-    render_curriculum(curriculum)
+    templates = owned_templates(params[:section_template_ids])
+    render_curriculum(Curriculum.create_with_sections!(current_user, curriculum_params, templates))
   end
 
   # `header`, when sent, replaces this resume's overrides wholesale.

@@ -31,6 +31,44 @@ RSpec.describe "Curriculums" do
       expect(master).to be_persisted
     end
 
+    it "says what a copy was made for and how its review stands" do
+      job = create(:job_board_entry, user: user, title: "Designer", company: "Fernway", number: 1)
+      source = create(:curriculum, user: user, title: "My CV")
+      copy = source.duplicate_for_job!(job)
+      run = create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => "partial" })
+      section = copy.curriculum_sections.create!(section_type: "Experience", entries: [ { content: "<p>Led</p>" } ])
+      create(:cv_tailoring_suggestion, cv_tailoring: run, curriculum_section: section)
+
+      get "/api/v1/curriculums", headers: headers
+
+      by_title = response.parsed_body["curriculums"].index_by { |item| item["id"] }
+      expect(by_title[source.id]["tailoring"]).to be_nil
+      expect(by_title[copy.id]["tailoring"]).to eq(
+        "job" => { "id" => job.id, "title" => "Designer", "company" => "Fernway", "status" => "PENDING" },
+        "source_title" => "My CV", "fit" => "partial", "review_status" => "succeeded", "pending_suggestions" => 1
+      )
+    end
+
+    it "lists copies without a query per copy" do
+      add_copy = lambda do |number|
+        job = create(:job_board_entry, user: user, number: number)
+        copy = create(:curriculum, user: user).duplicate_for_job!(job)
+        create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", report: { "fit" => "weak" })
+      end
+      count_selects = lambda do
+        count = 0
+        counter = ->(*, payload) { count += 1 if payload[:sql].start_with?("SELECT") && payload[:name] != "SCHEMA" }
+        ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { get "/api/v1/curriculums", headers: headers }
+        count
+      end
+      2.times { |i| add_copy.call(i + 1) }
+      count_selects.call
+      before = count_selects.call
+      add_copy.call(3)
+
+      expect(count_selects.call).to eq(before)
+    end
+
     it "requires authentication" do
       get "/api/v1/curriculums"
 

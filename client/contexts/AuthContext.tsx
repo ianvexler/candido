@@ -8,10 +8,9 @@ import Loader from "@/components/common/Loader";
 import useAuthStore from "@/lib/stores/authStore";
 import type { User } from "@/lib/types";
 import { AxiosError, HttpStatusCode } from "axios";
-import { redirect, usePathname } from "next/navigation";
+import { redirect, usePathname, useRouter } from "next/navigation";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import SetupModal from "@/components/common/SetupModal";
 
 type AuthContextType = {
   user: User | null;
@@ -34,12 +33,11 @@ export const useAuth = () => {
 };
 
 const permittedRoutes = ['/', '/login', '/register', '/verify'];
-const setupModalExcludedRoutes = ['/login', '/register', '/verify'];
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
+  const router = useRouter();
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
-  const [openSetupModal, setOpenSetupModal] = useState<boolean>(false);
 
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
@@ -98,18 +96,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
   }, [isPermittedRoute, setUser, clearSession, handleUnauthorized]);
 
+  // Signing in lands on the dashboard; a new user goes to the first run page instead. Other pages stay
+  // reachable, so a step can be done from them.
+  const needsSetup = isAuthenticated && !isAuthChecking && user?.setup_completed === false;
   useEffect(() => {
-    const shouldShow =
-      isAuthenticated &&
-      !user?.setup_completed &&
-      !setupModalExcludedRoutes.includes(pathname ?? "");
-
-    if (shouldShow) {
-      queueMicrotask(() => setOpenSetupModal(true));
-    } else {
-      queueMicrotask(() => setOpenSetupModal(false));
-    }
-  }, [isAuthenticated, user?.setup_completed, pathname]);
+    if (needsSetup && pathname === "/dashboard") router.replace("/welcome");
+  }, [needsSetup, pathname, router]);
 
   const value = {
     user,
@@ -131,8 +123,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       ) : (
         children
       )}
-
-      <SetupModal isOpen={openSetupModal} onClose={() => setOpenSetupModal(false)} />
     </AuthContext.Provider>
   );
 };
