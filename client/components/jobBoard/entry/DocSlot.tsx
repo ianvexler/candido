@@ -61,9 +61,6 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
   const [dragging, setDragging] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "replace" | "remove"; description?: string; run: () => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  // The leave wrapper changes as the sheet's fields change: the sheet's save reads the latest fields and entry.
-  const latestBeforeLeave = useRef(beforeLeave);
-  latestBeforeLeave.current = beforeLeave;
 
   const save = async (text?: string, file?: File, success?: string) => {
     setSaving(true);
@@ -318,7 +315,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
               entryId: entry.id,
               copy: result.curriculum,
               onPatchEntry,
-              beforeLeave: latestBeforeLeave.current,
+              beforeLeave,
               navigate: (href) => router.push(href),
             })
           }

@@ -16,6 +16,7 @@ const job = {
   status: JobStatus.PENDING, job_board_tags: [],
 } as unknown as JobBoardEntry;
 
+const setField = vi.fn();
 let root: Root;
 let form: JobAutosave;
 let fields: JobFieldValues;
@@ -23,7 +24,7 @@ let fields: JobFieldValues;
 const Harness = ({ values }: { values: JobFieldValues }) => {
   const current = useJobAutosave({
     entry: job, allEntries: [{ ...job, id: 8, number: 5, status: JobStatus.APPLIED }], fields: values,
-    setField: () => {}, reset: () => {}, onPatchJob: () => {},
+    setField, reset: () => {}, onPatchJob: () => {},
   });
   useLayoutEffect(() => {
     form = current;
@@ -46,6 +47,7 @@ beforeEach(async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
   api.update.mockReset().mockResolvedValue({ job_board_entry: job });
+  setField.mockReset();
   api.remove.mockReset().mockResolvedValue({});
   fields = jobFieldsOf(job);
   root = createRoot(document.createElement("div"));
@@ -145,6 +147,40 @@ describe("useJobAutosave", () => {
     expect(api.update).toHaveBeenCalledOnce();
     expect(api.update.mock.calls[0].slice(0, 2)).toEqual([7, "Lead"]);
     expect(api.update.mock.calls[0].slice(7, 9)).toEqual([JobStatus.APPLIED, 6]);
+  });
+
+  it("keeps a move when the form goes away before it's saved", async () => {
+    const move = deferred();
+    api.update.mockReturnValueOnce(move.promise);
+    await act(async () => void form.moveTo(JobStatus.ARCHIVED, () => {}));
+    expect(setField).toHaveBeenCalledWith("status", JobStatus.ARCHIVED);
+    await render({ status: JobStatus.ARCHIVED });
+    await unmount();
+    await act(async () => move.resolve());
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(api.update).toHaveBeenCalledOnce();
+  });
+
+  it("doesn't send a saved edit again when leaving before the saved job shows", async () => {
+    await render({ title: "Lead" });
+    await act(async () => form.beforeLeave(() => root.unmount()));
+    expect(titles()).toEqual(["Lead"]);
+  });
+
+  it("doesn't keep saving when the server stored something else", async () => {
+    await render({ title: "Lead " });
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(titles()).toEqual(["Lead "]);
+  });
+
+  it("saves nothing when the form goes away while the job is deleted", async () => {
+    const deletion = deferred();
+    api.remove.mockReturnValueOnce(deletion.promise);
+    await render({ title: "Lead" });
+    await act(async () => void form.remove(() => {}));
+    await unmount();
+    await act(async () => deletion.resolve());
+    expect(api.update).not.toHaveBeenCalled();
   });
 
   it("saves nothing after the job is deleted", async () => {
