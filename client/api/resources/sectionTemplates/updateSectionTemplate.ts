@@ -1,16 +1,11 @@
 import apiClient from "@/api/apiClient";
-import { SectionTemplate } from "@/lib/types";
+import { SectionFields, SectionTemplate } from "@/lib/types";
 
 type UpdateSectionTemplateResponse = {
   section_template: SectionTemplate;
 };
 
-export type UpdateSectionTemplatePayload = {
-  title?: string;
-  section_type?: string;
-  description?: string | null;
-  content?: string;
-};
+export type UpdateSectionTemplatePayload = Partial<SectionFields>;
 
 export const updateSectionTemplate = async (
   id: number,

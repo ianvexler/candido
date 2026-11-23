@@ -51,11 +51,12 @@ RSpec.describe "Curriculums" do
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["curriculum"]
       expect(body).to include("title" => "Platform roles", "layout" => "single_column")
-      expect(body["sections"].map { |section| section.slice("title", "position", "section_template_id") }).to eq([
-        { "title" => "Skills", "position" => 0, "section_template_id" => second.id },
-        { "title" => "Experience", "position" => 1, "section_template_id" => first.id }
+      expect(body["sections"].map { |section| section.slice("position", "section_template_id") }).to eq([
+        { "position" => 0, "section_template_id" => second.id },
+        { "position" => 1, "section_template_id" => first.id }
       ])
-      expect(body["sections"].last).to include("content" => "<p>Acme</p>", "library_updated" => false)
+      expect(body["sections"].last["entries"].first).to include("content" => "<p>Acme</p>")
+      expect(body["sections"].last["library_updated"]).to be(false)
     end
 
     it "rejects another user's library section and creates nothing" do

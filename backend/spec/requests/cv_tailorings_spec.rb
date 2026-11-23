@@ -193,7 +193,7 @@ RSpec.describe "CV tailorings" do
       body = response.parsed_body["cv_tailoring"]
       expect(body).to include("id" => latest.id, "status" => "succeeded", "report" => { "fit" => "strong" })
       expect(body["suggestions"].map { |s| s["id"] }).to eq([ suggestion.id ])
-      expect(body["suggestions"].first.keys).to match_array(%w[id curriculum_section_id kind field quote replacement reason status position])
+      expect(body["suggestions"].first.keys).to match_array(%w[id curriculum_section_id entry_id kind field quote replacement reason status position])
     end
 
     it "expires a stale run on read" do

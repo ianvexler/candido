@@ -3,17 +3,9 @@
 # Table name: section_templates
 #
 #  id           :bigint           not null, primary key
-#  content      :text             default(""), not null
-#  current      :boolean          default(FALSE), not null
-#  description  :text
-#  end_date     :date
-#  location     :string
-#  organization :string
-#  role         :string
+#  entries      :jsonb            not null
 #  section_type :string           default("custom"), not null
-#  start_date   :date
 #  styles       :jsonb            not null
-#  title        :string           not null
 #  created_at   :datetime         not null
 #  updated_at   :datetime         not null
 #  user_id      :bigint           not null
@@ -33,8 +25,6 @@ class SectionTemplate < ApplicationRecord
 
   belongs_to :user
   has_many :curriculum_sections, dependent: :nullify
-
-  validates :title, :section_type, presence: true
 
   def self.find_owned!(user, id, unauthorized_message:)
     template = find_by(id: id)

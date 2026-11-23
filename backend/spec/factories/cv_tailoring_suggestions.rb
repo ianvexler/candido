@@ -2,7 +2,7 @@ FactoryBot.define do
   factory :cv_tailoring_suggestion do
     cv_tailoring
     curriculum_section do
-      cv_tailoring.curriculum.curriculum_sections.create!(title: "Work", section_type: "experience", content: "<p>Led a team</p>")
+      cv_tailoring.curriculum.curriculum_sections.create!(section_type: "experience", entries: [ { title: "Work", content: "<p>Led a team</p>" } ])
     end
     kind { "rewrite" }
     field { "content" }

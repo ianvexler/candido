@@ -28,11 +28,17 @@ module CvImports
       sections: {
         type: "array",
         items: object(
-          section_type: STRING, title: STRING, role: STRING, organization: STRING, location: STRING,
-          start_month: STRING, end_month: STRING, current: { type: "boolean" }, summary: STRING,
-          blocks: {
+          section_type: STRING,
+          entries: {
             type: "array",
-            items: object(kind: { type: "string", enum: %w[bullet paragraph heading] }, text: STRING)
+            items: object(
+              title: STRING, role: STRING, organization: STRING, location: STRING,
+              start_month: STRING, end_month: STRING, current: { type: "boolean" }, summary: STRING,
+              blocks: {
+                type: "array",
+                items: object(kind: { type: "string", enum: %w[bullet paragraph heading] }, text: STRING)
+              }
+            )
           }
         )
       }
@@ -44,9 +50,9 @@ module CvImports
       Rules:
       - Copy text faithfully. Never invent, embellish, or reword experience. Fix only obvious spacing or line-break artefacts.
       - header: the person's name, their headline or current title if the CV states one, and their contact details. links are URLs the CV lists (portfolio, GitHub, LinkedIn); use the visible label, or "" if none.
-      - Make one section per job, per degree or course, and per project. Skills, summary/profile, languages, certifications, awards and similar each get their own section.
-      - section_type is the CV's heading for that part, in title case (for example "Experience", "Education", "Skills", "Projects").
-      - For jobs and education, title is the organisation or school name, role is the job title or degree, organization repeats the organisation or school, and location is where it was. For other sections, title is a short name for the section and role, organization and location are "".
+      - Make one section per heading in the CV, in order, and never repeat a heading. A section holds entries: one entry per job, per degree or course, and per project. Skills, summary/profile, languages, certifications, awards and similar sections have exactly one entry that holds everything under the heading.
+      - section_type is the CV's heading for that part, in title case (for example "Experience", "Education", "Skills", "Projects"). Use "Profile" for the summary paragraph at the top, whatever it is titled.
+      - For jobs and education, title is the organisation or school name, role is the job title or degree, organization repeats the organisation or school, and location is where it was. For projects, title is the project name. For single-entry sections such as skills and profile, title, role, organization and location are "".
       - start_month and end_month are "YYYY-MM". Use "" when the CV gives no date, and only the year's first month ("YYYY-01") when it gives a year alone. Set current to true when the entry is ongoing ("present", "now", "current"), with end_month "".
       - summary is a one-line description that sits under the title on the CV, if there is one; otherwise "".
       - blocks hold the body text in order: "bullet" for list items, "paragraph" for prose, "heading" for sub-headings inside a section. Don't repeat the title, role, dates or summary in blocks.

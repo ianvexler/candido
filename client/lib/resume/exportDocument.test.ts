@@ -1,8 +1,11 @@
-import { ResumeHeader, SectionFields } from "@/lib/types";
+import { ResumeHeader, SectionEntry, SectionFields } from "@/lib/types";
 import { describe, expect, it } from "vitest";
 import { buildResumeDocument, isEmptyDocument, pdfFileName, sectionColumn } from "./exportDocument";
+import { emptyEntry } from "./sectionEntries";
 
 type InputSection = SectionFields & { id: number; hidden?: boolean; placement?: "main" | "sidebar" | null };
+/** Section fields, or fields of its single entry. */
+type Overrides = Partial<Omit<InputSection, "hidden">> & Partial<Omit<SectionEntry, "id" | "hidden">> & { hidden?: boolean };
 
 const header = (overrides: Partial<ResumeHeader> = {}): ResumeHeader => ({
   name: "Alex Rivera",
@@ -16,20 +19,18 @@ const header = (overrides: Partial<ResumeHeader> = {}): ResumeHeader => ({
 
 const emptyHeader = (): ResumeHeader => ({ name: "", headline: "", email: "", phone: "", location: "", links: [] });
 
-const section = (id: number, overrides: Partial<InputSection> = {}): InputSection => ({
-  id,
+const entry = (id: string, overrides: Partial<SectionEntry> = {}): SectionEntry => ({
+  ...emptyEntry(),
   title: "Acme",
-  section_type: "Experience",
-  description: null,
   content: "<p>Built things</p>",
-  role: null,
-  organization: null,
-  location: null,
-  start_date: null,
-  end_date: null,
-  current: false,
   ...overrides,
+  id,
 });
+
+const section = (
+  id: number,
+  { section_type = "Experience", entries, hidden, placement, ...fields }: Overrides = {}
+): InputSection => ({ id, section_type, hidden, placement, entries: entries ?? [entry(`e${id}`, fields as Partial<SectionEntry>)] });
 
 const build = (sections: InputSection[], h: ResumeHeader = header(), title = "Platform roles") =>
   buildResumeDocument({ title, header: h, sections });
@@ -44,8 +45,8 @@ describe("buildResumeDocument", () => {
   it("drops hidden text from the body", () => {
     const doc = build([section(1, { content: '<p>Led <span data-cv-hidden="true">quietly</span> work</p>' })]);
 
-    expect(doc.sections[0].html).toContain("Led");
-    expect(doc.sections[0].html).not.toContain("quietly");
+    expect(doc.sections[0].entries[0].html).toContain("Led");
+    expect(doc.sections[0].entries[0].html).not.toContain("quietly");
   });
 
   it("drops a section with nothing visible", () => {
@@ -59,18 +60,42 @@ describe("buildResumeDocument", () => {
   it("keeps a section that only has a title", () => {
     const doc = build([section(1, { title: "Volunteering", section_type: "", content: "" })]);
 
-    expect(doc.sections.map((s) => s.title)).toEqual(["Volunteering"]);
+    expect(doc.sections.map((s) => s.entries[0].title)).toEqual(["Volunteering"]);
+  });
+
+  it("keeps a section's entries under one heading, without hidden and empty ones", () => {
+    const entries = [entry("a"), entry("b", { hidden: true }), entry("c", { title: "", content: "" }), entry("d")];
+    const doc = build([section(1, { entries })]);
+
+    expect(doc.sections).toHaveLength(1);
+    expect(doc.sections[0].entries.map((item) => item.id)).toEqual(["a", "d"]);
+  });
+
+  it("drops a section whose entries are all left out, but keeps a bare heading", () => {
+    const doc = build([
+      section(1, { entries: [entry("a", { hidden: true })] }),
+      section(2, { entries: [entry("b", { title: "", content: "" })] }),
+    ]);
+
+    expect(doc.sections.map((item) => item.id)).toEqual([2]);
+  });
+
+  it("doesn't repeat an organisation that is also the title", () => {
+    const doc = build([section(1, { title: "Acme", role: "Engineer", organization: "acme " })]);
+
+    expect(doc.sections[0].entries[0].subtitle).toBe("Engineer");
   });
 
   it("joins role and organisation into the subtitle", () => {
     const [both, orgOnly, neither] = build([
-      section(1, { role: "Senior engineer", organization: "Acme" }),
-      section(2, { organization: "Acme" }),
+      section(1, { role: "Senior engineer", organization: "Globex" }),
+      section(2, { organization: "Globex" }),
       section(3),
-    ]).sections;
+    ])
+      .sections.map((item) => item.entries[0]);
 
-    expect(both.subtitle).toBe("Senior engineer · Acme");
-    expect(orgOnly.subtitle).toBe("Acme");
+    expect(both.subtitle).toBe("Senior engineer · Globex");
+    expect(orgOnly.subtitle).toBe("Globex");
     expect(neither.subtitle).toBe("");
   });
 
@@ -79,7 +104,8 @@ describe("buildResumeDocument", () => {
       section(1, { start_date: "2022-03-01", current: true, location: "Lisbon" }),
       section(2, { location: "Lisbon" }),
       section(3),
-    ]).sections;
+    ])
+      .sections.map((item) => item.entries[0]);
 
     expect(full.meta).toBe("Mar 2022 – Present · Lisbon");
     expect(locationOnly.meta).toBe("Lisbon");

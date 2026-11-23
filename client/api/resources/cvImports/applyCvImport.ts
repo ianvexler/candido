@@ -7,10 +7,10 @@ export type ApplyCvImportResponse = {
   profile: ResumeHeader;
 };
 
-/** Adds the chosen sections (by index into the draft) and optionally fills empty profile fields. */
+/** Adds the chosen entries, in sections under their headings, and optionally fills empty profile fields. */
 export const applyCvImport = async (
   id: number,
-  payload: { section_indexes: number[]; fill_profile: boolean }
+  payload: { entry_ids: string[]; fill_profile: boolean }
 ): Promise<ApplyCvImportResponse> => {
   const response = await apiClient.post(`/cv_imports/${id}/apply`, payload);
   return response.data;

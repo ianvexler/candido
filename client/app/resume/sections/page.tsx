@@ -48,7 +48,7 @@ const SectionLibraryPage = () => {
   const onAddSection = async () => {
     setCreating(true);
     try {
-      const response = await createSectionTemplate({ title: "Untitled", section_type: "Section" });
+      const response = await createSectionTemplate({ section_type: "Section" });
       setTemplates((current) => [...current, response.section_template]);
     } catch (error) {
       console.error(error);

@@ -1,9 +1,11 @@
-# Shared by library sections and the copies inside a CV: `content` is the
-# editor's HTML. Hidden text is wrapped in <span data-cv-hidden> and stays in
-# the stored HTML; preview and export drop it.
+# Shared by library sections and the copies inside a CV. A section is a heading
+# (`section_type`) and a list of entries: a job, a degree, a project, or one
+# untitled entry for plain sections such as skills.
 #
-# Sections may also carry optional details (role, organization, location and
-# a month range) for experience- and education-style entries.
+# An entry's `content` is the editor's HTML. Hidden text is wrapped in
+# <span data-cv-hidden> and stays in the stored HTML; preview and export drop
+# it. An entry may also carry a role, organization, location and month range.
+# The same entry has the same id in the library and in every copy.
 module SectionContent
   extend ActiveSupport::Concern
 
@@ -14,15 +16,23 @@ module SectionContent
   # The editor keeps an empty paragraph after a trailing list; it is not content.
   TRAILING_EMPTY_PARAGRAPHS = %r{(?:<p>(?:\s|&nbsp;|<br\s*/?>)*</p>)+\z}
 
-  DETAIL_FIELDS = %i[role organization location start_date end_date current].freeze
-  DETAIL_TEXT_FIELDS = %i[role organization location].freeze
+  MAX_ENTRIES = 60
+  MAX_LINE = 200
+  LINE_FIELDS = %w[role organization location].freeze
+  ENTRY_FIELDS = %i[
+    id title role organization location start_date end_date current description content hidden
+  ].freeze
+  ENTRY_ID = /\A[\w-]{1,64}\z/
+  # From when a section was a single entry; a later migration drops them.
+  OLD_COLUMNS = %w[title description content role organization location start_date end_date current].freeze
 
   included do
-    before_validation :normalize_content
-    before_validation :normalize_details
+    self.ignored_columns += OLD_COLUMNS
 
-    validates(*DETAIL_TEXT_FIELDS, length: { maximum: 200 })
-    validate :end_date_not_before_start_date
+    # Also fills a new record's entries, so a section always has one to write in.
+    before_validation :normalize_entries
+    validates :section_type, presence: true
+    validate :entries_are_valid
   end
 
   class_methods do
@@ -38,21 +48,57 @@ module SectionContent
     end
   end
 
+  def visible_entries
+    entries.reject { |entry| entry["hidden"] }
+  end
+
   private
 
-  def normalize_content
-    self.content = self.class.sanitize_content(content)
+  def normalize_entries
+    list = Array(entries).grep(Hash)
+    list = [ {} ] if list.empty?
+    seen = Set.new
+    self.entries = list.map do |raw|
+      entry = normalize_entry(raw.stringify_keys)
+      entry["id"] = SecureRandom.uuid unless entry["id"].match?(ENTRY_ID) && seen.exclude?(entry["id"])
+      seen << entry["id"]
+      entry
+    end
   end
 
-  def normalize_details
-    DETAIL_TEXT_FIELDS.each { |field| self[field] = self[field].to_s.squish.presence }
-    self.start_date = start_date&.beginning_of_month
-    self.end_date = current? ? nil : end_date&.beginning_of_month
+  def normalize_entry(raw)
+    current = boolean(raw["current"])
+    {
+      "id" => raw["id"].to_s,
+      "title" => raw["title"].to_s.squish,
+      **LINE_FIELDS.index_with { |field| raw[field].to_s.squish.presence },
+      "start_date" => month(raw["start_date"]),
+      "end_date" => current ? nil : month(raw["end_date"]),
+      "current" => current,
+      "description" => raw["description"].to_s.strip.presence,
+      "content" => self.class.sanitize_content(raw["content"]),
+      "hidden" => boolean(raw["hidden"])
+    }
   end
 
-  def end_date_not_before_start_date
-    return if start_date.nil? || end_date.nil? || end_date >= start_date
+  def boolean(value)
+    ActiveModel::Type::Boolean.new.cast(value) || false
+  end
 
-    errors.add(:end_date, "can't be before the start date")
+  # "2022-03-17" is stored as "2022-03-01"; anything that isn't a date as nil.
+  def month(value)
+    ActiveModel::Type::Date.new.cast(value)&.beginning_of_month&.iso8601
+  end
+
+  def entries_are_valid
+    errors.add(:base, "A section can have at most #{MAX_ENTRIES} entries") if entries.size > MAX_ENTRIES
+
+    entries.each do |entry|
+      LINE_FIELDS.each do |field|
+        errors.add(:base, "#{field.humanize} is too long (maximum is #{MAX_LINE} characters)") if entry[field].to_s.length > MAX_LINE
+      end
+      first, last = entry.values_at("start_date", "end_date")
+      errors.add(:base, "End date can't be before the start date") if first && last && last < first
+    end
   end
 end

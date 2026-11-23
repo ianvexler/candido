@@ -1,12 +1,10 @@
 import { hasVisibleText, stripHiddenHtml } from "@/components/resume/documentContent";
 import { formatDateRange } from "@/components/resume/sectionDetails";
-import { ResumeHeader, ResumeHeaderTextFields, SectionFields, SectionPlacement } from "@/lib/types";
+import { ResumeHeader, ResumeHeaderTextFields, SectionEntry, SectionFields, SectionPlacement } from "@/lib/types";
 
-/** One section as it appears in an exported resume. Every field is ready to display. */
-export type ExportSection = {
-  id: number;
-  /** Section type, e.g. "Experience". */
-  heading: string;
+/** One entry as it appears in an exported resume. Every field is ready to display. */
+export type ExportEntry = {
+  id: string;
   title: string;
   /** "Role · Organisation", or "". */
   subtitle: string;
@@ -15,6 +13,14 @@ export type ExportSection = {
   summary: string;
   /** Content HTML with hidden text, and blocks left empty by it, removed. */
   html: string;
+};
+
+/** One section as it appears in an exported resume: a heading and its entries. */
+export type ExportSection = {
+  id: number;
+  /** Section type, e.g. "Experience". */
+  heading: string;
+  entries: ExportEntry[];
   /** Where it sits in a two-column template. Single-column templates ignore it. */
   column: SectionPlacement;
 };
@@ -52,19 +58,34 @@ const cleanHeader = (header: ResumeHeader): ResumeHeader => {
   return cleaned;
 };
 
+/** The organisation isn't repeated when it is also the entry's title. */
+const organizationLabel = ({ title, organization }: SectionEntry) =>
+  organization?.trim().toLowerCase() === title.trim().toLowerCase() ? "" : organization;
+
+const toExportEntry = (entry: SectionEntry): ExportEntry => ({
+  id: entry.id,
+  title: entry.title.trim(),
+  subtitle: joinParts([entry.role, organizationLabel(entry)]),
+  meta: joinParts([formatDateRange(entry), entry.location]),
+  summary: entry.description?.trim() ?? "",
+  html: hasVisibleText(entry.content) ? stripHiddenHtml(entry.content) : "",
+});
+
+const hasEntryContent = (entry: ExportEntry) =>
+  Boolean(entry.title || entry.subtitle || entry.meta || entry.summary || entry.html);
+
 const toExportSection = (section: InputSection): ExportSection => ({
   id: section.id,
   heading: section.section_type.trim(),
-  title: section.title.trim(),
-  subtitle: joinParts([section.role, section.organization]),
-  meta: joinParts([formatDateRange(section), section.location]),
-  summary: section.description?.trim() ?? "",
-  html: hasVisibleText(section.content) ? stripHiddenHtml(section.content) : "",
+  entries: section.entries.filter((entry) => !entry.hidden).map(toExportEntry).filter(hasEntryContent),
   column: sectionColumn(section),
 });
 
-const hasContent = (section: ExportSection) =>
-  Boolean(section.heading || section.title || section.subtitle || section.meta || section.summary || section.html);
+/** Hidden itself, or every entry is. */
+const isLeftOut = (section: InputSection) =>
+  section.hidden || (section.entries.length > 0 && section.entries.every((entry) => entry.hidden));
+
+const hasContent = (section: ExportSection) => Boolean(section.heading || section.entries.length > 0);
 
 export const buildResumeDocument = ({
   title,
@@ -78,7 +99,7 @@ export const buildResumeDocument = ({
 }): ResumeDocument => ({
   title: title.trim(),
   header: cleanHeader(header),
-  sections: sections.filter((section) => !section.hidden).map(toExportSection).filter(hasContent),
+  sections: sections.filter((section) => !isLeftOut(section)).map(toExportSection).filter(hasContent),
 });
 
 /** Nothing worth printing: a header alone isn't a resume. */

@@ -136,11 +136,22 @@ export type SectionTemplate = SectionFields & {
 
 /** Fields every resume section has, whether in the library or inside a CV. */
 export type SectionFields = {
-  title: string;
+  /** The heading, e.g. "Experience". */
   section_type: string;
+  /** In order. A plain section such as skills has one untitled entry. */
+  entries: SectionEntry[];
+}
+
+/** One job, degree, project, etc. inside a section. */
+export type SectionEntry = {
+  /** Shared by the library entry and its copies in resumes. */
+  id: string;
+  title: string;
   description: string | null;
   /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
   content: string;
+  /** Left out of the resume. */
+  hidden: boolean;
 } & SectionDetails
 
 /** Optional details for experience/education-style sections. */
@@ -258,6 +269,8 @@ export type CvSuggestionStatus = (typeof CvSuggestionStatuses)[number];
 export type CvSuggestion = {
   id: number;
   curriculum_section_id: number;
+  /** The entry it is about; null on reviews from before sections had entries. */
+  entry_id: string | null;
   kind: "rewrite" | "note";
   field: "content" | "description" | null;
   quote: string;

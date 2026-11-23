@@ -1,9 +1,13 @@
 require "rails_helper"
 
 RSpec.describe CvImports::Draft do
-  def section(overrides = {})
+  def section(fields = {}, type: "Experience", **rest)
+    { "section_type" => type, "entries" => [ entry(fields.merge(rest)) ] }
+  end
+
+  def entry(overrides = {})
     {
-      "section_type" => "Experience", "title" => "Acme", "role" => "Engineer", "organization" => "Acme",
+      "title" => "Acme", "role" => "Engineer", "organization" => "Acme",
       "location" => "Lisbon", "start_month" => "2022-03", "end_month" => "2024-01", "current" => false,
       "summary" => "", "blocks" => []
     }.merge(overrides)
@@ -22,7 +26,7 @@ RSpec.describe CvImports::Draft do
         { "kind" => "heading", "text" => "Later" }
       ]
 
-      content = draft(sections: [ section("blocks" => blocks) ])["sections"].first["content"]
+      content = draft(sections: [ section("blocks" => blocks) ])["sections"].first["entries"].first["content"]
 
       expect(content).to eq("<p>Intro</p><ul><li><p>One</p></li><li><p>Two</p></li></ul><h3>Later</h3>")
     end
@@ -30,7 +34,7 @@ RSpec.describe CvImports::Draft do
     it "escapes anything that looks like HTML" do
       blocks = [ { "kind" => "bullet", "text" => "<script>alert(1)</script> & <b>bold</b>" } ]
 
-      content = draft(sections: [ section("blocks" => blocks) ])["sections"].first["content"]
+      content = draft(sections: [ section("blocks" => blocks) ])["sections"].first["entries"].first["content"]
 
       expect(content).not_to include("<script", "<b>")
       expect(content).to include("&lt;script&gt;", "&amp;")
@@ -39,7 +43,7 @@ RSpec.describe CvImports::Draft do
     it "cuts very long block text" do
       blocks = [ { "kind" => "paragraph", "text" => "a" * 3000 } ]
 
-      content = draft(sections: [ section("blocks" => blocks) ])["sections"].first["content"]
+      content = draft(sections: [ section("blocks" => blocks) ])["sections"].first["entries"].first["content"]
 
       expect(content).to eq("<p>#{'a' * 2000}</p>")
     end
@@ -47,48 +51,76 @@ RSpec.describe CvImports::Draft do
 
   describe "section fields" do
     it "maps fields to section template attributes" do
-      result = draft(sections: [ section("summary" => " Led platform work ") ])["sections"].first
+      result = draft(sections: [ section("summary" => " Led platform work ") ])["sections"].first["entries"].first
 
       expect(result).to include(
-        "section_type" => "Experience", "title" => "Acme", "role" => "Engineer", "organization" => "Acme",
+        "title" => "Acme", "role" => "Engineer", "organization" => "Acme",
         "location" => "Lisbon", "description" => "Led platform work", "current" => false,
         "start_date" => Date.new(2022, 3, 1), "end_date" => Date.new(2024, 1, 1)
       )
     end
 
     it "drops dates that aren't YYYY-MM" do
-      result = draft(sections: [ section("start_month" => "March 2022", "end_month" => "") ])["sections"].first
+      result = draft(sections: [ section("start_month" => "March 2022", "end_month" => "") ])["sections"].first["entries"].first
 
       expect(result).to include("start_date" => nil, "end_date" => nil)
     end
 
     it "drops an end date before the start date" do
-      result = draft(sections: [ section("start_month" => "2024-01", "end_month" => "2022-01") ])["sections"].first
+      result = draft(sections: [ section("start_month" => "2024-01", "end_month" => "2022-01") ])["sections"].first["entries"].first
 
       expect(result).to include("start_date" => Date.new(2024, 1, 1), "end_date" => nil)
     end
 
     it "drops the end date of a current entry" do
-      result = draft(sections: [ section("current" => true) ])["sections"].first
+      result = draft(sections: [ section("current" => true) ])["sections"].first["entries"].first
 
       expect(result).to include("current" => true, "end_date" => nil)
     end
 
-    it "falls back for a blank title and type" do
-      untitled, typed = draft(sections: [
-        section("title" => " ", "section_type" => " "),
-        section("title" => "", "section_type" => "Skills")
-      ])["sections"]
+    it "falls back for a blank heading" do
+      result = draft(sections: [ section(type: " ") ])["sections"].first
 
-      expect(untitled).to include("title" => "Untitled", "section_type" => "Section")
-      expect(typed).to include("title" => "Skills", "section_type" => "Skills")
+      expect(result["section_type"]).to eq("Section")
+    end
+
+    it "drops a title that only repeats the heading" do
+      result = draft(sections: [ section({ "title" => "Technical skills" }, type: "Technical Skills") ])["sections"].first
+
+      expect(result["entries"].first["title"]).to eq("")
     end
 
     it "keeps at most 40 sections" do
-      result = draft(sections: Array.new(45) { |i| section("title" => "S#{i}") })["sections"]
+      result = draft(sections: Array.new(45) { |i| section(type: "S#{i}") })["sections"]
 
       expect(result.size).to eq(40)
-      expect(result.last["title"]).to eq("S39")
+      expect(result.last["section_type"]).to eq("S39")
+    end
+  end
+
+  describe "entries" do
+    it "keeps several entries under one heading, each with its own id" do
+      raw = { "section_type" => "Projects", "entries" => [ entry("title" => "One"), entry("title" => "Two") ] }
+
+      result = draft(sections: [ raw ])["sections"]
+
+      expect(result.size).to eq(1)
+      expect(result.first["entries"].pluck("title")).to eq([ "One", "Two" ])
+      expect(result.first["entries"].pluck("id").uniq.size).to eq(2)
+    end
+
+    it "merges sections the model repeated, whatever the heading's case" do
+      result = draft(sections: [
+        section({ "title" => "One" }, type: "Key Projects"), section({ "title" => "Uni" }, type: "Education"),
+        section({ "title" => "Two" }, type: "KEY PROJECTS")
+      ])["sections"]
+
+      expect(result.pluck("section_type")).to eq([ "Key Projects", "Education" ])
+      expect(result.first["entries"].pluck("title")).to eq([ "One", "Two" ])
+    end
+
+    it "drops a section without entries" do
+      expect(draft(sections: [ { "section_type" => "Skills", "entries" => [] } ])["sections"]).to eq([])
     end
   end
 

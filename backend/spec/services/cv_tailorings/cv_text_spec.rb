@@ -3,8 +3,8 @@ require "rails_helper"
 RSpec.describe CvTailorings::CvText do
   let(:curriculum) { create(:curriculum) }
 
-  def add_section(attrs = {})
-    curriculum.curriculum_sections.create!({ title: "Acme", section_type: "experience", content: "" }.merge(attrs))
+  def add_section(hidden: false, **entry)
+    curriculum.curriculum_sections.create!(section_type: "experience", hidden: hidden, entries: [ { title: "Acme", **entry } ])
   end
 
   it "one block per bullet and paragraph, without hidden text" do
@@ -43,12 +43,26 @@ RSpec.describe CvTailorings::CvText do
     expect(sections.map { |s| s[:heading] }).to eq([ "experience · Visible" ])
   end
 
-  it "render labels sections by id" do
-    section = add_section(description: "Backend", content: "<p>Hello</p>")
+  it "numbers each visible entry and remembers where it came from" do
+    section = curriculum.curriculum_sections.create!(section_type: "Projects", entries: [
+      { title: "One", content: "<p>A</p>" }, { title: "Left out", hidden: true }, { title: "Two", content: "<p>B</p>" }
+    ])
+    curriculum.curriculum_sections.create!(section_type: "Skills", position: 1, entries: [ { content: "<p>Ruby</p>" } ])
+
+    units = described_class.call(curriculum.reload)
+
+    expect(units.map { |unit| unit.slice(:id, :heading) }).to eq([
+      { id: 1, heading: "Projects · One" }, { id: 2, heading: "Projects · Two" }, { id: 3, heading: "Skills" }
+    ])
+    expect(units[1]).to include(curriculum_section_id: section.id, entry_id: section.entries[2]["id"])
+  end
+
+  it "render labels entries by number" do
+    add_section(description: "Backend", content: "<p>Hello</p>")
 
     text = described_class.render(described_class.call(curriculum.reload))
 
-    expect(text).to include("[section #{section.id}] experience · Acme")
+    expect(text).to include("[section 1] experience · Acme")
     expect(text).to include("Summary: Backend")
     expect(text).to include("- Hello")
   end

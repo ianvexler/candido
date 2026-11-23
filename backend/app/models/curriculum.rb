@@ -83,11 +83,8 @@ class Curriculum < ApplicationRecord
 
         curriculum_sections.create!(
           section_template: template,
-          title: template.title,
           section_type: template.section_type,
-          description: template.description,
-          content: template.content,
-          **template.slice(*SectionContent::DETAIL_FIELDS).symbolize_keys,
+          entries: template.entries.deep_dup,
           styles: template.styles.deep_dup,
           position: next_section_position,
           hidden: false,
@@ -97,9 +94,9 @@ class Curriculum < ApplicationRecord
     end
   end
 
-  # Appends a section with no content yet, titled after its type, for the user to fill in.
+  # Appends a section with no content yet for the user to fill in.
   def add_empty_section!(section_type)
-    curriculum_sections.create!(title: section_type, section_type: section_type, position: next_section_position)
+    curriculum_sections.create!(section_type: section_type, position: next_section_position)
   end
 
   # Makes a copy of this resume for a job: same header, styles, layout and

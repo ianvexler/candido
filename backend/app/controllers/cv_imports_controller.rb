@@ -36,7 +36,7 @@ class CvImportsController < ApplicationController
 
   def apply
     applied = @cv_import.apply!(
-      section_indexes: section_indexes,
+      entry_ids: entry_ids,
       fill_profile: ActiveModel::Type::Boolean.new.cast(params[:fill_profile]) || false
     )
     render json: {
@@ -48,14 +48,14 @@ class CvImportsController < ApplicationController
 
   private
 
-  def section_indexes
-    raw = params[:section_indexes]
+  def entry_ids
+    raw = params[:entry_ids]
     return [] if raw.nil?
 
-    valid = raw.is_a?(Array) && raw.all? { |value| value.is_a?(Integer) || value.to_s.match?(/\A\d+\z/) }
-    raise ApiError.new("section_indexes must be a list of numbers", status: :bad_request) unless valid
+    valid = raw.is_a?(Array) && raw.all?(String)
+    raise ApiError.new("entry_ids must be a list of ids", status: :bad_request) unless valid
 
-    raw.map(&:to_i)
+    raw
   end
 
   def set_cv_import
