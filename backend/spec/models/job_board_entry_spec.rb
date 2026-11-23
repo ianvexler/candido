@@ -108,6 +108,15 @@ RSpec.describe JobBoardEntry do
         expect(Curriculum.exists?(copy.id)).to be(false)
       end
 
+      it "deletes the linked copy even when this record was loaded before it was linked" do
+        stale = JobBoardEntry.find(entry.id)
+        entry.use_cv_copy!(copy)
+
+        stale.use_cv_copy!(create(:curriculum, user: user, job_board_entry: entry))
+
+        expect(Curriculum.exists?(copy.id)).to be(false)
+      end
+
       it "keeps the copy's past reviews, which still count toward the daily limit" do
         run = create(:cv_tailoring, user: user, curriculum: copy)
         entry.use_cv_copy!(copy)

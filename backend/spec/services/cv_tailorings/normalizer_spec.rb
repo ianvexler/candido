@@ -42,7 +42,7 @@ RSpec.describe CvTailorings::Normalizer do
     end
 
     it "keeps an essential section the CV has none of, with a trimmed reason" do
-      result = missing([ { "section" => "Education", "reason" => "The role asks for a degree. " * 10 } ], [ "Experience", "Acme" ])
+      result = missing([ { "section" => "Education", "reason" => "The role asks for a degree. " * 10 } ], [ [ "Experience", "Acme" ] ])
 
       expect(result.size).to eq(1)
       expect(result.first[:section]).to eq("Education")
@@ -53,7 +53,7 @@ RSpec.describe CvTailorings::Normalizer do
       items = [ { "section" => "Experience", "reason" => "x" }, { "section" => "Education", "reason" => "x" },
                 { "section" => "Skills", "reason" => "x" } ]
 
-      expect(missing(items, [ "Work history", "Acme", "Qualifications", "Technical skills" ])).to be_empty
+      expect(missing(items, [ [ "Work history", "Acme" ], [ "Qualifications", "BSc" ], [ "custom", "Technical skills" ] ])).to be_empty
     end
 
     it "drops unknown sections, duplicates and blank reasons, and keeps at most two" do
@@ -64,9 +64,32 @@ RSpec.describe CvTailorings::Normalizer do
       expect(missing(items, []).map { |item| item[:section] }).to eq(%w[Education Skills])
     end
 
+    it "doesn't take an employer's name or part of a word for a section" do
+      items = [ { "section" => "Education", "reason" => "x" }, { "section" => "Skills", "reason" => "x" } ]
+      existing = [ [ "Experience", "University of Leeds" ], [ "Experience", "Stack Overflow" ] ]
+
+      expect(missing(items, existing).map { |item| item[:section] }).to eq(%w[Education Skills])
+      expect(missing([ { "section" => "Experience", "reason" => "x" } ], [ [ "custom", "International awards" ] ]).size).to eq(1)
+    end
+
     it "is empty when the model sends none" do
       expect(described_class.call({}, sections)[:report][:missing_sections]).to eq([])
     end
+  end
+
+  it "lets a rewrite replace every note it overlaps, and keeps the same word in another block" do
+    blocks = [ "Built APIs", "Documented internal APIs" ]
+    notes = %w[Built APIs].map { |quote| suggestion("kind" => "note", "quote" => quote, "replacement" => "") }
+    rewrite = suggestion("quote" => "Built APIs", "replacement" => "Built REST APIs")
+    elsewhere = suggestion("quote" => "Documented internal APIs", "replacement" => "Documented REST APIs")
+
+    kept = described_class.call({ "suggestions" => [ *notes, rewrite, elsewhere ] },
+                                [ { id: 1, heading: "", description: "", blocks: blocks } ])[:suggestions]
+
+    expect(kept.map { |s| s[:quote] }).to eq([ "Built APIs", "Documented internal APIs" ])
+    both = described_class.call({ "suggestions" => [ suggestion("kind" => "note", "quote" => "APIs", "replacement" => ""), elsewhere ] },
+                                [ { id: 1, heading: "", description: "", blocks: blocks } ])[:suggestions]
+    expect(both.size).to eq(2)
   end
 
   it "drops suggestions for unknown sections" do

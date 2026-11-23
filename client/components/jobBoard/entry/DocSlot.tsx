@@ -197,10 +197,12 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
       <div className="space-y-1.5">
         <button
           type="button"
-          onClick={() => fill("upload")}
+          onClick={() => {
+            if (!saving) fill("upload");
+          }}
           onDragOver={(e) => {
             e.preventDefault();
-            setDragging(true);
+            setDragging(!saving);
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => {
@@ -209,11 +211,12 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
             const file = e.dataTransfer.files[0];
             if (file && !saving) takeFile(file);
           }}
-          disabled={saving}
+          // Not `disabled`: it would stop handling drops, and the browser would open the file instead.
+          aria-disabled={saving}
           className={cn(
             "group flex w-full items-center gap-3 rounded-md border border-dashed border-muted-foreground/30 px-4 py-3.5 text-left transition-colors",
             "hover:border-muted-foreground/60 hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-            "disabled:pointer-events-none disabled:opacity-60",
+            "aria-disabled:cursor-default aria-disabled:opacity-60",
             dragging && "border-primary bg-muted/60"
           )}
         >

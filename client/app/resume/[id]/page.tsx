@@ -314,11 +314,12 @@ const ResumePage = ({ params }: ResumePageProps) => {
   const addMissingSection = async (sectionType: MissingSection) => {
     try {
       const response = await addEmptyCurriculumSection(curriculum.id, sectionType);
-      const known = new Set(sections.map((section) => section.id));
-      const added = (response.curriculum.sections ?? []).filter((section) => !known.has(section.id));
-      setSections((current) => [...current, ...added]);
+      // The endpoint appends, so the last one is the new section.
+      const first = (response.curriculum.sections ?? []).at(-1);
+      if (first) {
+        setSections((current) => (current.some((section) => section.id === first.id) ? current : [...current, first]));
+      }
       toast.success(`${sectionType} section added`);
-      const first = added[0];
       if (first) {
         requestAnimationFrame(() =>
           document.querySelector(`[data-section-id="${first.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" })

@@ -171,7 +171,8 @@ class JobBoardEntry < ApplicationRecord
   # Uploading, pasting or removing the CV deletes a copy made for this job, since it only existed
   # for this job; the user is asked first. Past reviews stay and still count toward the daily limit.
   def upload_cv!(text: nil, file: nil)
-    transaction do
+    # Locked so a concurrent change can't leave the copy it linked behind.
+    with_lock do
       replaced = cv_curriculum
       apply_upload!(
         text: text,
@@ -189,9 +190,10 @@ class JobBoardEntry < ApplicationRecord
   # deleting the copy it replaces. The stored file goes only after the surrounding
   # transaction commits, so a rollback never loses it.
   def use_cv_copy!(curriculum)
-    old_key = cv_key
-    replaced = cv_curriculum unless cv_curriculum_id == curriculum.id
-    transaction do
+    old_key = nil
+    with_lock do
+      old_key = cv_key
+      replaced = cv_curriculum unless cv_curriculum_id == curriculum.id
       update!(cv_curriculum: curriculum, cv_text: nil, cv_key: nil, cv_filename: nil)
       discard_own_copy!(replaced)
     end

@@ -109,6 +109,9 @@ describe("stillMissing", () => {
       "Education",
     ]);
   });
+  it("doesn't take an employer's name for a section", () => {
+    expect(stillMissing(report, [{ section_type: "Experience", title: "University of Leeds" }])).toHaveLength(2);
+  });
   it("is empty for reviews from before missing sections existed", () => {
     expect(stillMissing({}, [])).toEqual([]);
     expect(stillMissing(null, [])).toEqual([]);

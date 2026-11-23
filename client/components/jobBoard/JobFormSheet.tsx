@@ -407,6 +407,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         newStatus,
         newNumber,
         stateRef.current.tags,
+        toClosingDatePayload(stateRef.current.closingDate),
       );
 
       props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry, startedAt));
