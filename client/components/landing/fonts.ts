@@ -1,8 +1,9 @@
-import { Big_Shoulders } from "next/font/google";
+import localFont from "next/font/local";
 
 /** Condensed headline face for the landing page, echoing the logo's lettering. */
-export const display = Big_Shoulders({
+export const display = localFont({
+  src: "../../fonts/big-shoulders/latin.woff2",
   variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["800", "900"],
+  weight: "800 900",
+  adjustFontFallback: false,
 });

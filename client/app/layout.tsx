@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ReactNode } from "react";
 import Navbar from "@/components/layout/Navbar";
@@ -9,15 +9,16 @@ import { JobsRefreshProvider } from "@/contexts/JobsRefreshContext";
 import { Toaster } from "react-hot-toast";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 
-const dmSans = DM_Sans({
+const dmSans = localFont({
+  src: "../fonts/dm-sans/latin.woff2",
   variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "../fonts/geist-mono/latin.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {
