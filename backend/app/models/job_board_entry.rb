@@ -168,23 +168,33 @@ class JobBoardEntry < ApplicationRecord
     end
   end
 
+  # Uploading, pasting or removing the CV deletes a copy made for this job, since it only existed
+  # for this job; the user is asked first. Past reviews stay and still count toward the daily limit.
   def upload_cv!(text: nil, file: nil)
-    apply_upload!(
-      text: text,
-      file: file,
-      text_attr: :cv_text,
-      key_attr: :cv_key,
-      filename_attr: :cv_filename,
-      extra: { cv_curriculum_id: nil }
-    )
+    transaction do
+      replaced = cv_curriculum
+      apply_upload!(
+        text: text,
+        file: file,
+        text_attr: :cv_text,
+        key_attr: :cv_key,
+        filename_attr: :cv_filename,
+        extra: { cv_curriculum_id: nil }
+      )
+      discard_own_copy!(replaced)
+    end
   end
 
-  # Makes a copy of a resume this job's CV, replacing any uploaded file or text.
-  # The stored file goes only after the surrounding transaction commits, so a
-  # rollback never loses it.
+  # Makes a copy of a resume this job's CV, replacing any uploaded file or text, or
+  # deleting the copy it replaces. The stored file goes only after the surrounding
+  # transaction commits, so a rollback never loses it.
   def use_cv_copy!(curriculum)
     old_key = cv_key
-    update!(cv_curriculum: curriculum, cv_text: nil, cv_key: nil, cv_filename: nil)
+    replaced = cv_curriculum unless cv_curriculum_id == curriculum.id
+    transaction do
+      update!(cv_curriculum: curriculum, cv_text: nil, cv_key: nil, cv_filename: nil)
+      discard_own_copy!(replaced)
+    end
     ActiveRecord.after_all_transactions_commit { PdfUploader.delete_key(old_key) } if old_key
   end
 
@@ -199,6 +209,12 @@ class JobBoardEntry < ApplicationRecord
   end
 
   private
+
+  # Deletes a CV that was copied for this job. Anything else (a CV made for another job,
+  # or one of the user's own CVs) is only unlinked.
+  def discard_own_copy!(curriculum)
+    curriculum.destroy! if curriculum && curriculum.job_board_entry_id == id
+  end
 
   def apply_upload!(text:, file:, text_attr:, key_attr:, filename_attr:, extra: {})
     if text.present?
