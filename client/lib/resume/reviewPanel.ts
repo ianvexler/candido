@@ -76,9 +76,9 @@ export const isConflict = (error: unknown): boolean =>
  * CvTailorings::Normalizer::MISSING_SECTIONS; keep the two in step.
  */
 export const MISSING_SECTION_PATTERNS: Record<MissingSection, RegExp> = {
-  Experience: /\b(?:experience|employment|work|career|jobs?|internships?|positions?)\b/i,
+  Experience: /\b(?:experience|employment|work|career|jobs?|internships?|positions?|roles?|background|history)\b/i,
   Education: /\b(?:education|qualifications?|academics?|degrees?|stud(?:y|ies)|school|university|training|certificat(?:es?|ions?))\b/i,
-  Skills: /\b(?:skills?|competenc(?:y|ies|es?)|technolog(?:y|ies)|tools?|stack|expertise)\b/i,
+  Skills: /\b(?:skills?|competenc(?:y|ies|es?)|technolog(?:y|ies)|tools?|stack|expertise|proficienc(?:y|ies)|programming languages?)\b/i,
 };
 
 /** The report's missing sections the CV still has none of, so one disappears once it's added. */

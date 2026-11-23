@@ -19,9 +19,9 @@ module CvTailorings
     # when the type is "custom": elsewhere it's often an employer ("University of Leeds").
     # The client mirrors this (MISSING_SECTION_PATTERNS) to hide an item once it's added.
     MISSING_SECTIONS = {
-      "Experience" => /\b(?:experience|employment|work|career|jobs?|internships?|positions?)\b/i,
+      "Experience" => /\b(?:experience|employment|work|career|jobs?|internships?|positions?|roles?|background|history)\b/i,
       "Education" => /\b(?:education|qualifications?|academics?|degrees?|stud(?:y|ies)|school|university|training|certificat(?:es?|ions?))\b/i,
-      "Skills" => /\b(?:skills?|competenc(?:y|ies|es?)|technolog(?:y|ies)|tools?|stack|expertise)\b/i
+      "Skills" => /\b(?:skills?|competenc(?:y|ies|es?)|technolog(?:y|ies)|tools?|stack|expertise|proficienc(?:y|ies)|programming languages?)\b/i
     }.freeze
 
     module_function

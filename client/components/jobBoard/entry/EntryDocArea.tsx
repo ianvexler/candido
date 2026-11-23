@@ -23,11 +23,12 @@ const EntryDocArea = ({ entry, onPatchEntry, beforeLeave }: EntryDocAreaProps) =
         <TabsTrigger value="cover-letter">Cover letter</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="cv">
+      {/* Kept mounted, so switching tabs doesn't lose a half-typed document. */}
+      <TabsContent value="cv" forceMount className="data-[state=inactive]:hidden">
         <DocSlot kind="cv" entry={entry} onPatchEntry={onPatchEntry} beforeLeave={beforeLeave} />
       </TabsContent>
 
-      <TabsContent value="cover-letter">
+      <TabsContent value="cover-letter" forceMount className="data-[state=inactive]:hidden">
         <DocSlot kind="cover_letter" entry={entry} onPatchEntry={onPatchEntry} />
       </TabsContent>
 

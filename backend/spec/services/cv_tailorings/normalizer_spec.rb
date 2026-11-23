@@ -64,6 +64,15 @@ RSpec.describe CvTailorings::Normalizer do
       expect(missing(items, []).map { |item| item[:section] }).to eq(%w[Education Skills])
     end
 
+    it "recognises other common headings" do
+      experience = [ { "section" => "Experience", "reason" => "x" } ]
+      skills = [ { "section" => "Skills", "reason" => "x" } ]
+
+      [ "Professional background", "Career history", "Roles" ].each { |type| expect(missing(experience, [ [ type, "" ] ])).to be_empty }
+      [ "Programming languages", "Technical proficiencies" ].each { |type| expect(missing(skills, [ [ type, "" ] ])).to be_empty }
+      expect(missing(skills, [ [ "Languages", "" ] ]).size).to eq(1)
+    end
+
     it "doesn't take an employer's name or part of a word for a section" do
       items = [ { "section" => "Education", "reason" => "x" }, { "section" => "Skills", "reason" => "x" } ]
       existing = [ [ "Experience", "University of Leeds" ], [ "Experience", "Stack Overflow" ] ]

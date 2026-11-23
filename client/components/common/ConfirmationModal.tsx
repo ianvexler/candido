@@ -1,11 +1,15 @@
 "use client";
 
 import { Dialog } from "radix-ui";
+import { useState } from "react";
 import { Button } from "../ui/Button";
 
 interface ConfirmationModalProps {
   isOpen: boolean;
+  /** Called when the prompt is dismissed, and after confirming. */
   onClose: () => void;
+  /** The cancel button, when it does more than dismiss the prompt (e.g. Discard). */
+  onCancel?: () => void;
   onConfirm: () => void | Promise<void>;
   title: string;
   description?: string;
@@ -17,6 +21,7 @@ interface ConfirmationModalProps {
 const ConfirmationModal = ({
   isOpen,
   onClose,
+  onCancel = onClose,
   onConfirm,
   title,
   description,
@@ -24,9 +29,17 @@ const ConfirmationModal = ({
   cancelLabel = "Cancel",
   variant = "default",
 }: ConfirmationModalProps) => {
+  // Held while confirming, so a second click can't run it twice.
+  const [confirming, setConfirming] = useState(false);
+
   const handleConfirm = async () => {
-    await onConfirm();
-    onClose();
+    setConfirming(true);
+    try {
+      await onConfirm();
+      onClose();
+    } finally {
+      setConfirming(false);
+    }
   };
 
   return (
@@ -49,7 +62,7 @@ const ConfirmationModal = ({
           )}
 
           <div className="mt-6 flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={confirming}>
               {cancelLabel}
             </Button>
           
@@ -57,6 +70,7 @@ const ConfirmationModal = ({
               type="button"
               variant={variant === "destructive" ? "destructive" : "default"}
               onClick={handleConfirm}
+              disabled={confirming}
             >
               {confirmLabel}
             </Button>
