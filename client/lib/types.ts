@@ -142,6 +142,8 @@ export type SectionTemplate = SectionFields & {
   id: number;
   user_id: number;
   styles: Record<string, unknown>;
+  /** When items and entries were added to the section, by id. Absent if unknown. */
+  item_added_at: Record<string, string>;
   created_at: Date;
   updated_at: Date;
 }
@@ -165,6 +167,12 @@ export type SectionEntry = {
   /** Left out of the resume. */
   hidden: boolean;
 } & SectionDetails
+
+/** An entry's own fields, which a CV and the library compare as one unit. */
+export const EntryFieldKeys = [
+  "title", "role", "organization", "location", "start_date", "end_date", "current", "description",
+] as const;
+export type EntryFields = Pick<SectionEntry, (typeof EntryFieldKeys)[number]>;
 
 /** Optional details for experience/education-style sections. */
 export type SectionDetails = {
@@ -218,8 +226,10 @@ export type CurriculumSection = SectionFields & {
   position: number;
   hidden: boolean;
   synced_at: Date | null;
-  /** The library section was edited after this copy was last synced. */
-  library_updated: boolean;
+  /** The library html each item was last matched with, by item id. */
+  base_items: Record<string, string>;
+  /** The library fields each entry was last matched with, by entry id. */
+  base_fields: Record<string, EntryFields>;
   created_at: Date;
   updated_at: Date;
 }

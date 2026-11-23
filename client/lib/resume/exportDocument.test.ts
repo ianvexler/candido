@@ -49,6 +49,19 @@ describe("buildResumeDocument", () => {
     expect(doc.sections[0].entries[0].html).not.toContain("quietly");
   });
 
+  it("drops unticked items and the list they leave empty", () => {
+    const content = '<p data-cv-item="a">Kept</p><ul><li data-cv-item="b" data-cv-off="true"><p>Left out</p></li></ul>';
+    const doc = build([section(1, { content })]);
+
+    expect(doc.sections[0].entries[0].html).toBe('<p data-cv-item="a">Kept</p>');
+  });
+
+  it("keeps the title of an entry whose items are all unticked", () => {
+    const doc = build([section(1, { title: "Acme", content: '<p data-cv-item="a" data-cv-off="true">Left out</p>' })]);
+
+    expect(doc.sections[0].entries).toMatchObject([{ title: "Acme", html: "" }]);
+  });
+
   it("drops a section with nothing visible", () => {
     const doc = build([
       section(1, { title: " ", section_type: " ", content: '<p><span data-cv-hidden="true">x</span></p>' }),
