@@ -60,7 +60,7 @@ These features call Claude and report they're unavailable without a key. Copy `.
 docker compose up -d --force-recreate backend
 ```
 
-Each call is billed to that key, and reviews are limited to 10 per user per day. Set `CV_TAILOR_MODEL` / `CV_IMPORT_MODEL` in `.env` to test with a cheaper model. In production the same variables go in `backend/.env` (see `backend/.env.example`).
+Each call is billed to that key, and reviews are limited to 10 per user per day. Set `CV_TAILOR_MODEL` / `CV_IMPORT_MODEL` in `.env` to test with a cheaper model. In production, set `ANTHROPIC_API_KEY` as a GitHub secret: each deploy rewrites `backend/.env` on the server, so a key added there by hand is lost.
 
 ## Other commands
 
@@ -74,7 +74,7 @@ Each call is billed to that key, and reviews are limited to 10 per user per day.
 
 ## Production
 
-Live deploys client + Rails via `docker-compose.prod.yml` and **Deploy to Production**. The API image is `ghcr.io/<owner>/candido-backend`. Boot runs `db:migrate` (rename the live tables in place). Do not run `db:prepare` or `db:schema:load` on production.
+Live deploys client + Rails via `docker-compose.prod.yml` and **Deploy to Production**. The API image is `ghcr.io/<owner>/candido-backend`. Each deploy runs `db:migrate` before replacing the running containers, and stops there if a migration fails. Boot runs it again, which does nothing if it is up to date. Do not run `db:prepare` or `db:schema:load` on production.
 
 The Next.js API origin is baked in at image build (`NEXT_PUBLIC_API_URL`). Keep that secret equal to the public API URL the browser already uses. The client calls `{NEXT_PUBLIC_API_URL}/api/v1`.
 
@@ -85,10 +85,10 @@ This is not a no-op deploy. Client and API must go out together, and Postgres is
 1. Merge to `main` and wait for CI.
 2. Confirm a Postgres backup (snapshot or `pg_dump`).
 3. Run **Deploy to Production** (release or workflow_dispatch). Expect a few minutes of downtime.
-4. The new Rails image runs `db:migrate` before Puma starts, then serves `/api/v1`.
+4. The deploy runs `db:migrate` with the new image, then starts it to serve `/api/v1`.
 5. Smoke: open candidohq.com, log in, move a card, upload a PDF.
 
-If migrate fails the API container will not stay up. Fix and redeploy; do not run `db:prepare`.
+If migrate fails the deploy fails and the old version keeps running. Fix and redeploy; do not run `db:prepare`.
 
 Required GitHub secrets:
 
@@ -101,5 +101,6 @@ Required GitHub secrets:
 | `DATABASE_URL` | Live Postgres URL (existing schema) |
 | `AWS_BUCKET_NAME`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Existing uploads bucket |
 | `BREVO_SMTP_LOGIN`, `BREVO_SMTP_KEY` | Verification / feedback email |
+| `ANTHROPIC_API_KEY` | CV import and CV reviews. Without it the deploy still works and both report they're unavailable |
 
 An optional second instance can still use **Deploy Rails (test instance)** (`EC2_RAILS_HOST`, `EC2_RAILS_APP_PATH`, `NEXT_PUBLIC_RAILS_API_URL`).

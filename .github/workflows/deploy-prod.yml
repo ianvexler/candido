@@ -132,6 +132,7 @@ jobs:
             AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             BREVO_SMTP_LOGIN=${{ secrets.BREVO_SMTP_LOGIN }}
             BREVO_SMTP_KEY=${{ secrets.BREVO_SMTP_KEY }}
+            ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
             GITHUB_REPO_OWNER=${{ github.repository_owner }}
             ENVEOF
             chmod 600 backend/.env
@@ -145,4 +146,9 @@ jobs:
             docker image prune -f || true
 
             docker-compose -f docker-compose.prod.yml --env-file backend/.env pull
+
+            # Migrate before replacing anything: if this fails the deploy fails here, with the
+            # old version still running.
+            docker-compose -f docker-compose.prod.yml --env-file backend/.env run --rm -T --no-deps backend ./bin/rails db:migrate < /dev/null
+
             docker-compose -f docker-compose.prod.yml --env-file backend/.env up -d --force-recreate --remove-orphans
