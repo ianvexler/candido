@@ -15,7 +15,7 @@ RSpec.describe "Section templates" do
       expect(response).to have_http_status(:ok)
       templates = response.parsed_body["section_templates"]
       expect(templates.map { |item| item["entries"].first["title"] }).to eq([ "First", "Second" ])
-      expect(templates.first["entries"].first["content"]).to eq("<ul><li><p>Led a team</p></li></ul>")
+      expect(without_item_ids(templates.first["entries"].first["content"])).to eq("<ul><li><p>Led a team</p></li></ul>")
     end
 
     it "requires authentication" do
@@ -38,7 +38,7 @@ RSpec.describe "Section templates" do
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["section_template"]
       expect(body).to include("section_type" => "Skills", "user_id" => user.id)
-      expect(body["entries"].sole).to include("title" => "", "description" => "Core stack", "content" => "<p>Ruby</p>")
+      expect(body["entries"].sole).to include("title" => "", "description" => "Core stack", "content" => match(%r{\A<p data-cv-item="[\w-]+">Ruby</p>\z}))
     end
 
     it "starts with one empty entry" do
@@ -69,7 +69,18 @@ RSpec.describe "Section templates" do
       put "/api/v1/section_templates/#{template.id}", params: { entries: [ { content: html } ] }, headers: headers, as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(template.reload.entries.first["content"]).to eq(html)
+      expect(without_item_ids(template.reload.entries.first["content"])).to eq(html)
+    end
+
+    it "keeps item ids but not ticks" do
+      template = create(:section_template, user: user)
+
+      put "/api/v1/section_templates/#{template.id}",
+        params: { entries: [ { content: '<p data-cv-item="a" data-cv-off="true">A</p>' } ] },
+        headers: headers,
+        as: :json
+
+      expect(template.reload.entries.first["content"]).to eq('<p data-cv-item="a">A</p>')
     end
 
     it "strips scripts and event handlers from content" do
@@ -81,7 +92,7 @@ RSpec.describe "Section templates" do
         as: :json
 
       content = template.reload.entries.first["content"]
-      expect(content).to include("<p>Hi")
+      expect(without_item_ids(content)).to include("<p>Hi")
       expect(content).not_to include("script", "onclick", "javascript:")
     end
 
@@ -101,7 +112,7 @@ RSpec.describe "Section templates" do
         headers: headers,
         as: :json
 
-      expect(template.reload.entries.first["content"]).to eq("<ul><li><p>Ruby</p></li></ul>")
+      expect(without_item_ids(template.reload.entries.first["content"])).to eq("<ul><li><p>Ruby</p></li></ul>")
     end
 
     it "saves role, organization, location and a month range" do

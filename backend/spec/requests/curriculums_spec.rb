@@ -93,7 +93,7 @@ RSpec.describe "Curriculums" do
         { "position" => 0, "section_template_id" => second.id },
         { "position" => 1, "section_template_id" => first.id }
       ])
-      expect(body["sections"].last["entries"].first).to include("content" => "<p>Acme</p>")
+      expect(body["sections"].last["entries"].first).to include("content" => a_string_including(">Acme</p>"))
       expect(body["sections"].last["library_updated"]).to be(false)
     end
 

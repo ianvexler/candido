@@ -1,7 +1,7 @@
 module CvTailorings
   # Turns a curriculum into plain, labelled text for the tailoring prompt.
-  # Each entry is its own numbered block. Hidden sections, hidden entries and
-  # hidden inline text never reach the model.
+  # Each entry is its own numbered block. Hidden sections, hidden entries,
+  # unticked items and hidden inline text never reach the model.
   module CvText
     BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, blockquote".freeze
 
@@ -31,7 +31,7 @@ module CvTailorings
     end
 
     def blocks_for(html)
-      fragment = Nokogiri::HTML5.fragment(html.to_s)
+      fragment = Nokogiri::HTML5.fragment(CvItems.visible(html))
       fragment.css(BLOCK_SELECTOR).flat_map do |node|
         # A list item holding a nested list would repeat its children.
         next [] if node.css(BLOCK_SELECTOR).any?

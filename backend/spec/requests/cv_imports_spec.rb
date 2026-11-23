@@ -157,7 +157,7 @@ RSpec.describe "CV imports" do
       expect([ experience, skills ].map(&:section_type)).to eq([ "Experience", "Skills" ])
       expect(experience.entries.size).to eq(1)
       expect(experience.entries.first).to include(
-        "title" => "Acme", "start_date" => "2022-03-01", "content" => "<ul><li><p>Shipped</p></li></ul>"
+        "title" => "Acme", "start_date" => "2022-03-01", "content" => a_string_including("<p>Shipped</p></li></ul>")
       )
       expect(response.parsed_body["section_templates"].size).to eq(2)
       expect(cv_import.reload.applied_at).to be_present
