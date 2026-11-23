@@ -274,8 +274,50 @@ RSpec.describe "Job board entries" do
         )
         expect(body["this_week"]).to eq(3)
         expect(body["last_week"]).to eq(0)
-        expect(body["response_rate"]).to eq(33)
+        expect(body["response_rate"]).to eq(50)
+        expect(body["responded_count"]).to eq(1)
+        expect(body["sent_count"]).to eq(2)
         expect(body["top_tags"].first).to eq("name" => "Remote", "count" => 2)
+      end
+    end
+
+    it "returns twelve weeks of counts, oldest first, including empty weeks" do
+      travel_to Time.utc(2026, 8, 21, 12, 0, 0) do
+        create(:job_board_entry, user: user, number: 1)
+        create(:job_board_entry, user: user, number: 2, created_at: Time.utc(2026, 8, 16, 23, 59))
+        create(:job_board_entry, user: user, number: 3, created_at: Time.utc(2026, 6, 1))
+        create(:job_board_entry, user: user, number: 4, created_at: Time.utc(2026, 5, 31, 23, 59))
+        create(:job_board_entry, number: 1)
+
+        get "/api/v1/job_board_entries/stats", headers: headers
+
+        expect(response.parsed_body).to include("this_week" => 1, "last_week" => 1)
+        weeks = response.parsed_body["weekly_counts"]
+        expect(weeks.length).to eq(12)
+        expect(weeks.first).to eq("week_start" => "2026-06-01", "count" => 1)
+        expect(weeks.last).to eq("week_start" => "2026-08-17", "count" => 1)
+        expect(weeks[-2]).to eq("week_start" => "2026-08-10", "count" => 1)
+        expect(weeks.sum { |week| week["count"] }).to eq(3)
+      end
+    end
+
+    it "lists pending jobs closing within two weeks, soonest first, up to five" do
+      travel_to Time.utc(2026, 8, 21, 12, 0, 0) do
+        create(:job_board_entry, user: user, number: 1, title: "Today", closing_date: Time.utc(2026, 8, 21))
+        create(:job_board_entry, user: user, number: 2, closing_date: Time.utc(2026, 8, 20))
+        create(:job_board_entry, user: user, number: 3, closing_date: Time.utc(2026, 9, 5))
+        create(:job_board_entry, user: user, number: 1, status: "APPLIED", closing_date: Time.utc(2026, 8, 22))
+        create(:job_board_entry, number: 1, closing_date: Time.utc(2026, 8, 22))
+        5.times { |i| create(:job_board_entry, user: user, number: 10 + i, closing_date: Time.utc(2026, 9, 4)) }
+
+        get "/api/v1/job_board_entries/stats", headers: headers
+
+        body = response.parsed_body
+        expect(body["closing_soon_count"]).to eq(6)
+        expect(body["closing_soon"].length).to eq(5)
+        expect(body["closing_soon"].first).to include(
+          "title" => "Today", "company" => "Acme", "closing_date" => "2026-08-21T00:00:00.000Z"
+        )
       end
     end
   end

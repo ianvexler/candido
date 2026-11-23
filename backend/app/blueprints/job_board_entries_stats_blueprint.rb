@@ -14,4 +14,19 @@ class JobBoardEntriesStatsBlueprint < ApplicationBlueprint
   field :top_tags do |stats, _|
     stats[:top_tags]
   end
+  field :responded_count do |stats, _|
+    stats[:responded_count]
+  end
+  field :sent_count do |stats, _|
+    stats[:sent_count]
+  end
+  field :weekly_counts do |stats, _|
+    stats[:weekly_counts]
+  end
+  field :closing_soon do |stats, _|
+    stats[:closing_soon]
+  end
+  field :closing_soon_count do |stats, _|
+    stats[:closing_soon_count]
+  end
 end
