@@ -31,10 +31,10 @@ const Requirements = ({ requirements }: Pick<CvTailoringReport, "requirements">)
       Shows {requirements.filter((item) => item.covered === "yes").length} of the {requirements.length} things they ask for
     </p>
     <ul className="space-y-2">
-      {requirements.map(({ text, covered }) => {
+      {requirements.map(({ text, covered }, index) => {
         const Icon = COVERAGE_ICONS[covered];
         return (
-          <li key={text} className="flex min-w-0 items-start gap-2.5">
+          <li key={index} className="flex min-w-0 items-start gap-2.5">
             <Icon
               className={cn("mt-1 size-4 shrink-0", COVERAGE_STYLES[covered])}
               aria-hidden

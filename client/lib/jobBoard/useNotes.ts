@@ -16,6 +16,8 @@ export const useNotes = (openId: number | undefined) => {
       .catch((error) => {
         console.error(error);
         toast.error("Failed to get notes");
+        // Tried again the next time it's opened.
+        requested.current.delete(openId);
         setNotes((prev) => ({ ...prev, [openId]: [] }));
       });
   }, [openId]);

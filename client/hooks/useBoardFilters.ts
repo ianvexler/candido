@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, ChangeEvent } from "react";
 import debounce from "lodash.debounce";
+import useAuthStore from "@/lib/stores/authStore";
 import { JobBoardEntry, JobStatus } from "@/lib/types";
 
 type SavedFilters = {
@@ -10,15 +11,17 @@ type SavedFilters = {
   statusFilter: JobStatus[];
 };
 
-// Kept while the app is open, so going back from a job shows the same list.
+// Kept while the app is open, so going back from a job shows the same list. Per user: they outlive a sign-out.
 const savedFilters = new Map<string, SavedFilters>();
 
 export const useBoardFilters = (
   /** Names the page, so each keeps its own filters. */
-  page: string,
+  pageName: string,
   jobBoardEntries: JobBoardEntry[],
   setJobBoardEntries: React.Dispatch<React.SetStateAction<JobBoardEntry[]>>
 ) => {
+  const userId = useAuthStore((state) => state.user?.id);
+  const page = `${userId}:${pageName}`;
   const [searchInput, setSearchInput] = useState(() => savedFilters.get(page)?.search ?? "");
   const [search, setSearch] = useState(() => savedFilters.get(page)?.search ?? "");
   const [tags, setTags] = useState<string[]>(() => savedFilters.get(page)?.tags ?? []);

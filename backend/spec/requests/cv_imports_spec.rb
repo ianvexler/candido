@@ -169,6 +169,33 @@ RSpec.describe "CV imports" do
       expect(user.section_templates.sole.entries.pluck("title")).to eq([ "Acme", "Globex" ])
     end
 
+    it "also makes a CV from the added sections when asked" do
+      apply(entry_ids: [ entry_id(0), entry_id(2) ], fill_profile: false, create_cv: true)
+
+      curriculum = user.curriculums.sole
+      expect(response.parsed_body["curriculum_id"]).to eq(curriculum.id)
+      expect(curriculum.title).to eq("My CV")
+      expect(curriculum.curriculum_sections.map(&:section_type)).to eq([ "Experience", "Skills" ])
+    end
+
+    it "names a second CV apart from the first" do
+      create(:curriculum, user: user, title: "My CV")
+
+      apply(entry_ids: [ entry_id(0) ], fill_profile: false, create_cv: true)
+
+      expect(user.curriculums.order(:id).last.title).to eq("My CV 2")
+    end
+
+    it "makes no CV when not asked, or when no section was added" do
+      apply(entry_ids: [], fill_profile: true, create_cv: true)
+      expect(response.parsed_body["curriculum_id"]).to be_nil
+
+      other = create(:cv_import, user: user, status: "succeeded", source_data: nil, result: draft)
+      apply({ entry_ids: [ entry_id(0) ], fill_profile: false }, other)
+
+      expect(user.curriculums).to be_empty
+    end
+
     it "fills only empty profile fields and adds new links" do
       user.update_resume_profile!(
         name: "Kept Name", headline: "", email: "kept@example.com", phone: "", location: "",

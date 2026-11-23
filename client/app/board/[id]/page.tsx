@@ -3,12 +3,10 @@
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { getJobBoardEntry } from "@/api/resources/jobBoardEntries/getJobBoardEntry";
 import Loader from "@/components/common/Loader";
-import JobFormSheet from "@/components/jobBoard/JobFormSheet";
+import JobApplicationView from "@/components/jobBoard/JobApplicationView";
 import { applyEntryPatch, EntryPatch } from "@/lib/jobBoard/docSlot";
 import { useNotes } from "@/lib/jobBoard/useNotes";
 import { JobBoardEntry } from "@/lib/types";
-import { capitalize } from "@/lib/utils";
-import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
@@ -75,21 +73,14 @@ const JobPage = ({ id, from }: { id: string; from: "board" | "sheet" }) => {
   }
 
   return (
-    <JobFormSheet
-      mode="edit"
-      layout="page"
-      back={
-        <Link
-          href={`/${from}?job=${entry.id}`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon className="size-4" />
-          {capitalize(from)}
-        </Link>
-      }
+    <JobApplicationView
       entry={entry}
       allEntries={allEntries}
-      onClose={() => router.push(`/${from}`)}
+      from={from}
+      onBack={() => router.push(`/${from}?job=${entry.id}`)}
+      onMoved={() => router.push(`/${from}`)}
+      // Its page no longer exists, so going back mustn't return to it.
+      onDeleted={() => router.replace(`/${from}`)}
       onPatchJob={patchEntry}
       notes={notes[entry.id] ?? []}
       notesLoading={notes[entry.id] === undefined}

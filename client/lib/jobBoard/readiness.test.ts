@@ -72,9 +72,10 @@ describe("postingUrl", () => {
   it("accepts web addresses, with or without a scheme", () => {
     expect(postingUrl("https://a.example/job")).toBe("https://a.example/job");
     expect(postingUrl(" a.example/job ")).toBe("https://a.example/job");
+    expect(postingUrl("a.example:8443/job")).toBe("https://a.example:8443/job");
   });
   it("rejects anything else", () => {
-    ["", "  ", "javascript:alert(1)", "data:text/html,x", "not a url"].forEach((url) => expect(postingUrl(url)).toBeNull());
+    ["", "  ", "javascript:alert(1)", "data:text/html,x", "mailto:a@b.example", "not a url"].forEach((url) => expect(postingUrl(url)).toBeNull());
     expect(postingUrl(undefined)).toBeNull();
   });
 });

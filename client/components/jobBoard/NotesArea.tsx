@@ -1,4 +1,4 @@
-import { JobBoardEntry, Note } from "@/lib/types";
+import { Note } from "@/lib/types";
 import Loader from "@/components/common/Loader";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -8,23 +8,19 @@ import { createNote } from "@/api/resources/notes/createNote";
 import { Textarea } from "../ui/Textarea";
 
 interface NotesAreaProps {
-  jobBoardEntry: JobBoardEntry | null;
+  jobId: number;
   notes: Note[];
   loading: boolean;
   onNoteAdded: (note: Note) => void;
 }
 
-const NotesArea = ({ jobBoardEntry, notes, loading, onNoteAdded }: NotesAreaProps) => {
+const NotesArea = ({ jobId, notes, loading, onNoteAdded }: NotesAreaProps) => {
   const [newNoteContent, setNewNoteContent] = useState<string>("");
   const [isAddingNote, setIsAddingNote] = useState<boolean>(false);
 
   const handleAddNote = () => {
-    if (!jobBoardEntry) {
-      return
-    };
-
     setIsAddingNote(true);
-    void createNote(jobBoardEntry.id, newNoteContent)
+    void createNote(jobId, newNoteContent)
       .then((response) => {
         onNoteAdded(response.note);
         setNewNoteContent("");
@@ -51,7 +47,7 @@ const NotesArea = ({ jobBoardEntry, notes, loading, onNoteAdded }: NotesAreaProp
           value={newNoteContent}
           onChange={(e) => setNewNoteContent(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               if (newNoteContent.trim().length > 0) handleAddNote();
             }

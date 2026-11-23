@@ -82,6 +82,16 @@ class Curriculum < ApplicationRecord
     curriculum
   end
 
+  # A new CV with the user's default design and copies of these library sections, in order.
+  def self.create_with_sections!(user, attributes, templates)
+    transaction do
+      default_design = user.resume_designs.find_by(is_default: true)
+      curriculum = user.curriculums.create!(attributes.merge(styles: default_design&.settings || {}))
+      curriculum.import_section_templates!(templates) if templates.any?
+      curriculum
+    end
+  end
+
   def next_section_position
     (curriculum_sections.maximum(:position) || -1) + 1
   end

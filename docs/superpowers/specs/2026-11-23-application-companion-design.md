@@ -92,8 +92,8 @@ resumed:
 3. Tailor: shows the CV and the job, and starts the review on request.
 
 "Import a spreadsheet instead" is a link below. Leaving sets `setup_completed`,
-as closing the modal does today. Until both a CV and a job exist, the dashboard
-shows the missing step.
+as closing the modal does today. The sign-in page leads here until then; other
+pages stay reachable. A dashboard with no jobs links back here.
 
 ### 3. Resume page
 - "Import a CV" comes first when there are no CVs, then "Start from scratch".

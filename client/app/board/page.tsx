@@ -41,6 +41,7 @@ const BoardPageContent = () => {
   const [draggedFromOffered, setDraggedFromOffered] = useState(false);
   const [draggedEntryOriginalStatus, setDraggedEntryOriginalStatus] = useState<Record<number, JobStatus>>();
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState<JobBoardEntry | null>(null);
+
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
@@ -341,9 +342,7 @@ const BoardPageContent = () => {
           onDragEnd={handleDragEnd}
         >
           <div className="flex-1 min-h-0 flex flex-col mt-4 sm:mt-8">
-            <div
-              className="flex-1 min-h-0 overflow-auto pb-5"
-            >
+            <div className="flex-1 min-h-0 overflow-auto pb-5">
               <div className="flex justify-start items-stretch divide-x divide-border [&>div]:px-4 sm:[&>div]:px-6 [&>div]:first:pl-0 [&>div]:last:pr-0 px-1 min-w-max">
                 {Object.values(JobStatus).map((status: JobStatus) => {
                   if (!showRejected && status === JobStatus.REJECTED) {
@@ -379,7 +378,7 @@ const BoardPageContent = () => {
           <button
           onClick={() => {
             if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                setOpenAddJobModal(true);
+            setOpenAddJobModal(true);
             setIsSheetOpen(true);
           }}
             className="cursor-pointer fixed bottom-6 right-6 size-15 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center"
@@ -408,8 +407,6 @@ const BoardPageContent = () => {
       <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>
         {openAddJobModal && (
           <JobFormSheet
-            mode="create"
-            entry={null}
             allEntries={jobBoardEntries}
             onClose={() => handleSheetOpenChange(false)}
             onAddJob={onAddJob}

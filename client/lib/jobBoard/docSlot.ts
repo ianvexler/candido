@@ -146,14 +146,6 @@ export const saveDocument = async (kind: DocKind, id: number, text?: string, fil
 export const replaceWays = (kind: DocKind, state: DocSlotState): FillWay[] =>
   state === "text" ? DOC_KINDS[kind].ways.filter((way) => way !== "paste") : DOC_KINDS[kind].ways;
 
-/** Pasted text for a two-line preview, with blank lines dropped so they don't use up the lines. */
-export const textPreview = (text: string | undefined): string =>
-  (text ?? "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join("\n");
-
 const DOCUMENT_FIELDS = [
   "cv_curriculum",
   "cv_text",
