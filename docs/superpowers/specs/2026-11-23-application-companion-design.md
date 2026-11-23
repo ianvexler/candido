@@ -70,7 +70,7 @@ the full view: Prepare, Continue, Finish, or View application once applied.
 The address holds the open job (`?job=12`). Closing keeps edits, and asks only
 if they can't be saved.
 
-**Full view** (`/board/:id`): the same fields in a row at the top; "What they
+**Full view** (`/board/:id`): the same fields in a column; beside them "What they
 ask" (the description) beside "What you send" (the CV, what it covers, cover
 letter, notes, and the CV's text). Both sides share the window's height, so a
 long one scrolls instead of outgrowing the other. A bar at the bottom says
