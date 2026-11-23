@@ -1,0 +1,102 @@
+.landing {
+  --landing-amber: #ffc159;
+  --landing-ink: #222222;
+  --landing-sky: #e6f1f8;
+  font-family: var(--font-dm-sans), sans-serif;
+  color: var(--landing-ink);
+}
+
+.landing :is(h1, h2) {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 900;
+  line-height: 0.94;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+.landing :is(a, button, [tabindex]):focus-visible {
+  outline: 3px solid #2563a8;
+  outline-offset: 3px;
+}
+
+.landing-dark :is(a, button, [tabindex]):focus-visible {
+  outline-color: #fff;
+}
+
+/* The crane: a fixed tower, and a rig (cable, hook, load) that lowers on load. */
+.crane-rig {
+  transform-origin: top center;
+  animation: crane-swing 2.6s ease-out 0.9s both;
+}
+
+.crane-cable {
+  width: 9px;
+  height: var(--cable);
+  border-inline: 3px solid #443d40;
+  animation: crane-lower 1.5s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+
+@keyframes crane-lower {
+  from {
+    height: 0;
+  }
+}
+
+@keyframes crane-swing {
+  0% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(3deg);
+  }
+  45% {
+    transform: rotate(-2deg);
+  }
+  70% {
+    transform: rotate(1deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+
+/* Dropping a card in Offered earns it a hard hat. */
+.hat-drop {
+  animation: hat-drop 0.6s cubic-bezier(0.5, 0, 0.7, 1) both;
+}
+
+@keyframes hat-drop {
+  0% {
+    transform: translateY(-160px) rotate(-30deg);
+    opacity: 0;
+  }
+  55% {
+    transform: translateY(0) rotate(14deg);
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(-10px) rotate(8deg);
+  }
+  100% {
+    transform: rotate(12deg);
+  }
+}
+
+.hazard {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--landing-amber) 0 12px,
+    #3a3a3a 12px 24px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crane-rig,
+  .crane-cable {
+    animation: none;
+  }
+  .hat-drop {
+    animation: none;
+    transform: rotate(12deg);
+  }
+}
