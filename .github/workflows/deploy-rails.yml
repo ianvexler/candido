@@ -101,6 +101,7 @@ jobs:
             AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             BREVO_SMTP_LOGIN=${{ secrets.BREVO_SMTP_LOGIN }}
             BREVO_SMTP_KEY=${{ secrets.BREVO_SMTP_KEY }}
+            ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
             GITHUB_REPO_OWNER=${{ github.repository_owner }}
             ENVEOF
             chmod 600 backend/.env

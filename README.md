@@ -60,7 +60,7 @@ These features call Claude and report they're unavailable without a key. Copy `.
 docker compose up -d --force-recreate backend
 ```
 
-Each call is billed to that key, and reviews are limited to 10 per user per day. Set `CV_TAILOR_MODEL` / `CV_IMPORT_MODEL` in `.env` to test with a cheaper model. In production the same variables go in `backend/.env` (see `backend/.env.example`).
+Each call is billed to that key, and reviews are limited to 10 per user per day. Set `CV_TAILOR_MODEL` / `CV_IMPORT_MODEL` in `.env` to test with a cheaper model. In production, set `ANTHROPIC_API_KEY` as a GitHub secret: each deploy rewrites `backend/.env` on the server, so a key added there by hand is lost.
 
 ## Other commands
 
@@ -101,5 +101,6 @@ Required GitHub secrets:
 | `DATABASE_URL` | Live Postgres URL (existing schema) |
 | `AWS_BUCKET_NAME`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Existing uploads bucket |
 | `BREVO_SMTP_LOGIN`, `BREVO_SMTP_KEY` | Verification / feedback email |
+| `ANTHROPIC_API_KEY` | CV import and CV reviews. Without it the deploy still works and both report they're unavailable |
 
 An optional second instance can still use **Deploy Rails (test instance)** (`EC2_RAILS_HOST`, `EC2_RAILS_APP_PATH`, `NEXT_PUBLIC_RAILS_API_URL`).
