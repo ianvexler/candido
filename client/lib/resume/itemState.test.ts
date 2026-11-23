@@ -45,6 +45,10 @@ describe("itemState", () => {
     ["<p>A <br> b</p>", "<p>A<br>b</p>"],
     ['<p>A <span data-cv-hidden="true">b <em>c</em></span> d</p>', "<p>A b <em>c</em> d</p>"],
     ['<p><a rel="x" href="y">A</a></p>', '<p><a href="y" rel="x">A</a></p>'],
+    ['<p><a target="_blank" rel="noopener" href="y">A</a></p>', '<p><a href="y">A</a></p>'],
+    ["<li>A</li>", "<li><p>A</p></li>"],
+    ["<li>\n A <em>b</em><br>c\n <ul> <li>D</li> </ul></li>", "<li><p>A <em>b</em><br>c</p><ul><li><p>D</p></li></ul></li>"],
+    ["<blockquote><ol><li>A</li></ol></blockquote>", "<blockquote><ol><li><p>A</p></li></ol></blockquote>"],
   ])("takes %j as the same as %j", (a, b) => expect(itemState(a, b, null)).toBe("same"));
 
   it.each([
@@ -53,6 +57,9 @@ describe("itemState", () => {
     ["<p>A</p>", "<p><em>A</em></p>"],
     ["<p>A</p>", "<h2>A</h2>"],
     ["<p>A&nbsp;b</p>", "<p>A b</p>"],
+    ['<p><a rel="x" href="y">A</a></p>', '<p><a rel="x" href="z">A</a></p>'],
+    ["<li>AB</li>", "<li><p>A</p><p>B</p></li>"],
+    ["<li>A<ul><li>B</li></ul></li>", "<li><p>A</p><p>B</p></li>"],
   ])("takes %j as different from %j", (a, b) => expect(itemState(a, b, null)).toBe("differs"));
 });
 

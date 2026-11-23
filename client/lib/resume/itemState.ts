@@ -38,7 +38,28 @@ const collapseSpaces = (container: Element) => {
   endLine();
 };
 
-/** Without ids, ticks, formatting whitespace, and hidden marks, which the library doesn't have. */
+/** Puts text straight inside list items into paragraphs. */
+const wrapListText = (container: Element) =>
+  container.querySelectorAll("li").forEach((item) => {
+    let paragraph: Element | null = null;
+    Array.from(item.childNodes).forEach((node) => {
+      if (isSeparator(node) && node.nodeName !== "BR") {
+        paragraph = null;
+        return;
+      }
+      if (!paragraph) {
+        paragraph = item.ownerDocument.createElement("p");
+        node.before(paragraph);
+      }
+      paragraph.append(node);
+    });
+  });
+
+/**
+ * Without ids, ticks, formatting whitespace, and hidden marks, which the library
+ * doesn't have. Also without what the editor adds on its own: link rel and
+ * target, and paragraphs in list items.
+ */
 const normalize = (html: string): Element => {
   const container = parseHtml(html);
   container.querySelectorAll("span[data-cv-hidden]").forEach((span) => span.replaceWith(...span.childNodes));
@@ -46,8 +67,13 @@ const normalize = (html: string): Element => {
     node.removeAttribute(ITEM_ATTRIBUTE);
     node.removeAttribute(OFF_ATTRIBUTE);
   });
+  container.querySelectorAll("a").forEach((link) => {
+    link.removeAttribute("rel");
+    link.removeAttribute("target");
+  });
   collapseSpaces(container);
   container.normalize();
+  wrapListText(container);
   return container;
 };
 
