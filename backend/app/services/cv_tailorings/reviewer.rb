@@ -35,6 +35,10 @@ module CvTailorings
         items: object(text: STRING, covered: { type: "string", enum: %w[yes partly no] })
       },
       gaps: { type: "array", items: STRING },
+      missing_sections: {
+        type: "array",
+        items: object(section: { type: "string", enum: Normalizer::MISSING_SECTIONS.keys }, reason: STRING)
+      },
       suggestions: {
         type: "array",
         items: object(
@@ -69,6 +73,7 @@ module CvTailorings
       - summary: at most 240 characters, one or two sentences.
       - requirements: the job's key requirements, at most 8, each text at most 60 characters. covered is "yes", "partly" or "no" for how well the CV shows it.
       - gaps: the biggest things the CV lacks for this job, at most 4, each at most 90 characters.
+      - missing_sections: almost always []. Only list "Experience", "Education" or "Skills" when the CV has no section of that kind at all (under any heading) and the CV is clearly incomplete without it, or this job asks for what it would hold. At most 2. reason: at most 90 characters, saying what to put in it, for example "Add your degree, university and graduation year". Never suggest any other section, and never one the CV already has.
       - suggestions: at most 12, the most impactful first. Each has:
         - section_id: the id of the section the suggestion is about.
         - field: "content" for a block of the section's body, "description" for the one-line description under its title.
@@ -76,6 +81,7 @@ module CvTailorings
         - quote: text copied exactly, character for character, from one block of one section (or from that section's description); never span two blocks or sections. Every suggestion needs one, notes included: a note quotes the text it is about. Advice that no CV text anchors belongs in gaps, not in suggestions.
         - replacement: for a rewrite, the new text, at most about 1.3 times the length of the quote plus 40 characters. For a note, "".
         - reason: one sentence, at most 120 characters, saying why this helps for this job.
+      - One suggestion per piece of text: never give the same text, or text inside it, both a rewrite and a note. When a rewrite would still lack a fact such as a number, write the rewrite and end its reason with what to add if they know it.
       - Skip any quote the message lists as already declined; don't suggest changes to those passages again.
       - Be concise everywhere. Don't pad the lists to reach the limits.
     PROMPT
@@ -92,7 +98,7 @@ module CvTailorings
     # Returns { output: Hash matching SCHEMA, used_posting: Boolean }.
     # `heartbeat` is called before each request to the model.
     def call(job:, cv_text:, declined_quotes: [], heartbeat: -> { })
-      model = ENV.fetch("CV_TAILOR_MODEL", "claude-opus-5-5")
+      model = ENV.fetch("CV_TAILOR_MODEL", "claude-sonnet-5-5")
       params = {
         model: model,
         max_tokens: MAX_TOKENS,

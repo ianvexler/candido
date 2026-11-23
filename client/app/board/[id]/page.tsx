@@ -4,6 +4,7 @@ import { getJobBoardEntry } from "@/api/resources/jobBoardEntries/getJobBoardEnt
 import Loader from "@/components/common/Loader";
 import PageContainer from "@/components/common/PageContainer";
 import MainEntryForm from "@/components/jobBoard/entry/MainEntryForm";
+import { applyEntryPatch, EntryPatch, jobSavePatch } from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry } from "@/lib/types";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
@@ -28,9 +29,10 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
     return () => { cancelled = true; };
   }, [id]);
   
-  const onFileUpdate = (entry: JobBoardEntry) => {
-    setJobEntry(entry);
-  }
+  // Saves name only the fields they set and the job they're for, so a late one can't undo newer changes.
+  const patchEntry = useCallback((entryId: number, patch: EntryPatch) => {
+    setJobEntry((prev) => prev && applyEntryPatch(prev, entryId, patch));
+  }, []);
 
   // The form saves only on Submit, so ask before the CV slot leaves the page with edits unsaved.
   const dirtyRef = useRef(false);
@@ -57,7 +59,7 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
         <div className="min-w-0">
           <MainEntryForm
             entry={jobEntry}
-            onUpdateEntry={setJobEntry}
+            onUpdateEntry={(saved, startedAt) => patchEntry(saved.id, jobSavePatch(saved, startedAt))}
             onDirtyChange={onDirtyChange}
           />
         </div>
@@ -65,7 +67,7 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
         <div className="min-w-0 overflow-hidden">
           <EntryDocArea 
             entry={jobEntry} 
-            onUpdateEntry={onFileUpdate}
+            onPatchEntry={patchEntry}
             beforeLeave={beforeLeave}
           />
         </div>

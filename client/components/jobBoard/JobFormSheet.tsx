@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
 import DocSlot from "./entry/DocSlot";
 import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
+import { EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -39,7 +40,8 @@ type JobFormSheetProps =
       entry: JobBoardEntry;
       allEntries: JobBoardEntry[];
       onClose: () => void;
-      onUpdateJob: (job: JobBoardEntry) => void;
+      /** Applies a change to one job; see EntryPatch. */
+      onPatchJob: (id: number, patch: EntryPatch) => void;
       onDelete?: (entry: JobBoardEntry) => void;
       notes: Note[];
       notesLoading: boolean;
@@ -92,7 +94,10 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const [status, setStatus] = useState<JobStatus>(initialStatus);
   const [editorHtml, setEditorHtml] = useState(initialDescription);
   const [tags, setTags] = useState<string[]>(initialTags);
+  // Creating, moving or deleting the job: locks the form.
   const [loading, setLoading] = useState<boolean>(false);
+  // Saving edits: doesn't lock the fields, since disabling one drops its focus and what's typed next.
+  const [saving, setSaving] = useState<boolean>(false);
   const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState<boolean>(false);
   const [discardChangesModalOpen, setDiscardChangesModalOpen] = useState<boolean>(false);
@@ -115,17 +120,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     },
   });
 
-  useEffect(() => {
-    if (isCreate || !editor) {
-      return;
-    }
-
-    editor.commands.setContent(initialDescription);
-  }, [isCreate, editor, entry?.id, initialDescription]);
-
-  useEffect(() => {
-    setDetailsTab("description");
-  }, [isCreate, entry?.id]);
+  // The parent remounts the sheet for each job, so the editor and tabs start from this job and
+  // are never reset from props: a save's response would otherwise replace text typed meanwhile.
 
   const handleDetailsTabChange = (value: string) => {
     setDetailsTab(value as "description" | "notes");
@@ -198,6 +194,9 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     }
   }, [props]);
 
+  // The fields of a save that failed: autosave waits for an edit instead of retrying them forever.
+  const failedRef = useRef<string | null>(null);
+
   const performUpdate = useCallback(async (): Promise<boolean> => {
     if (isCreate || !entry) return false;
     const { title: title, company: company, location: location, salary: salary, url: url, status: status, editorHtml: editorHtml, tags: tags, closingDate } =
@@ -208,7 +207,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
       return false;
     }
 
-    setLoading(true);
+    const sent = JSON.stringify(stateRef.current);
+    setSaving(true);
     try {
       let newNumber: number = entry.number;
       if (status === entry.status) {
@@ -224,6 +224,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
 
       const closingDateDate = toClosingDatePayload(closingDate);
 
+      const startedAt = jobSaveStarted();
       const response = await updateJobBoardEntry(
         entry.id,
         title,
@@ -238,19 +239,22 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         closingDateDate
       );
 
-      props.onUpdateJob(response.job_board_entry);
-      setClosingDate(toDateInputValue(response.job_board_entry.closing_date));
+      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry, startedAt));
+      // Show the date as the server stored it, unless it was changed while this save was out.
+      if (stateRef.current.closingDate === closingDate) {
+        setClosingDate(toDateInputValue(response.job_board_entry.closing_date));
+      }
       return true;
     } catch (error) {
       console.error(error);
+      failedRef.current = sent;
       toast.error("Failed to update job");
       return false;
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }, [isCreate, entry, props]);
 
-  const performSave = isCreate ? performCreate : performUpdate;
   // What the newest save sent, to tell whether anything was edited while it was in flight.
   const sentRef = useRef<string | null>(null);
   // Saves and this snapshot all read the ref, so they agree on what was sent even from an old render.
@@ -266,6 +270,12 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   }, [performUpdate]);
   performSaveRef.current = isCreate ? performCreate : trackedUpdate;
 
+  // One save at a time, so an older one can't land on the server after a newer one.
+  const saveAfterInFlight = async () => {
+    await inFlightRef.current?.catch(() => false);
+    return performSaveRef.current();
+  };
+
   const debouncedSave = useMemo(
     () =>
       debounce(() => {
@@ -275,16 +285,18 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   );
 
   useEffect(() => {
-    if (isCreate || !hasUpdatedFields || loading) {
+    // While a prompt asks whether to keep the edits, saving them would answer for the user.
+    if (isCreate || !hasUpdatedFields || loading || saving || discardChangesModalOpen || pendingLeave !== null) {
       return;
     }
+    if (failedRef.current === JSON.stringify(stateRef.current)) return;
 
     debouncedSave();
 
     return () => {
       debouncedSave.cancel();
     };
-  }, [isCreate, title, company, location, salary, url, status, closingDate, editorHtml, tags, hasUpdatedFields, loading, debouncedSave]);
+  }, [isCreate, title, company, location, salary, url, status, closingDate, editorHtml, tags, hasUpdatedFields, loading, saving, discardChangesModalOpen, pendingLeave, debouncedSave]);
 
   const handleConfirmation = async () => {
     if (isCreate) {
@@ -292,7 +304,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     }
 
     debouncedSave.cancel();
-    const success = await performSave();
+    const success = await saveAfterInFlight();
 
     if (success) {
       setIsConfirmationModalOpen(false);
@@ -329,8 +341,23 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     }
   };
 
+  const resetFields = () => {
+    setTitle(initialTitle);
+    setCompany(initialCompany);
+    setLocation(initialLocation);
+    setSalary(initialSalary);
+    setUrl(initialUrl);
+    setStatus(initialStatus);
+    setTags(initialTags);
+    setClosingDate(initialClosingDate);
+    setEditorHtml(initialDescription);
+    editor?.commands.setContent(initialDescription);
+  };
+
   const handleDiscardChanges = () => {
     setDiscardChangesModalOpen(false);
+    // The sheet stays mounted while it closes, so dropped edits must not autosave.
+    resetFields();
     props.onClose();
   };
 
@@ -361,22 +388,13 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const handleDiscardAndContinue = () => {
     const action = pendingLeave;
     discardedRef.current = true;
-    setTitle(initialTitle);
-    setCompany(initialCompany);
-    setLocation(initialLocation);
-    setSalary(initialSalary);
-    setUrl(initialUrl);
-    setStatus(initialStatus);
-    setTags(initialTags);
-    setClosingDate(initialClosingDate);
-    setEditorHtml(initialDescription);
-    editor?.commands.setContent(initialDescription);
+    resetFields();
     action?.();
   };
 
   const handleSaveChanges = async () => {
     debouncedSave.cancel();
-    const success = await performSave();
+    const success = await saveAfterInFlight();
 
     if (success) {
       setDiscardChangesModalOpen(false);
@@ -398,6 +416,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         ? Math.max(...entriesInNewStatus.map((e) => e.number)) + 1
         : 1;
 
+      const startedAt = jobSaveStarted();
       const response = await updateJobBoardEntry(
         entry.id,
         stateRef.current.title,
@@ -409,9 +428,10 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         newStatus,
         newNumber,
         stateRef.current.tags,
+        toClosingDatePayload(stateRef.current.closingDate),
       );
 
-      props.onUpdateJob(response.job_board_entry);
+      props.onPatchJob(response.job_board_entry.id, jobSavePatch(response.job_board_entry, startedAt));
       toast.success(`Moved to ${capitalize(newStatus.toLowerCase())}`);
       props.onClose();
     } catch (error) {
@@ -630,14 +650,14 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           <>
             <section className="flex flex-col gap-2">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">CV</h3>
-              <DocSlot kind="cv" entry={entry} onUpdateEntry={props.onUpdateJob} beforeLeave={beforeLeave} />
+              <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} />
             </section>
 
             <section className="flex flex-col gap-2">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Cover letter
               </h3>
-              <DocSlot kind="cover_letter" entry={entry} onUpdateEntry={props.onUpdateJob} />
+              <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
             </section>
           </>
         )}
@@ -686,7 +706,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
             {isCreate ? (
-              <Button type="submit" disabled={loading} className="w-fit">
+              <Button type="submit" disabled={loading || saving} className="w-fit">
                 {loading ? "Creating..." : "Create"}
               </Button>
             ) : (
@@ -697,7 +717,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={loading}
+                    disabled={loading || saving}
                     onClick={() => handleStatusAction(JobStatus.REJECTED)}
                   >
                     <XCircleIcon className="size-4" />
@@ -708,7 +728,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={loading}
+                    disabled={loading || saving}
                     onClick={() => handleStatusAction(JobStatus.ARCHIVED)}
                   >
                     <ArchiveIcon className="size-4" />
@@ -719,7 +739,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={loading}
+                    disabled={loading || saving}
                     onClick={handleDeleteClick}
                   >
                     <Trash2Icon className="size-4" />
@@ -754,7 +774,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
       <ConfirmationModal
         isOpen={discardChangesModalOpen}
         onConfirm={handleSaveChanges}
-        onClose={handleDiscardChanges}
+        onCancel={handleDiscardChanges}
+        onClose={() => setDiscardChangesModalOpen(false)}
         title={isCreate ? "Discard new job?" : "Save or Discard Changes"}
         description={
           isCreate

@@ -20,6 +20,21 @@ RSpec.describe "Curriculum sections" do
       expect(response.parsed_body["curriculum"]["sections"].map { |item| item["title"] }).to eq([ "Acme", "Skills" ])
     end
 
+    it "adds an empty section of a type at the end" do
+      post "/api/v1/curriculums/#{curriculum.id}/sections", params: { section_type: "Education" }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:ok)
+      added = response.parsed_body["curriculum"]["sections"].last
+      expect(added).to include("title" => "Education", "section_type" => "Education", "content" => "", "hidden" => false)
+      expect(curriculum.curriculum_sections.order(:position).last.section_template_id).to be_nil
+    end
+
+    it "rejects a request with neither library sections nor a section type" do
+      post "/api/v1/curriculums/#{curriculum.id}/sections", params: { section_type: " " }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
     it "forbids importing into another user's CV" do
       other = create(:curriculum)
 

@@ -25,7 +25,8 @@ class CvTailoringJob < ApplicationJob
       job: job, cv_text: CvTailorings::CvText.render(sections), declined_quotes: declined_quotes(cv_tailoring),
       heartbeat: -> { heartbeat(cv_tailoring) }
     )
-    normalized = CvTailorings::Normalizer.call(result[:output], sections)
+    existing = curriculum.curriculum_sections.pluck(:section_type, :title)
+    normalized = CvTailorings::Normalizer.call(result[:output], sections, existing_sections: existing)
     finish(cv_tailoring, status: "succeeded", report: normalized[:report], used_posting: result[:used_posting]) do
       # The user can keep editing during the review: skip sections removed meanwhile.
       remaining = CurriculumSection.where(id: normalized[:suggestions].pluck(:curriculum_section_id)).pluck(:id).to_set

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem, Select } from "@/components/ui/Select";
+import { jobSaveStarted } from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { capitalize } from "@/lib/utils";
 import { TextStyleKit } from "@tiptap/extension-text-style";
@@ -14,7 +15,8 @@ import toast from "react-hot-toast";
 
 interface MainEntryFormProps {
   entry: JobBoardEntry;
-  onUpdateEntry: (entry: JobBoardEntry) => void;
+  /** Gets the saved job and when the save was sent (see jobSaveStarted). */
+  onUpdateEntry: (entry: JobBoardEntry, startedAt: number) => void;
   /** Told whenever the form gains or loses unsaved edits. */
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -69,12 +71,14 @@ const MainEntryForm = ({ entry, onUpdateEntry, onDirtyChange }: MainEntryFormPro
     setLoading(true);
 
     try {
+      const startedAt = jobSaveStarted();
       const response = await updateJobBoardEntry(entry.id, title, company, location, salary, url, editor?.getHTML() ?? "", status, entry.number);
       toast.success("Job updated successfully");
 
-      onUpdateEntry(response.job_board_entry);
+      onUpdateEntry(response.job_board_entry, startedAt);
     } catch (error) {
       console.error(error);
+      toast.error("Couldn't save the job. Try again.");
     } finally {
       setLoading(false);
     }

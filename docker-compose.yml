@@ -56,8 +56,11 @@ services:
       DATABASE_USERNAME: postgres
       DATABASE_PASSWORD: password
       CORS_ORIGIN: http://localhost:3000
-      # CV import reads uploads with Claude; without a key the feature reports it's unavailable.
+      # Claude, for CV import and CV reviews; set in .env (see .env.example). Without a
+      # key both features report they're unavailable.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CV_TAILOR_MODEL: ${CV_TAILOR_MODEL:-claude-sonnet-5-5}
+      CV_IMPORT_MODEL: ${CV_IMPORT_MODEL:-claude-sonnet-5-5}
     depends_on:
       db:
         condition: service_healthy

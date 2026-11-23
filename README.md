@@ -52,6 +52,16 @@ The client calls `http://localhost:8000/api/v1`. On first boot Rails runs `db:mi
 
 Stop the stack with `Ctrl+C`, or `./run stop` if it is detached.
 
+### Claude API key (CV import and CV reviews)
+
+These features call Claude and report they're unavailable without a key. Copy `.env.example` to `.env` in the project root and set `ANTHROPIC_API_KEY`. Docker Compose reads that file for the backend, and it's git-ignored. Restart the backend so it picks up the change:
+
+```bash
+docker compose up -d --force-recreate backend
+```
+
+Each call is billed to that key, and reviews are limited to 10 per user per day. Set `CV_TAILOR_MODEL` / `CV_IMPORT_MODEL` in `.env` to test with a cheaper model. In production the same variables go in `backend/.env` (see `backend/.env.example`).
+
 ## Other commands
 
 ```bash

@@ -32,6 +32,16 @@ RSpec.describe CvTailoringJob do
     expect(tailoring.suggestions.first.quote).to eq("Led a team")
   end
 
+  it "keeps only missing sections the CV doesn't have, counting hidden sections" do
+    curriculum.curriculum_sections.create!(title: "Uni", section_type: "Education", hidden: true, position: 1)
+    missing = [ { "section" => "Education", "reason" => "Add your degree" }, { "section" => "Skills", "reason" => "List your tools" } ]
+    allow(reviewer).to receive(:call).and_return({ output: output.merge("missing_sections" => missing), used_posting: false })
+
+    described_class.perform_now(tailoring.id)
+
+    expect(tailoring.reload.report["missing_sections"]).to eq([ { "section" => "Skills", "reason" => "List your tools" } ])
+  end
+
   it "fails with the reviewer's message" do
     allow(reviewer).to receive(:call).and_raise(CvTailorings::ReviewError.new("The CV reviewer is busy. Try again in a minute."))
 

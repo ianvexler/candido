@@ -81,7 +81,65 @@ RSpec.describe JobBoardEntry do
       expect(PdfUploader).to have_received(:delete_key).with("k")
     end
 
-    it "upload_cv! clears the linked copy but keeps it" do
+    context "with a copy made for this job" do
+      let(:copy) { create(:curriculum, user: user, job_board_entry: entry) }
+
+      it "upload_cv! deletes the linked copy when uploading, pasting or removing" do
+        [ { text: "x" }, {} ].each do |args|
+          linked = create(:curriculum, user: user, job_board_entry: entry)
+          entry.use_cv_copy!(linked)
+
+          entry.upload_cv!(**args)
+
+          expect(entry.reload.cv_curriculum_id).to be_nil
+          expect(Curriculum.exists?(linked.id)).to be(false)
+        end
+      end
+
+      it "use_cv_copy! deletes the copy it replaces, but not when relinking the same one" do
+        entry.use_cv_copy!(copy)
+        entry.use_cv_copy!(copy)
+        expect(Curriculum.exists?(copy.id)).to be(true)
+
+        newer = create(:curriculum, user: user, job_board_entry: entry)
+        entry.use_cv_copy!(newer)
+
+        expect(entry.reload.cv_curriculum).to eq(newer)
+        expect(Curriculum.exists?(copy.id)).to be(false)
+      end
+
+      it "deletes the linked copy even when this record was loaded before it was linked" do
+        stale = JobBoardEntry.find(entry.id)
+        entry.use_cv_copy!(copy)
+
+        stale.use_cv_copy!(create(:curriculum, user: user, job_board_entry: entry))
+
+        expect(Curriculum.exists?(copy.id)).to be(false)
+      end
+
+      it "keeps the copy's past reviews, which still count toward the daily limit" do
+        run = create(:cv_tailoring, user: user, curriculum: copy)
+        entry.use_cv_copy!(copy)
+
+        entry.upload_cv!(text: "x")
+
+        expect(run.reload.curriculum_id).to be_nil
+      end
+
+      it "keeps the copy when the surrounding transaction rolls back" do
+        entry.use_cv_copy!(copy)
+
+        ActiveRecord::Base.transaction do
+          entry.upload_cv!(text: "x")
+          raise ActiveRecord::Rollback
+        end
+
+        expect(Curriculum.exists?(copy.id)).to be(true)
+        expect(entry.reload.cv_curriculum).to eq(copy)
+      end
+    end
+
+    it "upload_cv! unlinks but keeps a linked CV that wasn't made for this job" do
       entry.use_cv_copy!(copy)
 
       entry.upload_cv!(text: "x")
