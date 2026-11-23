@@ -101,6 +101,11 @@ RSpec.describe CvItems do
       expect(CvItems.list(replaced).last).to include(text: "C2", off: true)
     end
 
+    it "follows the neighbours' order, not the content's" do
+      html = '<p data-cv-item="b">B</p><p data-cv-item="a">A</p>'
+      expect(ids(CvItems.upsert(html, '<p data-cv-item="n">N</p>', neighbours: %w[a b]))).to eq(%w[b n a])
+    end
+
     it "keeps a replaced item ticked whatever the new html says" do
       replaced = CvItems.upsert(list, '<li data-cv-item="a" data-cv-off="true"><p>A2</p></li>', neighbours: [])
       expect(CvItems.list(replaced).first).to include(text: "A2", off: false)
