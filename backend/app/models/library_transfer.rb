@@ -69,16 +69,9 @@ class LibraryTransfer
     cv = value_in(@entry)
     library = value_in(@library_entry)
     raise ApiError.new("#{@item_id ? 'Item' : 'Entry'} not found", status: :not_found) if cv.nil? && library.nil?
-    raise Conflict unless cv == @expected_cv && library_expected?(library)
+    raise Conflict unless cv == @expected_cv && library == @expected_library
     raise ApiError.new("#{@item_id ? 'Item' : 'Entry'} not found in this CV", status: :not_found) if cv.nil?
     raise ApiError, "This is no longer in your library" if library.nil? && @direction != "to_library"
-  end
-
-  # A client adding an item to an entry may not know another one has it.
-  def library_expected?(library)
-    return true if library == @expected_library
-
-    @direction == "to_library" && @expected_library.nil? && @item_id && @library_entry["id"] != @entry_id
   end
 
   def value_in(entry)
@@ -92,7 +85,7 @@ class LibraryTransfer
     if @library_entry.nil?
       add_entry
     elsif @item_id
-      put_item(@item_id, @library_entry["id"])
+      put_item
       template.save!
       rebase(@library_entry["id"], @item_id)
     else
@@ -114,26 +107,26 @@ class LibraryTransfer
     rebase(@library_entry["id"], @item_id)
   end
 
-  # Copies the entry, with just the item being sent or with everything.
+  # Copies the entry, with just the item being sent or with everything the
+  # library doesn't have in another entry. What it has stays as it is there.
   def add_entry
-    ids = @item_id ? [ @item_id ] : items(@entry).pluck(:id).compact
-    places = template ? ids.index_with { |id| template.entry_with_item(id)&.fetch("id") }.compact : {}
-    copy = @entry.merge("content" => content_for_copy(places.keys), "hidden" => false)
+    content = content_for_copy
+    copy = @entry.merge("content" => content, "hidden" => false)
     if template
       put_copy(copy)
-      places.each { |id, entry_id| put_item(id, entry_id) }
       template.save!
     else
       link_new_template(copy)
     end
 
     rebase(@entry_id)
-    ids.each { |id| rebase(places.fetch(id, @entry_id), id) }
+    CvItems.list(content).pluck(:id).compact.each { |id| rebase(@entry_id, id) }
   end
 
-  def content_for_copy(elsewhere)
+  def content_for_copy
     return CvItems.strip_ticks(CvItems.find(@entry["content"], @item_id)) if @item_id
 
+    elsewhere = items(@entry).pluck(:id).compact.select { |id| template&.entry_with_item(id) }
     CvItems.visible(CvItems.set_off(CvItems.strip_ticks(@entry["content"]), elsewhere, true))
   end
 
@@ -151,11 +144,11 @@ class LibraryTransfer
     section.section_template = template
   end
 
-  def put_item(id, library_entry_id)
-    earlier = items(@entry).pluck(:id).take_while { |other| other != id }
-    item = CvItems.strip_ticks(CvItems.find(@entry["content"], id))
-    content = CvItems.upsert(template.find_entry(library_entry_id)["content"], item, neighbours: earlier)
-    change_entry(template, library_entry_id, "content" => content)
+  def put_item
+    earlier = items(@entry).pluck(:id).take_while { |id| id != @item_id }
+    item = CvItems.strip_ticks(CvItems.find(@entry["content"], @item_id))
+    content = CvItems.upsert(@library_entry["content"], item, neighbours: earlier)
+    change_entry(template, @library_entry["id"], "content" => content)
   end
 
   def rebase(library_entry_id, item_id = nil)
