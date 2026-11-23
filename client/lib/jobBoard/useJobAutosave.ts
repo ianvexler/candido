@@ -50,8 +50,11 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
 
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inFlight = useRef<{ request: Promise<boolean>; sent: string } | null>(null);
-  // The values of a save that failed: autosave waits for an edit instead of retrying them forever.
-  const failed = useRef<string | null>(null);
+  // What the last save sent, whether or not it worked: autosave waits for an edit instead of sending
+  // it again, even if the server stored it differently.
+  const lastSent = useRef<string | null>(null);
+  // What the last save that worked sent: the form may go away before it shows the saved job.
+  const lastSaved = useRef<string | null>(null);
   const removed = useRef(false);
 
   const send = async (values: JobFieldValues): Promise<boolean> => {
@@ -62,6 +65,8 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
     }
 
     setSaving(true);
+    const sent = JSON.stringify(values);
+    lastSent.current = sent;
     try {
       const startedAt = jobSaveStarted();
       const { job_board_entry: stored } = await updateJobBoardEntry(
@@ -80,11 +85,11 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
       latest.current.onPatchJob(stored.id, jobSavePatch(stored, startedAt));
       // Show the date as the server stored it, unless it was changed while this save was out.
       if (latest.current.fields.closingDate === values.closingDate) setField("closingDate", toDateInput(stored.closing_date));
+      lastSaved.current = sent;
       setOutcome("saved");
       return true;
     } catch (error) {
       console.error(error);
-      failed.current = JSON.stringify(values);
       setOutcome("failed");
       toast.error("Failed to update job");
       return false;
@@ -119,7 +124,7 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
   useEffect(() => {
     // While a prompt asks whether to keep the edits, saving them would answer for the user.
     if (!dirty || busy || saving || pendingLeave !== null) return;
-    if (failed.current === JSON.stringify(fields)) return;
+    if (lastSent.current === JSON.stringify(fields)) return;
 
     timer.current = setTimeout(() => void saveNowRef.current(), SAVE_DELAY_MS);
     return () => clearTimeout(timer.current);
@@ -127,8 +132,9 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
 
   useEffect(
     () => () => {
-      const { dirty: unsaved, entry: job } = latest.current;
-      if (unsaved && !removed.current) void trackSave(`job-${job.id}:leaving`, saveNowRef.current());
+      const { dirty: unsaved, entry: job, fields: values } = latest.current;
+      if (!unsaved || removed.current || lastSaved.current === JSON.stringify(values)) return;
+      void trackSave(`job-${job.id}:leaving`, saveNowRef.current());
     },
     []
   );
@@ -159,15 +165,18 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
     const name = capitalize(status.toLowerCase());
     clearTimeout(timer.current);
     setBusy(true);
+    const previous = latest.current.fields.status;
+    // Before it's saved, so leaving meanwhile doesn't save the old status after it.
+    setField("status", status);
     await inFlight.current?.request;
     if (await startSave({ ...latest.current.fields, status })) {
-      setField("status", status);
       // Already saved, though the form only catches up on the next render.
       latest.current.dirty = false;
       toast.success(`Moved to ${name}`);
       after();
-    } else if (!hasRequiredFields(latest.current.fields)) {
-      toast.error("Add a title and company first.");
+    } else {
+      setField("status", previous);
+      if (!hasRequiredFields(latest.current.fields)) toast.error("Add a title and company first.");
     }
     setBusy(false);
   };
@@ -175,13 +184,15 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
   const remove = async (after: () => void) => {
     clearTimeout(timer.current);
     setBusy(true);
+    // From now on, so leaving while it's deleted doesn't save it.
+    removed.current = true;
     try {
       await inFlight.current?.request;
       await deleteJobBoardEntry(entry.id);
-      removed.current = true;
       toast.success(`Deleted ${entry.title}`);
       after();
     } catch (error) {
+      removed.current = false;
       console.error(error);
       toast.error(`Failed to delete ${entry.title}`);
     } finally {
@@ -193,7 +204,7 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
     busy,
     saving,
     showErrors,
-    status: saving ? ("saving" as const) : outcome === "failed" ? ("failed" as const) : outcome && !dirty ? ("saved" as const) : null,
+    status: saving ? ("saving" as const) : outcome === "failed" && dirty ? ("failed" as const) : outcome && !dirty ? ("saved" as const) : null,
     beforeLeave,
     moveTo,
     remove,
