@@ -111,7 +111,7 @@ export const FormatBubble = ({ editor }: { editor: Editor }) => {
           {state.hidden ? (
             <BubbleTextButton
               label="Show"
-              hint="Put this text back in the resume"
+              hint="Put this text back in the CV"
               onClick={() => editor.chain().focus().unsetHidden().run()}
             >
               <EyeIcon />
@@ -119,7 +119,7 @@ export const FormatBubble = ({ editor }: { editor: Editor }) => {
           ) : (
             <BubbleTextButton
               label="Hide"
-              hint="Keep this text here but leave it out of the resume"
+              hint="Keep this text here but leave it out of the CV"
               onClick={() => editor.chain().focus().setHidden().run()}
             >
               <EyeOffIcon />

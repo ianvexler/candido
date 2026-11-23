@@ -7,6 +7,8 @@ export type User = {
   admin: boolean;
   verified: boolean;
   last_login_at: Date;
+  /** Whether CV reviews can run. */
+  reviews_available: boolean;
   job_board_entries_count?: number;
 }
 
@@ -57,7 +59,17 @@ export type JobBoardEntry = {
   cover_letter_key?: string;
   cover_letter_filename?: string;
   closing_date?: Date;
-  cv_curriculum: { id: number; title: string; updated_at: string; fit: CvTailoringReport["fit"] | null } | null;
+  cv_curriculum: {
+    id: number;
+    title: string;
+    updated_at: string;
+    /** From the latest review that succeeded. */
+    fit: CvTailoringReport["fit"] | null;
+    /** The latest review's status; null if the CV was never reviewed. */
+    review_status: CvTailoringStatus | null;
+    /** Suggestions still open in the latest review. */
+    pending_suggestions: number;
+  } | null;
 }
 
 export type JobBoardTag = {

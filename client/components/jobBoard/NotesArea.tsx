@@ -2,9 +2,7 @@ import { JobBoardEntry, Note } from "@/lib/types";
 import Loader from "@/components/common/Loader";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { PlusIcon } from "lucide-react";
 import { Button } from "../ui/Button";
-import { Card, CardContent } from "../ui/Card";
 import { format } from "date-fns";
 import { createNote } from "@/api/resources/notes/createNote";
 import { Textarea } from "../ui/Textarea";
@@ -60,36 +58,29 @@ const NotesArea = ({ jobBoardEntry, notes, loading, onNoteAdded }: NotesAreaProp
           }}
           placeholder="Add a note"
           disabled={isAddingNote}
-          className="flex-7 min-h-10"
+          className="min-h-10 flex-1 resize-none"
           rows={1}
         />
 
-        <Button 
-          onClick={handleAddNote} 
-          disabled={isAddingNote || newNoteContent.trim().length === 0} 
-          className="flex-1"
-        >
-          {isAddingNote ? "..." : "Add"}
-          {isAddingNote ? null : <PlusIcon className="size-4" />}
-        </Button>
+        {newNoteContent.trim().length > 0 && (
+          <Button type="button" onClick={handleAddNote} disabled={isAddingNote}>
+            {isAddingNote ? "Adding…" : "Add"}
+          </Button>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        {notes.map((note) => (
-          <Card key={note.id} className="bg-muted">
-            <CardContent className="text-sm flex flex-col gap-2">
-              <p>{note.content}</p>
-
-              <div className="flex justify-end items-center">
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(note.created_at), "MM/dd/yyyy")}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      
+      {notes.length > 0 && (
+        <ul className="flex flex-col items-start gap-3">
+          {notes.map((note) => (
+            <li key={note.id} className="max-w-[85%] min-w-0">
+              <p className="w-fit max-w-full rounded-2xl rounded-bl-sm bg-candido/20 px-3.5 py-2 text-sm break-words whitespace-pre-line">
+                {note.content}
+              </p>
+              <p className="mt-1 pl-1 text-xs text-muted-foreground">{format(new Date(note.created_at), "d MMM yyyy")}</p>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

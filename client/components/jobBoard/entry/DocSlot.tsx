@@ -2,7 +2,6 @@
 
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import FitBadge from "@/components/common/FitBadge";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import { Textarea } from "@/components/ui/Textarea";
@@ -14,12 +13,10 @@ import {
   FillWay,
   replaceWays,
   saveDocument,
-  textPreview,
 } from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
-import { ChevronDownIcon, ClipboardTypeIcon, CopyIcon, FileTextIcon, UploadIcon } from "lucide-react";
+import { ClipboardTypeIcon, MoreHorizontalIcon, SparklesIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, ReactNode, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -30,6 +27,16 @@ interface DocSlotProps {
   entry: JobBoardEntry;
   /** Applies a change to the job with this id; changes name only the fields they set. */
   onPatchEntry: (id: number, patch: EntryPatch) => void;
+  /** Filling it is the next thing to do, so its main button stands out. */
+  isNext?: boolean;
+  /** On its own page: the heading above names the document, so the row leads with what fills it. */
+  titled?: boolean;
+  /** Beside the title of a titled row. */
+  badge?: ReactNode;
+  /** Offers making a copy of one of the user's CVs. */
+  canTailor?: boolean;
+  /** Shown as the main action of a linked CV copy, instead of Open. */
+  next?: ReactNode;
   /** Wraps actions that navigate away (e.g. a discard-changes prompt). */
   beforeLeave?: (action: () => void) => void;
 }
@@ -38,11 +45,11 @@ const runNow = (action: () => void) => action();
 
 /**
  * One of the job's documents: an uploaded file or pasted text, and for the CV
- * also a copy of one of the user's CVs. Has no heading; the page around it names it.
+ * also a copy of one of the user's CVs. One row: what it holds, and what can be done with it.
  * Its parent must remount it for another job (key it by the job's id), so a paste box
  * or prompt never carries over.
  */
-const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotProps) => {
+const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, titled = false, badge, next, beforeLeave = runNow }: DocSlotProps) => {
   const router = useRouter();
   const config = DOC_KINDS[kind];
   const state = config.state(entry);
@@ -105,7 +112,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
         kind: "replace",
         description:
           state === "copy"
-            ? "Picking one of your CVs makes a new copy and deletes this one from your resumes."
+            ? "Picking one of your CVs makes a new copy and deletes this one from your CVs."
             : `Picking one of your CVs deletes the current ${state === "text" ? "text" : "file"}.`,
         run: () => fill(way),
       });
@@ -138,40 +145,86 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
     }
   };
 
-  const replaceControl = (ways: FillWay[]) =>
-    ways.length === 1 ? (
-      <Button type="button" variant="outline" size="sm" onClick={() => replaceWith(ways[0])} disabled={saving}>
-        Replace
-      </Button>
-    ) : (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="sm" disabled={saving}>
-            Replace
-            <ChevronDownIcon />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {ways.map((way) => (
-            <DropdownMenuItem key={way} onSelect={() => replaceWith(way)}>
-              {FILL_ICONS[way]}
-              {FILL_LABELS[way]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
+  const openCopy = () => {
+    const copy = entry.cv_curriculum;
+    if (copy) beforeLeave(() => router.push(`/resume/${copy.id}`));
+  };
 
-  const removeButton = (
-    <Button type="button" variant="ghost" size="sm" onClick={remove} disabled={saving}>
-      Remove
+  // Everything but the main action.
+  const moreMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" disabled={saving} aria-label={`More ${config.noun} actions`}>
+          <MoreHorizontalIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {state === "copy" && next && <DropdownMenuItem onSelect={() => openCopy()}>Open</DropdownMenuItem>}
+        {replaceWays(kind, state).filter((way) => canTailor || way !== "use").map((way) => (
+          <DropdownMenuItem key={way} onSelect={() => replaceWith(way)}>
+            {FILL_ICONS[way]}
+            {way === "use" ? "Replace with one of my CVs" : way === "upload" ? "Replace with a file" : "Replace with text"}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuItem variant="destructive" onSelect={remove}>
+          <Trash2Icon />
+          Remove
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const small = (label: string, onClick: () => void) => (
+    <Button type="button" size="sm" variant="outline" onClick={onClick} disabled={saving}>
+      {label}
     </Button>
   );
+
+  const row = (): { detail: ReactNode; actions: ReactNode } => {
+    if (state === "empty") {
+      const tailor = canTailor && config.ways.includes("use");
+      return {
+        detail: "None yet",
+        actions: (
+          <>
+            {tailor && (
+              <Button
+                type="button"
+                size="sm"
+                variant={isNext ? "candido" : "outline"}
+                onClick={() => fill("use")}
+                disabled={saving}
+              >
+                <SparklesIcon />
+                {FILL_LABELS.use}
+              </Button>
+            )}
+            {config.ways
+              .filter((way) => way !== "use")
+              .map((way) => (
+                <Button key={way} type="button" size="sm" variant="ghost" onClick={() => fill(way)} disabled={saving}>
+                  {FILL_ICONS[way]}
+                  {saving && way === "upload" ? "Uploading…" : FILL_LABELS[way]}
+                </Button>
+              ))}
+          </>
+        ),
+      };
+    }
+    if (state === "copy" && entry.cv_curriculum) {
+      return { detail: entry.cv_curriculum.title, actions: <>{next ?? small("Open", openCopy)}{moreMenu}</> };
+    }
+    if (state === "file") {
+      return { detail: doc.filename ?? config.fallbackFilename, actions: <>{small("View", () => void viewFile())}{moreMenu}</> };
+    }
+    return { detail: "Pasted text", actions: <>{small("Edit", () => setDraft(doc.text ?? ""))}{moreMenu}</> };
+  };
 
   let body: ReactNode;
   if (draft !== null) {
     body = (
       <div className="space-y-2">
+        <p className="text-sm font-medium">{config.name}</p>
         <Textarea
           autoFocus
           value={draft}
@@ -191,130 +244,64 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
         </div>
       </div>
     );
-  } else if (state === "empty") {
-    // The dashed area is the drop target and the main action; the other ways sit under it.
-    body = (
-      <div className="space-y-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            if (!saving) fill("upload");
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(!saving);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            const file = e.dataTransfer.files[0];
-            if (file && !saving) takeFile(file);
-          }}
-          // Not `disabled`: it would stop handling drops, and the browser would open the file instead.
-          aria-disabled={saving}
-          className={cn(
-            "group flex w-full items-center gap-3 rounded-md border border-dashed border-muted-foreground/30 px-4 py-3.5 text-left transition-colors",
-            "hover:border-muted-foreground/60 hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-            "aria-disabled:cursor-default aria-disabled:opacity-60",
-            dragging && "border-primary bg-muted/60"
-          )}
-        >
-          <span
-            className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:text-foreground [&>svg]:size-4"
-            aria-hidden
-          >
-            <UploadIcon />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">
-              {saving ? "Uploading…" : `Upload the ${config.noun} you sent`}
-            </span>
-            <span className="block text-xs text-muted-foreground">Drop a PDF here, or click to choose one</span>
-          </span>
-        </button>
-        {/* Pulled left by the buttons' own padding so their icons line up with the box. */}
-        <div className="-ml-2.5 flex flex-wrap gap-1">
-          {config.ways
-            .filter((way) => way !== "upload")
-            .map((way) => (
-              <Button
-                key={way}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => fill(way)}
-                disabled={saving}
-              >
-                {FILL_ICONS[way]}
-                {FILL_LABELS[way]}
-              </Button>
-            ))}
-        </div>
-      </div>
-    );
-  } else if (state === "copy" && entry.cv_curriculum) {
-    const copy = entry.cv_curriculum;
-    body = (
-      <SlotCard
-        icon={<CopyIcon />}
-        title={copy.title}
-        badge={copy.fit && <FitBadge fit={copy.fit} />}
-        detail={`Edited ${formatDistanceToNow(new Date(copy.updated_at), { addSuffix: true })}`}
-        actions={
-          <>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => beforeLeave(() => router.push(`/resume/${copy.id}`))}
-              disabled={saving}
-            >
-              Open
-            </Button>
-            {replaceControl(replaceWays(kind, state))}
-            {removeButton}
-          </>
-        }
-      />
-    );
   } else {
-    const isFile = state === "file";
+    const { detail, actions } = row();
     body = (
-      <SlotCard
-        icon={isFile ? <FileTextIcon /> : <ClipboardTypeIcon />}
-        title={isFile ? doc.filename ?? config.fallbackFilename : "Pasted text"}
-        detail={isFile ? "PDF" : undefined}
-        preview={isFile ? undefined : textPreview(doc.text)}
-        actions={
-          <>
-            {isFile ? (
-              <Button type="button" size="sm" onClick={() => void viewFile()} disabled={saving}>
-                View
-              </Button>
-            ) : (
-              <Button type="button" size="sm" onClick={() => setDraft(doc.text ?? "")} disabled={saving}>
-                Edit
-              </Button>
-            )}
-            {replaceControl(replaceWays(kind, state))}
-            {removeButton}
-          </>
-        }
-      />
+      <div
+        // A PDF can be dropped anywhere on an empty row.
+        onDragOver={(e) => {
+          if (state !== "empty") return;
+          e.preventDefault();
+          setDragging(!saving);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          if (state !== "empty") return;
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file && !saving) takeFile(file);
+        }}
+        className={cn(
+          "flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md transition-colors",
+          dragging && "bg-muted ring-2 ring-ring/50"
+        )}
+      >
+        <div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-x-2 gap-y-1">
+          {titled ? (
+            <>
+              <h3 className="min-w-0 truncate text-base font-medium" title={typeof detail === "string" ? detail : undefined}>
+                {state === "empty" ? `No ${config.noun} yet` : detail}
+              </h3>
+              {badge}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium">{config.name}</p>
+              <p
+                className="min-w-0 truncate text-sm text-muted-foreground"
+                title={typeof detail === "string" ? detail : undefined}
+              >
+                {detail}
+              </p>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">{actions}</div>
+      </div>
     );
   }
 
   const what = state === "copy" ? "CV copy" : state === "text" ? `pasted ${config.noun}` : `uploaded ${config.noun}`;
   const deletes = {
-    copy: "The copy is deleted from your resumes, along with its review. Your original CV isn't changed.",
+    copy: "The copy is deleted from your CVs, along with its review. Your original CV isn't changed.",
     text: "The current text is deleted.",
     file: "The current file is deleted.",
     empty: "",
   }[state];
 
   return (
-    <div className="space-y-2">
+    <div>
       {body}
 
       <input ref={fileInput} type="file" accept="application/pdf" className="hidden" onChange={handleFile} />
@@ -350,51 +337,15 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
 };
 
 const FILL_LABELS: Record<FillWay, string> = {
-  upload: "Upload file",
-  paste: "Paste text",
-  use: "Use one of my CVs",
+  upload: "Upload",
+  paste: "Paste",
+  use: "Tailor one of my CVs",
 };
 
 const FILL_ICONS: Record<FillWay, ReactNode> = {
   upload: <UploadIcon />,
   paste: <ClipboardTypeIcon />,
-  use: <CopyIcon />,
+  use: <SparklesIcon />,
 };
-
-/** A filled slot: what it holds on the left, its badge on the right, actions below. */
-const SlotCard = ({
-  icon,
-  title,
-  badge,
-  detail,
-  preview,
-  actions,
-}: {
-  icon: ReactNode;
-  title: string;
-  badge?: ReactNode;
-  detail?: string;
-  preview?: string;
-  actions: ReactNode;
-}) => (
-  <div className="rounded-md border border-border p-3">
-    <div className="flex min-w-0 items-start gap-2.5">
-      <span className="mt-0.5 shrink-0 text-muted-foreground [&>svg]:size-4" aria-hidden>
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <p className="min-w-0 truncate text-sm font-medium" title={title}>
-            {title}
-          </p>
-          {badge}
-        </div>
-        {detail && <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>}
-        {preview && <p className="mt-1 line-clamp-2 text-xs whitespace-pre-line text-muted-foreground">{preview}</p>}
-      </div>
-    </div>
-    <div className="mt-3 flex flex-wrap items-center justify-end gap-1.5">{actions}</div>
-  </div>
-);
 
 export default DocSlot;

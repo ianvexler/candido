@@ -32,8 +32,39 @@ RSpec.describe "Job board entries" do
       get "/api/v1/job_board_entries", headers: headers
 
       expect(response.parsed_body["job_board_entries"].first["cv_curriculum"]).to eq(
-        "id" => copy.id, "title" => "Copy", "updated_at" => copy.updated_at.as_json, "fit" => "strong"
+        "id" => copy.id, "title" => "Copy", "updated_at" => copy.updated_at.as_json, "fit" => "strong",
+        "review_status" => "failed", "pending_suggestions" => 0
       )
+    end
+
+    it "counts only the latest run's open suggestions" do
+      job = create(:job_board_entry, user: user, number: 1)
+      copy = create(:curriculum, user: user, job_board_entry: job)
+      job.use_cv_copy!(copy)
+      older = create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", created_at: 2.hours.ago)
+      create(:cv_tailoring_suggestion, cv_tailoring: older)
+      latest = create(:cv_tailoring, user: user, curriculum: copy, status: "succeeded", created_at: 1.hour.ago)
+      create(:cv_tailoring_suggestion, cv_tailoring: latest)
+      create(:cv_tailoring_suggestion, cv_tailoring: latest, status: "accepted")
+
+      get "/api/v1/job_board_entries", headers: headers
+
+      expect(response.parsed_body["job_board_entries"].first["cv_curriculum"])
+        .to include("review_status" => "succeeded", "pending_suggestions" => 1)
+    end
+
+    it "shows no review for a CV that never had one, and a stuck one as failed" do
+      plain, stuck = [ 1, 2 ].map do |number|
+        job = create(:job_board_entry, user: user, number: number)
+        create(:curriculum, user: user, job_board_entry: job).tap { |copy| job.use_cv_copy!(copy) }
+      end
+      create(:cv_tailoring, user: user, curriculum: stuck, status: "processing", updated_at: 11.minutes.ago)
+
+      get "/api/v1/job_board_entries", headers: headers
+
+      copies = response.parsed_body["job_board_entries"].map { |entry| entry["cv_curriculum"] }.index_by { |copy| copy["id"] }
+      expect(copies[plain.id]).to include("review_status" => nil, "pending_suggestions" => 0)
+      expect(copies[stuck.id]).to include("review_status" => "failed")
     end
 
     it "shows the newest succeeded fit for each job's CV" do

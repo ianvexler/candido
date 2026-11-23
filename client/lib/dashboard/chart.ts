@@ -51,3 +51,9 @@ export const closingLabel = (closingDate: string, now = new Date()): string => {
   if (days === 1) return "Tomorrow";
   return `In ${days} days`;
 };
+
+/** "Closes in 4 days", or "Closed" once the date has passed. */
+export const closesLabel = (closingDate: string, now = new Date()): string =>
+  differenceInCalendarDays(new Date(closingDate), now) < 0
+    ? "Closed"
+    : `Closes ${closingLabel(closingDate, now).toLowerCase()}`;

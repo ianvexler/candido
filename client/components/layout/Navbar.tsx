@@ -22,7 +22,7 @@ const navLinks = [
   { href: "/dashboard", icon: HomeIcon, label: "Dashboard" },
   { href: "/board", icon: KanbanIcon, label: "Board" },
   { href: "/sheet", icon: SheetIcon, label: "Sheet" },
-  { href: "/resume", icon: LayersIcon, label: "Resume" },
+  { href: "/resume", icon: LayersIcon, label: "CVs" },
 ];
 
 const Navbar = () => {
@@ -38,7 +38,7 @@ const Navbar = () => {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden md:flex fixed left-0 top-0 z-10 h-screen w-18 shrink-0 flex-col items-center border-r border-border bg-candido-black py-4">
+      <aside className="hidden md:flex fixed left-0 top-0 z-10 h-screen w-18 shrink-0 flex-col items-center bg-candido-black py-4">
         <Link href="/" className="mb-6 my-3">
           <Image src={Logo} alt="Candido" width={34} height={36} className="rounded" />
         </Link>

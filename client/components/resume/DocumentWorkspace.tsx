@@ -72,7 +72,7 @@ const DocumentWorkspace = ({ header, children, preview, review }: DocumentWorksp
           <aside className="flex h-80 md:h-auto w-full md:w-md shrink-0 flex-col border-t md:border-t-0 bg-background">
             <div className="border-b border-border px-5 py-3">
               <p className="text-sm font-medium">Preview</p>
-              <p className="text-xs text-muted-foreground">What the resume contains, without styling</p>
+              <p className="text-xs text-muted-foreground">What the CV contains, without styling</p>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">{preview}</div>
           </aside>

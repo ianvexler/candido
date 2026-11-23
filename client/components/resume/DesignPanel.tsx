@@ -129,7 +129,7 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
                     {applied && <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="In use" />}
                   </button>
                   <IconAction
-                    label={item.is_default ? "Default for new resumes (click to unset)" : "Use for new resumes"}
+                    label={item.is_default ? "Default for new CVs (click to unset)" : "Use for new CVs"}
                     active={item.is_default}
                     onClick={() => void makeDefault(item)}
                   >

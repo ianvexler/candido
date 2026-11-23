@@ -50,7 +50,7 @@ export const coverLetterSlotState = (
 
 /** Links a new copy; the server clears any upload or text. */
 export const copyPatch = (copy: Pick<Curriculum, "id" | "title" | "updated_at">): Partial<JobBoardEntry> => ({
-  cv_curriculum: { id: copy.id, title: copy.title, updated_at: String(copy.updated_at), fit: null },
+  cv_curriculum: { id: copy.id, title: copy.title, updated_at: String(copy.updated_at), fit: null, review_status: null, pending_suggestions: 0 },
   cv_text: undefined,
   cv_key: undefined,
   cv_filename: undefined,

@@ -242,7 +242,7 @@ const SectionEntryEditor = ({
         {entry.hidden && (
           <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             <EyeOffIcon className="size-3" />
-            Left out of this resume
+            Left out of this CV
           </span>
         )}
         <div className="flex items-start justify-between gap-2">
@@ -279,7 +279,7 @@ const SectionEntryEditor = ({
             ) : null}
             {canHide && (
               <IconAction
-                label={entry.hidden ? "Show entry in this resume" : "Leave entry out of this resume"}
+                label={entry.hidden ? "Show entry in this CV" : "Leave entry out of this CV"}
                 active={entry.hidden}
                 onClick={() => onChange({ hidden: !entry.hidden })}
               >
@@ -426,8 +426,8 @@ const SectionEntryEditor = ({
           title="Delete this entry?"
           description={
             canHide
-              ? "Only this resume's copy is deleted. To keep it here but not show it, leave it out instead."
-              : "This removes it from the library section. Resumes that already use it keep their copy."
+              ? "Only this CV's copy is deleted. To keep it here but not show it, leave it out instead."
+              : "This removes it from the library section. CVs that already use it keep their copy."
           }
           confirmLabel="Delete"
           variant="destructive"

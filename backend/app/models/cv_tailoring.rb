@@ -81,6 +81,11 @@ class CvTailoring < ApplicationRecord
     self
   end
 
+  # The status to show: a run that stopped working reads as failed before it's expired.
+  def shown_status
+    active? && updated_at < STALE_AFTER.ago ? "failed" : status
+  end
+
   def active?
     %w[pending processing].include?(status)
   end

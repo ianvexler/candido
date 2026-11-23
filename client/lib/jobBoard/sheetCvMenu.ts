@@ -31,7 +31,7 @@ export const sheetCvMenu = (
             label: "Replace with file…",
             confirm: {
               title: "Replace the CV copy with a file?",
-              description: "The copy is deleted from your resumes, along with its review. Your original CV isn't changed.",
+              description: "The copy is deleted from your CVs, along with its review. Your original CV isn't changed.",
               confirmLabel: "Replace",
               destructive: true,
             },

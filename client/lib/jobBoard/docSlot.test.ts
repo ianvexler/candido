@@ -30,7 +30,7 @@ describe("cvSlotState", () => {
     expect(cvSlotState({ ...base, cv_text: "  " })).toBe("empty");
   });
   it("prefers a linked copy, then a file, then text", () => {
-    const copy = { id: 1, title: "Main", updated_at: "2026-11-22T00:00:00Z", fit: null };
+    const copy = { id: 1, title: "Main", updated_at: "2026-11-22T00:00:00Z", fit: null, review_status: null, pending_suggestions: 0 };
     expect(cvSlotState({ ...base, cv_curriculum: copy, cv_key: "k", cv_text: "t" })).toBe("copy");
     expect(cvSlotState({ ...base, cv_key: "k", cv_text: "t" })).toBe("file");
     expect(cvSlotState({ ...base, cv_text: "t" })).toBe("text");
@@ -84,7 +84,7 @@ describe("textPreview", () => {
 });
 
 const copy = { id: 3, title: "Main – Acme", updated_at: "2026-11-22T10:00:00Z" as unknown as Date };
-const linked = { id: 3, title: "Main – Acme", updated_at: "2026-11-22T10:00:00Z", fit: null };
+const linked = { id: 3, title: "Main – Acme", updated_at: "2026-11-22T10:00:00Z", fit: null, review_status: null, pending_suggestions: 0 };
 
 describe("applyEntryPatch", () => {
   it("patches only the job it was made for", () => {

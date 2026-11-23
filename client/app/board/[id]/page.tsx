@@ -1,51 +1,72 @@
 "use client";
 
+import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { getJobBoardEntry } from "@/api/resources/jobBoardEntries/getJobBoardEntry";
 import Loader from "@/components/common/Loader";
-import PageContainer from "@/components/common/PageContainer";
-import MainEntryForm from "@/components/jobBoard/entry/MainEntryForm";
-import { applyEntryPatch, EntryPatch, jobSavePatch } from "@/lib/jobBoard/docSlot";
+import JobFormSheet from "@/components/jobBoard/JobFormSheet";
+import { applyEntryPatch, EntryPatch } from "@/lib/jobBoard/docSlot";
+import { useNotes } from "@/lib/jobBoard/useNotes";
 import { JobBoardEntry } from "@/lib/types";
-import { use, useCallback, useEffect, useRef, useState } from "react";
-import ConfirmationModal from "@/components/common/ConfirmationModal";
-import EntryDocArea from "@/components/jobBoard/entry/EntryDocArea";
+import { capitalize } from "@/lib/utils";
+import { ArrowLeftIcon } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { use, useCallback, useEffect, useState } from "react";
 
 interface BoardJobEntryPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }
 
-const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
+const BoardJobEntryPage = ({ params, searchParams }: BoardJobEntryPageProps) => {
   const { id } = use(params);
-  const [jobEntry, setJobEntry] = useState<JobBoardEntry>();
+  const { from } = use(searchParams);
+  // A new job starts from a clean page.
+  return <JobPage key={id} id={id} from={from === "sheet" ? "sheet" : "board"} />;
+};
+
+/** Preparing a job's application, with the job's own fields beside it. */
+const JobPage = ({ id, from }: { id: string; from: "board" | "sheet" }) => {
+  const router = useRouter();
+  const [entry, setEntry] = useState<JobBoardEntry>();
+  const [allEntries, setAllEntries] = useState<JobBoardEntry[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const { notes, addNote } = useNotes(entry?.id);
 
   useEffect(() => {
     let cancelled = false;
-
-    getJobBoardEntry(id).then((response) => {
-      if (!cancelled) {
-        setJobEntry(response.job_board_entry);
-      }
-    });
-    return () => { cancelled = true; };
+    // The other jobs are needed for tags and for column order when the status changes.
+    Promise.all([getJobBoardEntry(id), getJobBoardEntries()])
+      .then(([job, jobs]) => {
+        if (cancelled) return;
+        setEntry(job.job_board_entry);
+        setAllEntries(jobs.job_board_entries);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) setLoadError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
-  
-  // Saves name only the fields they set and the job they're for, so a late one can't undo newer changes.
+
   const patchEntry = useCallback((entryId: number, patch: EntryPatch) => {
-    setJobEntry((prev) => prev && applyEntryPatch(prev, entryId, patch));
+    setEntry((prev) => prev && applyEntryPatch(prev, entryId, patch));
   }, []);
 
-  // The form saves only on Submit, so ask before the CV slot leaves the page with edits unsaved.
-  const dirtyRef = useRef(false);
-  const onDirtyChange = useCallback((dirty: boolean) => {
-    dirtyRef.current = dirty;
-  }, []);
-  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
-  const beforeLeave = (action: () => void) => {
-    if (dirtyRef.current) setPendingLeave(() => action);
-    else action();
-  };
+  if (loadError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <p className="font-medium">This job could not be loaded.</p>
+        <Link href={`/${from}`} className="text-sm underline">
+          Back to the {from}
+        </Link>
+      </div>
+    );
+  }
 
-  if (!jobEntry) {
+  if (!entry || !allEntries) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
         <Loader size="lg" />
@@ -54,37 +75,27 @@ const BoardJobEntry = ({ params }: BoardJobEntryPageProps) => {
   }
 
   return (
-    <PageContainer>
-      <div className="grid grid-cols-1 lg:grid-cols-[500px_1fr] gap-4 w-full mt-3 min-w-0">
-        <div className="min-w-0">
-          <MainEntryForm
-            entry={jobEntry}
-            onUpdateEntry={(saved, startedAt) => patchEntry(saved.id, jobSavePatch(saved, startedAt))}
-            onDirtyChange={onDirtyChange}
-          />
-        </div>
+    <JobFormSheet
+      mode="edit"
+      layout="page"
+      back={
+        <Link
+          href={`/${from}?job=${entry.id}`}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeftIcon className="size-4" />
+          {capitalize(from)}
+        </Link>
+      }
+      entry={entry}
+      allEntries={allEntries}
+      onClose={() => router.push(`/${from}`)}
+      onPatchJob={patchEntry}
+      notes={notes[entry.id] ?? []}
+      notesLoading={notes[entry.id] === undefined}
+      onNoteAdded={(note) => addNote(entry.id, note)}
+    />
+  );
+};
 
-        <div className="min-w-0 overflow-hidden">
-          <EntryDocArea 
-            entry={jobEntry} 
-            onPatchEntry={patchEntry}
-            beforeLeave={beforeLeave}
-          />
-        </div>
-      </div>
-
-      <ConfirmationModal
-        isOpen={pendingLeave !== null}
-        onClose={() => setPendingLeave(null)}
-        onConfirm={() => pendingLeave?.()}
-        title="Discard your job changes?"
-        description="You have edits to this job that aren't submitted yet."
-        confirmLabel="Discard and continue"
-        cancelLabel="Keep editing"
-        variant="destructive"
-      />
-    </PageContainer>
-  )
-}
-
-export default BoardJobEntry;
+export default BoardJobEntryPage;
