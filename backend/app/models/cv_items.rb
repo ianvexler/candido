@@ -24,14 +24,14 @@ module CvItems
 
   # Gives every item its own id and removes ids and ticks from anything else.
   # Content saved without any ids takes them back from `previous`, with their
-  # ticks, by matching text.
-  def assign(html, previous: nil)
+  # ticks, by matching text. Ids in `taken` count as used already.
+  def assign(html, previous: nil, taken: [])
     fragment = parse(html)
     items = items_in(fragment)
     (fragment.css("[#{ID}], [#{OFF}]").to_a - items).each { |node| untag(node) }
     restore(items, previous) if previous.present? && items.none? { |node| valid_id?(node[ID]) }
 
-    seen = Set.new
+    seen = Set.new(taken)
     items.each do |node|
       node.remove_attribute(OFF) if seen.include?(node[ID])
       node[ID] = SecureRandom.uuid unless valid_id?(node[ID]) && seen.exclude?(node[ID])
