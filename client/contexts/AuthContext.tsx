@@ -8,7 +8,7 @@ import Loader from "@/components/common/Loader";
 import useAuthStore from "@/lib/stores/authStore";
 import type { User } from "@/lib/types";
 import { AxiosError, HttpStatusCode } from "axios";
-import { redirect, usePathname, useRouter } from "next/navigation";
+import { redirect, usePathname } from "next/navigation";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -36,7 +36,6 @@ const permittedRoutes = ['/', '/login', '/register', '/verify'];
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
-  const router = useRouter();
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
 
   const user = useAuthStore((state) => state.user);
@@ -95,13 +94,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthChecking(false);
       });
   }, [isPermittedRoute, setUser, clearSession, handleUnauthorized]);
-
-  // Signing in lands on the dashboard; a new user goes to the first run page instead. Other pages stay
-  // reachable, so a step can be done from them.
-  const needsSetup = isAuthenticated && !isAuthChecking && user?.setup_completed === false;
-  useEffect(() => {
-    if (needsSetup && pathname === "/dashboard") router.replace("/welcome");
-  }, [needsSetup, pathname, router]);
 
   const value = {
     user,

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { CalendarPlusIcon, GitBranchIcon, KanbanIcon, TrendingUpIcon, TrophyIcon } from "lucide-react";
@@ -23,6 +24,7 @@ import { JobBoardEntriesStats } from "@/lib/types";
 
 const HomePage = () => {
   const { user } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<JobBoardEntriesStats>();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,7 +40,14 @@ const HomePage = () => {
       });
   }, []);
 
-  if (isLoading) {
+  // Signing in lands here; a new user goes to the first run page instead, until they skip or finish it or
+  // have a job. Other pages stay reachable, so a step can be done from them.
+  const isNewUser = user?.setup_completed === false && stats?.counts.total === 0;
+  useEffect(() => {
+    if (isNewUser) router.replace("/welcome");
+  }, [isNewUser, router]);
+
+  if (isLoading || isNewUser) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />

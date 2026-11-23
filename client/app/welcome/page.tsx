@@ -116,14 +116,19 @@ const WelcomePage = () => {
     void finishSetup();
   };
 
-  const goToBoard = () => {
+  const leaveTo = (href: string) => {
     void finishSetup();
-    router.push("/board");
+    router.push(href);
   };
 
   return (
     <PageContainer className="max-w-3xl">
-      <h1 className="text-4xl font-bold tracking-tight">Get your first application ready</h1>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+        <h1 className="text-4xl font-bold tracking-tight">Get your first application ready</h1>
+        <Button variant="ghost" onClick={() => leaveTo("/dashboard")}>
+          Skip for now
+        </Button>
+      </div>
       <p className="mt-2 text-base text-muted-foreground">Bring in your CV, add a job, and see how well they fit.</p>
 
       <ol className="mt-8 divide-y divide-border border-y border-border">
@@ -191,7 +196,7 @@ const WelcomePage = () => {
             Import them
           </button>
         </p>
-        <Button variant="outline" onClick={goToBoard}>
+        <Button variant="outline" onClick={() => leaveTo("/board")}>
           Go to my board
         </Button>
       </div>
