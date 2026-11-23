@@ -255,11 +255,15 @@ export type CvSuggestion = {
   position: number | null;
 }
 
+export type MissingSection = "Experience" | "Education" | "Skills";
+
 export type CvTailoringReport = {
   fit: "strong" | "partial" | "weak";
   summary: string;
   requirements: { text: string; covered: "yes" | "partly" | "no" }[];
   gaps: string[];
+  /** Essential sections the CV has none of. Absent on reviews from before this was added. */
+  missing_sections?: { section: MissingSection; reason: string }[];
 }
 
 /** A review of one resume against one job. */

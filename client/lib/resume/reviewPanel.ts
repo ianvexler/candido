@@ -1,4 +1,4 @@
-import type { CvSuggestion, CvSuggestionStatus, CvTailoringReport } from "@/lib/types";
+import type { CvSuggestion, CvSuggestionStatus, CvTailoringReport, MissingSection } from "@/lib/types";
 import { splitSuggestions } from "./suggestions";
 
 export const FIT_LABELS: Record<CvTailoringReport["fit"], string> = {
@@ -70,3 +70,23 @@ export const apiErrorMessage = (error: unknown, fallback: string): string => {
 /** The API refused because the suggestion or review changed elsewhere (409). */
 export const isConflict = (error: unknown): boolean =>
   (error as { response?: { status?: unknown } } | undefined)?.response?.status === 409;
+
+/**
+ * The headings that count as having each section. Mirrors the server's
+ * CvTailorings::Normalizer::MISSING_SECTIONS; keep the two in step.
+ */
+export const MISSING_SECTION_PATTERNS: Record<MissingSection, RegExp> = {
+  Experience: /experience|employment|work|career|job|intern|position/i,
+  Education: /education|qualification|academic|degree|stud(?:y|ies)|school|university|training|certific/i,
+  Skills: /skill|competenc|technolog|tool|stack|expertise/i,
+};
+
+/** The report's missing sections the CV still has none of, so one disappears once it's added. */
+export const stillMissing = (
+  report: Pick<CvTailoringReport, "missing_sections"> | null,
+  sections: { section_type: string; title: string }[],
+): NonNullable<CvTailoringReport["missing_sections"]> =>
+  (report?.missing_sections ?? []).filter(
+    ({ section }) =>
+      !sections.some((s) => MISSING_SECTION_PATTERNS[section].test(s.section_type) || MISSING_SECTION_PATTERNS[section].test(s.title)),
+  );

@@ -121,7 +121,7 @@ RSpec.describe CvTailorings::Reviewer do
     end
     walk.call(described_class::SCHEMA)
 
-    expect(objects.size).to eq(3)
+    expect(objects.size).to eq(4)
     expect(objects).to all(include(additionalProperties: false))
     objects.each { |object| expect(object[:required]).to match_array(object[:properties].keys.map(&:to_s)) }
   end

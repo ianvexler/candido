@@ -1,6 +1,7 @@
 "use client";
 
 import { addCurriculumSections } from "@/api/resources/curriculums/addCurriculumSections";
+import { addEmptyCurriculumSection } from "@/api/resources/curriculums/addEmptyCurriculumSection";
 import { getCurriculum } from "@/api/resources/curriculums/getCurriculum";
 import { getLatestCvTailoring } from "@/api/resources/cvTailorings/getLatestCvTailoring";
 import { rerunCvTailoring } from "@/api/resources/cvTailorings/rerunCvTailoring";
@@ -28,7 +29,7 @@ import { pollUntil, PollTimeoutError } from "@/lib/poll";
 import { Button } from "@/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import InlineInput from "@/components/ui/InlineInput";
-import { Curriculum, CurriculumSection, CvSuggestion, CvTailoring, ResumeHeader } from "@/lib/types";
+import { Curriculum, CurriculumSection, CvSuggestion, CvTailoring, MissingSection, ResumeHeader } from "@/lib/types";
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { ArrowLeftIcon, DownloadIcon, LayersIcon } from "lucide-react";
@@ -309,6 +310,26 @@ const ResumePage = ({ params }: ResumePageProps) => {
     }
   };
 
+  // Appends only the new section, so unsaved edits in the others aren't replaced by the server's copy.
+  const addMissingSection = async (sectionType: MissingSection) => {
+    try {
+      const response = await addEmptyCurriculumSection(curriculum.id, sectionType);
+      const known = new Set(sections.map((section) => section.id));
+      const added = (response.curriculum.sections ?? []).filter((section) => !known.has(section.id));
+      setSections((current) => [...current, ...added]);
+      toast.success(`${sectionType} section added`);
+      const first = added[0];
+      if (first) {
+        requestAnimationFrame(() =>
+          document.querySelector(`[data-section-id="${first.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(`Couldn't add the ${sectionType.toLowerCase()} section. Try again.`);
+    }
+  };
+
   const onDragEnd = (event: DragEndEvent) => {
     if (event.canceled) return;
 
@@ -385,6 +406,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
             activeId={activeSuggestionId}
             onSelect={selectSuggestion}
             onDismiss={dismissSuggestion}
+            onAddSection={addMissingSection}
             onRerun={() => void rerunReview()}
             rerunning={rerunning}
             jobRemoved={tailoring ? tailoring.job_board_entry_id === null : curriculum.job_board_entry_id === null}

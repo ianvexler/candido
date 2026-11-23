@@ -3,11 +3,11 @@
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/Button";
 import FitBadge from "@/components/common/FitBadge";
-import { COVERAGE_LABELS, progressStep, reviewGroups, sectionLabel } from "@/lib/resume/reviewPanel";
+import { COVERAGE_LABELS, progressStep, reviewGroups, sectionLabel, stillMissing } from "@/lib/resume/reviewPanel";
 import { isTailoringActive } from "@/lib/resume/suggestions";
-import { CurriculumSection, CvSuggestion, CvTailoring } from "@/lib/types";
+import { CurriculumSection, CvSuggestion, CvTailoring, MissingSection } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { CheckIcon, ChevronRightIcon, ContrastIcon, InfoIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, ContrastIcon, InfoIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import SuggestionRow, { DoneRow } from "./SuggestionRow";
 
@@ -19,6 +19,8 @@ interface ReviewPanelProps {
   onSelect: (id: number) => void;
   /** Marks a stale suggestion or a note as rejected. */
   onDismiss: (s: CvSuggestion) => Promise<void>;
+  /** Adds an empty section of a type the review found missing. */
+  onAddSection?: (section: MissingSection) => Promise<void>;
   onRerun: () => void;
   rerunning: boolean;
   /** The job behind this copy was deleted, so it can't be reviewed again. */
@@ -65,6 +67,7 @@ const ReviewPanel = ({
   activeId,
   onSelect,
   onDismiss,
+  onAddSection,
   onRerun,
   rerunning,
   jobRemoved,
@@ -75,6 +78,7 @@ const ReviewPanel = ({
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doneOpen, setDoneOpen] = useState(false);
   const [dismissing, setDismissing] = useState<number[]>([]);
+  const [adding, setAdding] = useState<MissingSection | null>(null);
 
   const sectionsById = useMemo(() => new Map(sections.map((s) => [s.id, s])), [sections]);
   const groups = useMemo(
@@ -94,6 +98,17 @@ const ReviewPanel = ({
 
   const active = isTailoringActive(tailoring);
   const report = tailoring?.status === "succeeded" ? tailoring.report : null;
+  // Recomputed from the sections, so an item disappears once that section exists.
+  const missing = stillMissing(report, sections);
+
+  const addSection = async (section: MissingSection) => {
+    setAdding(section);
+    try {
+      await onAddSection?.(section);
+    } finally {
+      setAdding(null);
+    }
+  };
 
   const footer = jobRemoved ? (
     <p className="text-xs text-muted-foreground">This job was removed from your board.</p>
@@ -196,6 +211,39 @@ const ReviewPanel = ({
             <ul className="list-disc space-y-1 pl-4 text-sm marker:text-muted-foreground">
               {report.gaps.map((gap, index) => (
                 <li key={index}>{gap}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {missing.length > 0 && (
+          <section>
+            <Heading>Missing sections</Heading>
+            <ul className="space-y-1.5">
+              {missing.map(({ section, reason }) => (
+                <li
+                  key={section}
+                  className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{section}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{reason}</p>
+                  </div>
+                  {onAddSection && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => void addSection(section)}
+                      disabled={adding !== null}
+                      aria-label={`Add ${section} section`}
+                    >
+                      <PlusIcon />
+                      {adding === section ? "Adding…" : "Add"}
+                    </Button>
+                  )}
+                </li>
               ))}
             </ul>
           </section>
