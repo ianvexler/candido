@@ -72,7 +72,7 @@ class CvTailoringsController < ApplicationController
   end
 
   def render_curriculum_with(curriculum, cv_tailoring)
-    curriculum = Curriculum.includes(:user, curriculum_sections: :section_template).find(curriculum.id)
+    curriculum = Curriculum.includes(:user, :curriculum_sections).find(curriculum.id)
     render json: {
       curriculum: serialize(curriculum, with: CurriculumBlueprint, view: :full),
       cv_tailoring: cv_tailoring && serialize(cv_tailoring, with: CvTailoringBlueprint)

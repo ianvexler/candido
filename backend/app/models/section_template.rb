@@ -30,6 +30,8 @@ class SectionTemplate < ApplicationRecord
   scope :in_library_order, -> { order(:created_at, :id) }
 
   before_save :note_added
+  # Before the copies it unlinks, the order in which LibraryTransfer takes them.
+  before_destroy :lock!, prepend: true
 
   def self.find_owned!(user, id, unauthorized_message:)
     template = find_by(id: id)

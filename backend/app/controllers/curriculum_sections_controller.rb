@@ -3,7 +3,7 @@ class CurriculumSectionsController < ApplicationController
 
   before_action :require_authentication
   before_action :set_curriculum
-  before_action :set_section, only: %i[update destroy sync]
+  before_action :set_section, only: %i[update destroy]
 
   # Copies library sections into the CV, or with `section_type` adds an empty
   # section of that type (as the review's "missing sections" do); both append.
@@ -45,16 +45,6 @@ class CurriculumSectionsController < ApplicationController
     raise ApiError.new(error.message, status: :unprocessable_content)
   end
 
-  # Replaces the CV copy with the library section's current version.
-  def sync
-    if @section.section_template.nil?
-      raise ApiError.new("This section is no longer in your library", status: :unprocessable_content)
-    end
-
-    @section.sync_from_template!
-    render json: { section: serialize(@section, with: CurriculumSectionBlueprint) }
-  end
-
   private
 
   def set_curriculum
@@ -62,8 +52,7 @@ class CurriculumSectionsController < ApplicationController
   end
 
   def set_section
-    @section = @curriculum.curriculum_sections.find_by(id: params[:id])
-    raise ApiError.new("Section not found", status: :not_found) if @section.nil?
+    @section = find_section!(@curriculum)
   end
 
   def section_params
