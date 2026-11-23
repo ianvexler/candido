@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CvSuggestion } from "@/lib/types";
-import { apiErrorMessage, isConflict, progressStep, reviewGroups, sectionLabel, statusForAction } from "./reviewPanel";
+import { apiErrorMessage, isConflict, progressStep, reviewGroups, sectionLabel, statusForAction, stillMissing } from "./reviewPanel";
 
 const suggestion = (id: number, overrides: Partial<CvSuggestion> = {}): CvSuggestion => ({
   id,
@@ -86,5 +86,31 @@ describe("isConflict", () => {
     expect(isConflict({ response: { status: 422 } })).toBe(false);
     expect(isConflict(new Error("network"))).toBe(false);
     expect(isConflict(undefined)).toBe(false);
+  });
+});
+
+describe("stillMissing", () => {
+  const report = {
+    missing_sections: [
+      { section: "Education" as const, reason: "Add your degree" },
+      { section: "Skills" as const, reason: "List your tools" },
+    ],
+  };
+
+  it("keeps sections the CV has none of", () => {
+    expect(stillMissing(report, [{ section_type: "Experience", title: "Acme" }]).map((m) => m.section)).toEqual([
+      "Education",
+      "Skills",
+    ]);
+  });
+  it("drops one once a section of that kind exists, by type or title", () => {
+    expect(stillMissing(report, [{ section_type: "Education", title: "Education" }]).map((m) => m.section)).toEqual(["Skills"]);
+    expect(stillMissing(report, [{ section_type: "custom", title: "Technical skills" }]).map((m) => m.section)).toEqual([
+      "Education",
+    ]);
+  });
+  it("is empty for reviews from before missing sections existed", () => {
+    expect(stillMissing({}, [])).toEqual([]);
+    expect(stillMissing(null, [])).toEqual([]);
   });
 });

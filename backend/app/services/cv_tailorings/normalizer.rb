@@ -10,19 +10,32 @@ module CvTailorings
     MAX_REQUIREMENT = 60
     MAX_GAPS = 4
     MAX_GAP = 90
-    MAX_REASON = 120
+    # The prompt asks for 120; the slack keeps a slightly long reason whole instead of cutting it mid-sentence.
+    MAX_REASON = 160
     MAX_SUGGESTIONS = 12
+    MAX_MISSING = 2
+    # The only sections the review may say are missing, each with the headings that count as
+    # having it. Matched against every section's type and title, hidden ones included, so a CV
+    # that has the section in any form is never told to add it. The client mirrors these
+    # patterns (MISSING_SECTION_PATTERNS) to hide an item once the section is added.
+    MISSING_SECTIONS = {
+      "Experience" => /experience|employment|work|career|job|intern|position/i,
+      "Education" => /education|qualification|academic|degree|stud(?:y|ies)|school|university|training|certific/i,
+      "Skills" => /skill|competenc|technolog|tool|stack|expertise/i
+    }.freeze
 
     module_function
 
-    def call(output, sections)
+    # `existing_sections` are the type and title of every section in the CV, hidden ones included.
+    def call(output, sections, existing_sections: [])
       output = {} unless output.is_a?(Hash)
       {
         report: {
           fit: pick(output["fit"], FITS, "partial"),
           summary: cut(squish(output["summary"]), MAX_SUMMARY),
           requirements: requirements(output["requirements"]),
-          gaps: list(output["gaps"]).filter_map { |gap| cut(squish(gap), MAX_GAP).presence }.first(MAX_GAPS)
+          gaps: list(output["gaps"]).filter_map { |gap| cut(squish(gap), MAX_GAP).presence }.first(MAX_GAPS),
+          missing_sections: missing_sections(output["missing_sections"], existing_sections)
         },
         suggestions: suggestions(output["suggestions"], sections)
       }
@@ -57,6 +70,27 @@ module CvTailorings
       end.first(MAX_REQUIREMENTS)
     end
 
+    # One suggestion per piece of text: two on overlapping text would mark it twice, and
+    # accepting one would leave the other pointing at text that's gone. A rewrite wins
+    # over a note on the same text; otherwise the first (most impactful) is kept.
+    # Essential sections the CV has none of, at most MAX_MISSING, each with a short reason.
+    def missing_sections(value, existing_sections)
+      headings = existing_sections.compact.map(&:to_s)
+      kept = []
+      list(value).each do |item|
+        next unless item.is_a?(Hash)
+
+        section = item["section"]
+        pattern = MISSING_SECTIONS[section]
+        reason = cut(squish(item["reason"]), MAX_GAP)
+        next if pattern.nil? || reason.empty? || kept.any? { |other| other[:section] == section }
+        next if headings.any? { |heading| heading.match?(pattern) }
+
+        kept << { section: section, reason: reason }
+      end
+      kept.first(MAX_MISSING)
+    end
+
     def suggestions(value, sections)
       by_id = sections.index_by { |section| section[:id] }
       kept = []
@@ -64,9 +98,24 @@ module CvTailorings
         break if kept.size >= MAX_SUGGESTIONS
 
         attrs = suggestion(raw, by_id)
-        kept << attrs.merge(position: kept.size) if attrs
+        next unless attrs
+
+        clash = kept.index { |other| overlap?(other, attrs) }
+        if clash.nil?
+          kept << attrs
+        elsif kept[clash][:kind] == "note" && attrs[:kind] == "rewrite"
+          kept[clash] = attrs
+        end
       end
-      kept
+      kept.each_with_index.map { |attrs, position| attrs.merge(position: position) }
+    end
+
+    def overlap?(one, other)
+      return false unless one[:curriculum_section_id] == other[:curriculum_section_id] && one[:field] == other[:field]
+
+      a = squish(one[:quote])
+      b = squish(other[:quote])
+      a.include?(b) || b.include?(a)
     end
 
     def suggestion(raw, by_id)

@@ -5,12 +5,17 @@ class CurriculumSectionsController < ApplicationController
   before_action :set_curriculum
   before_action :set_section, only: %i[update destroy sync]
 
-  # Copies library sections into the CV, appended at the end.
+  # Copies library sections into the CV, or with `section_type` adds an empty
+  # section of that type (as the review's "missing sections" do); both append.
   def create
-    templates = owned_templates(params.require(:section_template_ids))
-    raise ApiError.new("section_template_ids must not be empty", status: :bad_request) if templates.empty?
+    if params.key?(:section_type)
+      @curriculum.add_empty_section!(params.require(:section_type).to_s.strip)
+    else
+      templates = owned_templates(params.require(:section_template_ids))
+      raise ApiError.new("section_template_ids must not be empty", status: :bad_request) if templates.empty?
 
-    @curriculum.import_section_templates!(templates)
+      @curriculum.import_section_templates!(templates)
+    end
     render_curriculum(@curriculum)
   end
 
