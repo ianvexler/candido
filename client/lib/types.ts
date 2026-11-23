@@ -85,6 +85,13 @@ export type FeedbackEntry = {
   type: FeedbackType;
 }
 
+export type WeeklyCount = {
+  week_start: string;
+  count: number;
+};
+
+export type ClosingJob = Pick<JobBoardEntry, "id" | "title" | "company"> & { closing_date: string };
+
 export type JobBoardEntriesStats = {
   counts: {
     total: number;
@@ -99,6 +106,11 @@ export type JobBoardEntriesStats = {
   this_week: number;
   last_week: number;
   response_rate: number;
+  responded_count: number;
+  sent_count: number;
+  weekly_counts: WeeklyCount[];
+  closing_soon: ClosingJob[];
+  closing_soon_count: number;
   top_tags: {
     name: string;
     count: number;

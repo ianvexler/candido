@@ -51,6 +51,13 @@ class JobBoardEntry < ApplicationRecord
 
   RESPONDED_STATUSES = (STATUSES - %w[PENDING APPLIED ARCHIVED]).freeze
 
+  # Archived jobs are left out, since they may have been archived before or after applying.
+  SENT_STATUSES = (RESPONDED_STATUSES + %w[APPLIED]).freeze
+
+  STATS_WEEKS = 12
+  CLOSING_SOON_WINDOW = 14.days
+  CLOSING_SOON_LIMIT = 5
+
   def self.next_number_for(user, status)
     (where(user: user, status: status).maximum(:number) || 0) + 1
   end
@@ -101,11 +108,11 @@ class JobBoardEntry < ApplicationRecord
   def self.stats_for(user)
     grouped = where(user: user).group(:status).count
     now = Time.current
-    this_week_start = now.beginning_of_week(:monday)
-    last_week_start = this_week_start - 1.week
-    last_week_end = last_week_start.end_of_week(:monday)
     all_count = grouped.values.sum
-    responded = where(user: user).where(status: RESPONDED_STATUSES).count
+    responded = grouped.values_at(*RESPONDED_STATUSES).compact.sum
+    sent = grouped.values_at(*SENT_STATUSES).compact.sum
+    weekly_counts = weekly_counts_for(user, now)
+    closing_soon = closing_soon_for(user, now)
 
     {
       counts: {
@@ -118,11 +125,35 @@ class JobBoardEntry < ApplicationRecord
         rejected: grouped["REJECTED"] || 0,
         accepted: grouped["ACCEPTED"] || 0
       },
-      this_week: where(user: user).where(created_at: this_week_start..now).count,
-      last_week: where(user: user).where(created_at: last_week_start..last_week_end).count,
-      response_rate: all_count.zero? ? 0 : ((responded * 100.0) / all_count).round,
+      this_week: weekly_counts[-1][:count],
+      last_week: weekly_counts[-2][:count],
+      response_rate: sent.zero? ? 0 : ((responded * 100.0) / sent).round,
+      responded_count: responded,
+      sent_count: sent,
+      weekly_counts: weekly_counts,
+      closing_soon: closing_soon.order(:closing_date, :id).limit(CLOSING_SOON_LIMIT)
+        .pluck(:id, :title, :company, :closing_date)
+        .map { |id, title, company, closing_date| { id:, title:, company:, closing_date: } },
+      closing_soon_count: closing_soon.count,
       top_tags: top_tags_for(user)
     }
+  end
+
+  def self.weekly_counts_for(user, now)
+    current_week = now.beginning_of_week(:monday)
+    starts = (0...STATS_WEEKS).map { |i| current_week - (STATS_WEEKS - 1 - i).weeks }
+    counts = where(user: user, created_at: starts.first..now).pluck(:created_at)
+      .group_by { |created_at| created_at.beginning_of_week(:monday) }
+      .transform_values(&:size)
+
+    starts.map { |start| { week_start: start.to_date, count: counts[start] || 0 } }
+  end
+
+  # Closing dates are stored as midnight in the user's own time zone, so one that is
+  # "today" for them is at most 24 hours old, wherever they are.
+  def self.closing_soon_for(user, now)
+    where(user: user, status: "PENDING")
+      .where(closing_date: (now - 1.day)..(now + CLOSING_SOON_WINDOW))
   end
 
   def self.top_tags_for(user)

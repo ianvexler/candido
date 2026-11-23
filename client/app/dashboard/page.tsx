@@ -1,49 +1,40 @@
 "use client";
-import PageContainer from "@/components/common/PageContainer";
-import Title from "@/components/common/Title";
-import Description from "@/components/common/Description";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
-import Logo from "@/lib/images/MainLogo.png";
+import Link from "next/link";
 import Image from "next/image";
-import { BarChart3Icon, TrendingUpIcon, BriefcaseIcon, GitBranchIcon, TagIcon } from "lucide-react";
-import { JobBoardEntriesStats } from "@/lib/types";
 import { useEffect, useState } from "react";
-import getJobBoardEntriesStats from "@/api/resources/jobBoardEntries/getJobBoardEntriesStats";
 import toast from "react-hot-toast";
+import { CalendarPlusIcon, GitBranchIcon, KanbanIcon, TrendingUpIcon, TrophyIcon } from "lucide-react";
+import getJobBoardEntriesStats from "@/api/resources/jobBoardEntries/getJobBoardEntriesStats";
 import Loader from "@/components/common/Loader";
+import PageContainer from "@/components/common/PageContainer";
+import ClosingSoon from "@/components/dashboard/ClosingSoon";
+import DashboardCard from "@/components/dashboard/DashboardCard";
+import PipelineChart from "@/components/dashboard/PipelineChart";
+import StatTile from "@/components/dashboard/StatTile";
+import TopTags from "@/components/dashboard/TopTags";
+import WeeklyChart from "@/components/dashboard/WeeklyChart";
+import { Button } from "@/components/ui/Button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/Empty";
+import { useAuth } from "@/contexts/AuthContext";
+import Logo from "@/lib/images/MainLogo.png";
+import { JobBoardEntriesStats } from "@/lib/types";
 
 const HomePage = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState<JobBoardEntriesStats>();
   const [isLoading, setIsLoading] = useState(true);
-  
+
   useEffect(() => {
     void getJobBoardEntriesStats()
-    .then((response) => {
-      setIsLoading(false);
-      setStats(response)
-    })
-    .catch((error) => {
-      console.error(error);
-      toast.error("Failed to get job board entries stats");
-    })
-    .finally(() => {
-      setIsLoading(false);
-    });
+      .then(setStats)
+      .catch((error) => {
+        console.error(error);
+        toast.error("Failed to get job board entries stats");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
-
-  const activeApplications = () => {
-    const applied = stats?.counts.applied ?? 0;
-    const assessment = stats?.counts.assessment ?? 0;
-    const interview = stats?.counts.interview ?? 0;
-
-    return applied + assessment + interview;
-  }
 
   if (isLoading) {
     return (
@@ -52,134 +43,106 @@ const HomePage = () => {
       </div>
     );
   }
-  
+
+  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const active = stats ? stats.counts.applied + stats.counts.assessment + stats.counts.interview : 0;
+  const weekDifference = stats ? stats.this_week - stats.last_week : 0;
+  const offers = stats ? stats.counts.offered + stats.counts.accepted : 0;
+  const isEmpty = stats?.counts.total === 0;
+
+  const summary = () => {
+    if (!stats) return "We couldn't load your numbers. Refresh to try again.";
+    if (isEmpty) return "Let's get your job search started.";
+
+    const closing = stats.closing_soon_count;
+    return `${active} active ${active === 1 ? "application" : "applications"}${closing > 0 ? `, ${closing} closing soon` : ""}`;
+  };
+
   return (
     <PageContainer>
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-          <div>
-            <Title>Dashboard</Title>
-            <Description className="mt-1">Insights on your job applications</Description>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-6 rounded-xl bg-candido-black px-5 py-3 text-white">
+          <div className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-3">
+            <h1 className="text-xl font-bold tracking-tight">{firstName ? `Hi, ${firstName}` : "Dashboard"}</h1>
+            <p className="text-sm text-white/80">{summary()}</p>
           </div>
-          <div className="flex items-center justify-center shrink-0 bg-candido-black rounded-lg px-6 py-4">
-            <Image src={Logo} alt="Candido" height={40} className="rounded" />
-          </div>
+          <Image src={Logo} alt="Candido" height={28} className="hidden sm:block shrink-0" />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card className="p-3 min-h-44">
-            <CardHeader className="flex flex-row items-center gap-2 mt-2">
-              <BriefcaseIcon className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Applications this week</CardTitle>
-            </CardHeader>
+        {stats && isEmpty && (
+          <Empty className="border py-16">
+            <EmptyHeader>
+              <EmptyMedia variant="icon" className="bg-candido/25">
+                <KanbanIcon aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>No jobs yet</EmptyTitle>
+              <EmptyDescription>
+                Add the first job you&apos;re interested in and your progress will show up here.
+              </EmptyDescription>
+            </EmptyHeader>
+            <Button asChild variant="candido">
+              <Link href="/board">Add your first job</Link>
+            </Button>
+          </Empty>
+        )}
 
-            <CardContent>
-              <p className="text-2xl font-semibold">{stats?.this_week ?? "—"}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats != null
-                  ? `${stats.this_week >= stats.last_week ? "+" : ""}${stats.this_week - stats.last_week} from last week`
-                  : "—"}
-              </p>
-            </CardContent>
-          </Card>
+        {stats && !isEmpty && (
+          <>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatTile
+                label="Added this week"
+                value={stats.this_week}
+                detail={
+                  weekDifference === 0
+                    ? "Same as last week"
+                    : `${weekDifference > 0 ? "▲" : "▼"} ${Math.abs(weekDifference)} from last week`
+                }
+                icon={CalendarPlusIcon}
+                iconClassName="bg-amber-100 text-amber-800"
+              />
+              <StatTile
+                label="Active"
+                value={active}
+                detail="Applied, assessment or interview"
+                icon={GitBranchIcon}
+                iconClassName="bg-indigo-100 text-indigo-700"
+              />
+              <StatTile
+                label="Response rate"
+                value={stats.sent_count > 0 ? `${stats.response_rate}%` : "—"}
+                detail={
+                  stats.sent_count > 0
+                    ? `${stats.responded_count} of ${stats.sent_count} applications`
+                    : "No applications sent yet"
+                }
+                icon={TrendingUpIcon}
+                iconClassName="bg-cyan-100 text-cyan-800"
+              />
+              <StatTile
+                label="Offers"
+                value={offers}
+                detail={stats.counts.accepted > 0 ? `${stats.counts.accepted} accepted` : "None accepted yet"}
+                icon={TrophyIcon}
+                iconClassName="bg-emerald-100 text-emerald-800"
+              />
+            </div>
 
-          <Card className="p-3 min-h-44">
-            <CardHeader className="flex flex-row items-center gap-2 mt-2">
-              <TrendingUpIcon className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Response rate</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <p className="text-2xl font-semibold">{stats?.response_rate ?? "—"}%</p>
-              <p className="text-xs text-muted-foreground mt-1">{stats?.counts.applied ?? "—"} of {stats?.counts.total ?? "—"} applications</p>
-            </CardContent>
-          </Card>
-
-          <Card className="p-3 min-h-44">
-            <CardHeader className="flex flex-row items-center gap-2 mt-2">
-              <GitBranchIcon className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Active</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <p className="text-2xl font-semibold">{activeApplications()}</p>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting response or in interview</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-3 min-h-70">
-            <CardHeader className="flex flex-row items-center gap-2 mt-2">
-              <BarChart3Icon className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Applications by status</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pending</span>
-                  <span>{stats?.counts.pending ?? "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Applied</span>
-                  <span>{stats?.counts.applied ?? "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Assessment</span>
-                  <span>{stats?.counts.assessment ?? "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Interview</span>
-                  <span>{stats?.counts.interview ?? "—"}</span>
-                </div>
-                {stats && stats?.counts.offered > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Offered</span>
-                    <span>{stats?.counts.offered ?? "—"}</span>
-                  </div>
-                )}
-                {stats && stats?.counts.accepted > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Accepted</span>
-                    <span>{stats?.counts.accepted ?? "—"}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Rejected</span>
-                  <span>{stats?.counts.rejected ?? "—"}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="p-3 min-h-70">
-            <CardHeader className="flex flex-row items-center gap-2 mt-2">
-              <TagIcon className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">Most used tags</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              {stats?.top_tags && stats?.top_tags.length > 0 ? (
-                <>
-                  <CardDescription className="mb-3">
-                    Most used tags across your applications
-                  </CardDescription>
-                  <div className="space-y-2 text-sm">
-                    {stats?.top_tags.map((tag) => (
-                      <div key={tag.name} className="flex justify-between">
-                        <span className="text-muted-foreground">{tag.name}</span>
-                        <span className="text-muted-foreground">{tag.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <CardDescription className="mb-3 text-muted-foreground">No tag trends found</CardDescription>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <DashboardCard title="Jobs added per week" description={`Last ${stats.weekly_counts.length} weeks`}>
+                <WeeklyChart weeks={stats.weekly_counts} />
+              </DashboardCard>
+              <DashboardCard title="Pipeline" description="Where your jobs stand now">
+                <PipelineChart counts={stats.counts} />
+              </DashboardCard>
+              <DashboardCard title="Closing soon" description="Jobs you haven't applied to yet">
+                <ClosingSoon jobs={stats.closing_soon} total={stats.closing_soon_count} />
+              </DashboardCard>
+              <DashboardCard title="Top tags" description="Most used across your jobs">
+                <TopTags tags={stats.top_tags} />
+              </DashboardCard>
+            </div>
+          </>
+        )}
       </div>
     </PageContainer>
   );
