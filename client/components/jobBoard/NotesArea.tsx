@@ -70,11 +70,13 @@ const NotesArea = ({ jobBoardEntry, notes, loading, onNoteAdded }: NotesAreaProp
       </div>
 
       {notes.length > 0 && (
-        <ul className="divide-y divide-border">
+        <ul className="flex flex-col items-start gap-3">
           {notes.map((note) => (
-            <li key={note.id} className="flex items-baseline justify-between gap-4 py-2.5 text-sm first:pt-0 last:pb-0">
-              <p className="min-w-0 break-words whitespace-pre-line">{note.content}</p>
-              <p className="shrink-0 text-xs text-muted-foreground">{format(new Date(note.created_at), "d MMM yyyy")}</p>
+            <li key={note.id} className="max-w-[85%] min-w-0">
+              <p className="w-fit max-w-full rounded-2xl rounded-bl-sm bg-candido/20 px-3.5 py-2 text-sm break-words whitespace-pre-line">
+                {note.content}
+              </p>
+              <p className="mt-1 pl-1 text-xs text-muted-foreground">{format(new Date(note.created_at), "d MMM yyyy")}</p>
             </li>
           ))}
         </ul>

@@ -81,7 +81,7 @@ const toDateInputValue = (date: Date | string | null | undefined): string => {
 const toClosingDatePayload = (date: string): Date | null =>
   date ? parse(date, "yyyy-MM-dd", new Date()) : null;
 
-const factInput = "h-8 py-0 text-sm";
+const factInput = "h-9 py-0 text-base";
 
 /** One of the job's facts on the full page. */
 const Fact = ({
@@ -96,7 +96,7 @@ const Fact = ({
   children: ReactNode;
 }) => (
   <div className={cn("min-w-0", wide && "col-span-2")}>
-    <label htmlFor={htmlFor} className="text-xs text-muted-foreground">
+    <label htmlFor={htmlFor} className="text-sm text-muted-foreground">
       {label}
     </label>
     {children}
@@ -867,7 +867,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                 aria-label="Job title"
                 aria-invalid={!isTitleValid || undefined}
                 placeholder="Job title"
-                className={cn("min-w-0 flex-1 border-b-0 py-0 text-2xl font-semibold tracking-tight", !isTitleValid && "border-b")}
+                className={cn("min-w-0 flex-1 border-b-0 py-0 text-3xl font-semibold tracking-tight", !isTitleValid && "border-b")}
               />
               {saveStatus}
               <DropdownMenu>
@@ -895,15 +895,15 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </header>
 
           <div className="grid shrink-0 grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-            <section className="order-last flex min-h-0 flex-col gap-5 min-[90rem]:gap-7 border-t border-border px-4 py-5 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20 min-[90rem]:py-8 lg:order-none lg:overflow-y-auto lg:border-t-0 lg:border-r">
-              <h2 className="flex min-h-8 items-center text-lg font-semibold">Job details</h2>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-4 min-[90rem]:gap-x-10 min-[90rem]:gap-y-6">
+            <section className="order-last flex min-h-0 flex-col gap-6 border-t border-border px-4 py-5 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20 min-[90rem]:py-8 lg:order-none lg:overflow-y-auto lg:border-t-0 lg:border-r">
+              <h2 className="flex min-h-9 items-center text-xl font-semibold tracking-tight">Job details</h2>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 min-[90rem]:gap-x-10">
               <Fact label="Company" htmlFor="company">
                 <InlineInput id="company" value={company} onChange={(e) => setCompany(e.target.value)} disabled={loading} aria-invalid={!isCompanyValid || undefined} placeholder="Required" className={factInput} />
               </Fact>
               <Fact label="Status" htmlFor="status">
                 <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
-                  <SelectTrigger id="status" className="h-8! w-full rounded-none border-0 border-b border-border px-0 shadow-none">
+                  <SelectTrigger id="status" className="h-9! w-full rounded-none border-0 border-b border-border px-0 text-base shadow-none">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent position="popper">
@@ -931,11 +931,11 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                 <TagsInput compact allEntries={props.allEntries} tags={tags} onTagsChange={setTags} />
               </Fact>
               </div>
-              <div className="flex min-h-72 flex-1 flex-col gap-1.5">
+              <div className="flex min-h-72 shrink-0 flex-1 flex-col gap-1.5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-                  <h3 className="text-xs text-muted-foreground">Description</h3>
+                  <h3 className="text-sm text-muted-foreground">Description</h3>
                   {ready && isEditorContentEmpty(editorHtml) && (
-                    <p className="text-xs text-muted-foreground">Paste the posting. Your CV is compared with it.</p>
+                    <p className="text-sm text-muted-foreground">Paste the posting. Your CV is compared with it.</p>
                   )}
                 </div>
               <div className="simple-editor-wrapper flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border">
@@ -948,13 +948,14 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                 />
               </div>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-sm text-muted-foreground">Notes</h3>
+                {notesArea}
+              </div>
             </section>
 
-            <section className="min-h-0 space-y-4 min-[90rem]:space-y-6 bg-muted/40 px-4 py-5 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20 min-[90rem]:py-8 lg:overflow-y-auto">
-              <JobSend entry={props.entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave}>
-                <h3 className="mb-2 text-sm font-medium">Notes</h3>
-                {notesArea}
-              </JobSend>
+            <section className="min-h-0 bg-muted/40 px-4 py-5 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20 min-[90rem]:py-8 lg:overflow-y-auto">
+              <JobSend entry={props.entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} />
             </section>
           </div>
 

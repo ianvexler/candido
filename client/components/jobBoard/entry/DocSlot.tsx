@@ -29,6 +29,10 @@ interface DocSlotProps {
   onPatchEntry: (id: number, patch: EntryPatch) => void;
   /** Filling it is the next thing to do, so its main button stands out. */
   isNext?: boolean;
+  /** On its own page: the heading above names the document, so the row leads with what fills it. */
+  titled?: boolean;
+  /** Beside the title of a titled row. */
+  badge?: ReactNode;
   /** Offers making a copy of one of the user's CVs. */
   canTailor?: boolean;
   /** Shown as the main action of a linked CV copy, instead of Open. */
@@ -45,7 +49,7 @@ const runNow = (action: () => void) => action();
  * Its parent must remount it for another job (key it by the job's id), so a paste box
  * or prompt never carries over.
  */
-const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, next, beforeLeave = runNow }: DocSlotProps) => {
+const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, titled = false, badge, next, beforeLeave = runNow }: DocSlotProps) => {
   const router = useRouter();
   const config = DOC_KINDS[kind];
   const state = config.state(entry);
@@ -264,10 +268,24 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
         )}
       >
         <div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-sm font-medium">{config.name}</p>
-          <p className="min-w-0 truncate text-sm text-muted-foreground" title={typeof detail === "string" ? detail : undefined}>
-            {detail}
-          </p>
+          {titled ? (
+            <>
+              <h3 className="min-w-0 truncate text-base font-medium" title={typeof detail === "string" ? detail : undefined}>
+                {state === "empty" ? `No ${config.noun} yet` : detail}
+              </h3>
+              {badge}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium">{config.name}</p>
+              <p
+                className="min-w-0 truncate text-sm text-muted-foreground"
+                title={typeof detail === "string" ? detail : undefined}
+              >
+                {detail}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">{actions}</div>
       </div>
