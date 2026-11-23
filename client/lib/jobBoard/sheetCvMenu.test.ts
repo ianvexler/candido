@@ -17,8 +17,10 @@ describe("sheetCvMenu", () => {
     const menu = sheetCvMenu({ ...none, cv_curriculum: copy, cv_key: "k" });
     expect(menu.heading).toBe("Main – Acme");
     expect(menu.items.map((i) => i.action)).toEqual(["open", "replace-with-file"]);
-    expect(menu.items[1].confirm?.description).toBe("The copy stays in your resumes.");
-    expect(menu.items[1].confirm?.destructive).toBeFalsy();
+    expect(menu.items[1].confirm?.description).toBe(
+      "The copy is deleted from your resumes, along with its review. Your original CV isn't changed.",
+    );
+    expect(menu.items[1].confirm?.destructive).toBe(true);
   });
   it("falls back to 'CV copy' without a title", () => {
     expect(sheetCvMenu({ ...none, cv_curriculum: { ...copy, title: "" } }).heading).toBe("CV copy");

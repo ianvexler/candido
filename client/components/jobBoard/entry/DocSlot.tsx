@@ -17,6 +17,7 @@ import {
   textPreview,
 } from "@/lib/jobBoard/docSlot";
 import { JobBoardEntry } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronDownIcon, ClipboardTypeIcon, CopyIcon, FileTextIcon, UploadIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -50,6 +51,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "replace" | "remove"; description?: string; run: () => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // The leave wrapper changes as the sheet's fields change: the sheet's save reads the latest fields and entry.
@@ -74,14 +76,17 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
   const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
+    if (file) takeFile(file);
+  };
+
+  const takeFile = (file: File) => {
     if (file.type !== "application/pdf") {
       toast.error("Please upload a PDF file.");
       return;
     }
     const run = () => void save(undefined, file, `${config.name} uploaded`);
     // Ask only now that a file was picked: cancelling the picker deletes nothing.
-    if (state === "file" || state === "text") setConfirm({ kind: "replace", run });
+    if (state !== "empty") setConfirm({ kind: "replace", run });
     else run();
   };
 
@@ -91,14 +96,17 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
     else setPickerOpen(true);
   };
 
-  // Replacing an upload or text deletes it, so ask; a copy is kept, so don't.
+  // Replacing what's in the slot deletes it (a copy too: it only existed for this job), so ask.
   // Uploads and pastes ask once there's something to replace it with. Picking one of your CVs
   // makes the copy straight away, so that asks before the picker opens.
   const replaceWith = (way: FillWay) => {
-    if ((state === "file" || state === "text") && way === "use") {
+    if (state !== "empty" && way === "use") {
       setConfirm({
         kind: "replace",
-        description: `Picking one of your CVs deletes the current ${state === "text" ? "text" : "file"}.`,
+        description:
+          state === "copy"
+            ? "Picking one of your CVs makes a new copy and deletes this one from your resumes."
+            : `Picking one of your CVs deletes the current ${state === "text" ? "text" : "file"}.`,
         run: () => fill(way),
       });
     } else fill(way);
@@ -106,14 +114,11 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
 
   const saveDraft = (text: string) => {
     const run = () => void save(text, undefined, `${config.name} saved`);
-    if (state === "file") setConfirm({ kind: "replace", run });
+    if (state === "file" || state === "copy") setConfirm({ kind: "replace", run });
     else run();
   };
 
-  const remove = () => {
-    if (state === "copy") void save();
-    else setConfirm({ kind: "remove", run: () => void save() });
-  };
+  const remove = () => setConfirm({ kind: "remove", run: () => void save() });
 
   const viewFile = async () => {
     if (!doc.key) return;
@@ -187,16 +192,62 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
       </div>
     );
   } else if (state === "empty") {
+    // The dashed area is the drop target and the main action; the other ways sit under it.
     body = (
-      <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-border p-4">
-        <p className="text-sm text-muted-foreground">No {config.noun} added yet.</p>
-        <div className="flex flex-wrap gap-2">
-          {config.ways.map((way) => (
-            <Button key={way} type="button" variant="outline" size="sm" onClick={() => fill(way)} disabled={saving}>
-              {FILL_ICONS[way]}
-              {FILL_LABELS[way]}
-            </Button>
-          ))}
+      <div className="space-y-1.5">
+        <button
+          type="button"
+          onClick={() => fill("upload")}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const file = e.dataTransfer.files[0];
+            if (file && !saving) takeFile(file);
+          }}
+          disabled={saving}
+          className={cn(
+            "group flex w-full items-center gap-3 rounded-md border border-dashed border-muted-foreground/30 px-4 py-3.5 text-left transition-colors",
+            "hover:border-muted-foreground/60 hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+            "disabled:pointer-events-none disabled:opacity-60",
+            dragging && "border-primary bg-muted/60"
+          )}
+        >
+          <span
+            className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:text-foreground [&>svg]:size-4"
+            aria-hidden
+          >
+            <UploadIcon />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">
+              {saving ? "Uploading…" : `Upload the ${config.noun} you sent`}
+            </span>
+            <span className="block text-xs text-muted-foreground">Drop a PDF here, or click to choose one</span>
+          </span>
+        </button>
+        {/* Pulled left by the buttons' own padding so their icons line up with the box. */}
+        <div className="-ml-2.5 flex flex-wrap gap-1">
+          {config.ways
+            .filter((way) => way !== "upload")
+            .map((way) => (
+              <Button
+                key={way}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => fill(way)}
+                disabled={saving}
+              >
+                {FILL_ICONS[way]}
+                {FILL_LABELS[way]}
+              </Button>
+            ))}
         </div>
       </div>
     );
@@ -251,7 +302,13 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
     );
   }
 
-  const what = state === "text" ? `pasted ${config.noun}` : `uploaded ${config.noun}`;
+  const what = state === "copy" ? "CV copy" : state === "text" ? `pasted ${config.noun}` : `uploaded ${config.noun}`;
+  const deletes = {
+    copy: "The copy is deleted from your resumes, along with its review. Your original CV isn't changed.",
+    text: "The current text is deleted.",
+    file: "The current file is deleted.",
+    empty: "",
+  }[state];
 
   return (
     <div className="space-y-2">
@@ -281,7 +338,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, beforeLeave = runNow }: DocSlotPro
         onClose={() => setConfirm(null)}
         onConfirm={() => confirm?.run()}
         title={`${confirm?.kind === "remove" ? "Remove" : "Replace"} the ${what}?`}
-        description={confirm?.description ?? (state === "text" ? "The current text is deleted." : "The current file is deleted.")}
+        description={confirm?.description ?? deletes}
         confirmLabel={confirm?.kind === "remove" ? "Remove" : "Replace"}
         variant="destructive"
       />

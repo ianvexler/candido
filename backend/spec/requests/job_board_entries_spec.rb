@@ -337,6 +337,22 @@ RSpec.describe "Job board entries" do
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["job_board_entry"]["cv_text"]).to be_nil
     end
+
+    it "deletes the job's CV copy when removing it, and keeps it when the upload is rejected" do
+      entry = create(:job_board_entry, user: user, number: 1)
+      copy = create(:curriculum, user: user, job_board_entry: entry)
+      entry.use_cv_copy!(copy)
+
+      post "/api/v1/job_board_entries/#{entry.id}/cv", params: { file: text_upload("notes.txt") }, headers: headers
+      expect(response).to have_http_status(:bad_request)
+      expect(entry.reload.cv_curriculum).to eq(copy)
+
+      post "/api/v1/job_board_entries/#{entry.id}/cv", params: {}, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["job_board_entry"]["cv_curriculum"]).to be_nil
+      expect(Curriculum.exists?(copy.id)).to be(false)
+    end
   end
 
   describe "POST /api/v1/job_board_entries/:id/cover_letter" do
