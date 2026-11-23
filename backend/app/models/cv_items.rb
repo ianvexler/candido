@@ -22,6 +22,15 @@ module CvItems
     end
   end
 
+  # One item as `upsert` takes it, ticked: a list item comes inside its kind of list.
+  def find(html, id)
+    node = items_in(parse(html)).find { |item| item[ID] == id }
+    return if node.nil?
+
+    node.remove_attribute(OFF)
+    node.name == "li" ? "<#{node.parent.name}>#{node.to_html}</#{node.parent.name}>" : node.to_html
+  end
+
   # Gives every item its own id and removes ids and ticks from anything else.
   # Content saved without any ids takes them back from `previous`, with their
   # ticks, by matching text. Ids in `taken` count as used already.

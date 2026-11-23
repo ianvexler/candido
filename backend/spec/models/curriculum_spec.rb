@@ -43,7 +43,8 @@ RSpec.describe Curriculum do
           { title: "Acme", role: "Engineer", start_date: "2022-03-01", content: "<p>Led</p>" },
           { title: "Globex", hidden: true }
         ], hidden: true, position: 0, placement: "main",
-        section_template: template, synced_at: Time.zone.parse("2026-01-01"), styles: { "color" => "red" })
+        section_template: template, synced_at: Time.zone.parse("2026-01-01"), styles: { "color" => "red" },
+        base_items: { "a" => "<p>A</p>" }, base_fields: { "one" => { "title" => "Acme" } })
       source.curriculum_sections.create!(section_type: "skills", entries: [ { content: "<p>Ruby</p>" } ], position: 1,
         placement: "sidebar")
     end
@@ -53,7 +54,7 @@ RSpec.describe Curriculum do
 
       expect(copy).to have_attributes(title: "Main CV – Acme", tailored_for: "Acme", job_board_entry: job,
         source_curriculum: source, header: source.header, styles: source.styles, layout: "two_column", user_id: user.id)
-      fields = %w[section_type entries hidden placement section_template_id synced_at styles]
+      fields = %w[section_type entries hidden placement section_template_id synced_at styles base_items base_fields]
       expect(copy.curriculum_sections.map { |s| s.attributes.slice(*fields) })
         .to eq(source.curriculum_sections.map { |s| s.attributes.slice(*fields) })
       expect(copy.curriculum_sections.map(&:id)).not_to eq(source.curriculum_sections.map(&:id))

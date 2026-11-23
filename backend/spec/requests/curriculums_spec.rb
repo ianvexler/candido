@@ -17,6 +17,15 @@ RSpec.describe "Curriculums" do
         .to eq([ { "title" => "Mine", "section_count" => 1 } ])
     end
 
+    it "counts only sections that aren't hidden" do
+      curriculum = create(:curriculum, user: user)
+      curriculum.import_section_templates!(create_list(:section_template, 2, user: user)).first.update!(hidden: true)
+
+      get "/api/v1/curriculums", headers: headers
+
+      expect(response.parsed_body["curriculums"].sole["section_count"]).to eq(1)
+    end
+
     it "marks the copy a job uses as its CV" do
       job = create(:job_board_entry, user: user, number: 1)
       copy = create(:curriculum, user: user, title: "Copy", job_board_entry: job)
@@ -108,6 +117,59 @@ RSpec.describe "Curriculums" do
       }.not_to change(Curriculum, :count)
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    context "with the whole library" do
+      it "copies every section in library order, all ticked" do
+        newer = create(:section_template, user: user, content: "<p>B</p>", created_at: 1.day.ago)
+        older = create(:section_template, user: user, created_at: 2.days.ago, entries: [ { title: "One", content: "<p>A</p>" }, { title: "Two", hidden: true } ])
+        create(:section_template)
+
+        2.times { post "/api/v1/curriculums", params: { whole_library: true }, headers: headers, as: :json }
+
+        expect(response).to have_http_status(:ok)
+        expect(user.curriculums.order(:id).pluck(:title)).to eq([ "New CV", "New CV 2" ])
+        sections = response.parsed_body["curriculum"]["sections"]
+        expect(sections.pluck("section_template_id")).to eq([ older.id, newer.id ])
+        expect(sections.pluck("hidden")).to all(be(false))
+        entries = sections.flat_map { |section| section["entries"] }
+        expect(entries.pluck("hidden")).to all(be(false))
+        expect(entries.flat_map { |entry| CvItems.list(entry["content"]) }.pluck(:text, :off)).to eq([ [ "A", false ], [ "B", false ] ])
+      end
+
+      it "keeps a title that was given" do
+        post "/api/v1/curriculums", params: { whole_library: true, title: "Platform" }, headers: headers, as: :json
+
+        expect(response.parsed_body["curriculum"]).to include("title" => "Platform")
+      end
+
+      it "has no sections when the library is empty" do
+        post "/api/v1/curriculums", params: { whole_library: true }, headers: headers, as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["curriculum"]).to include("title" => "New CV", "sections" => [])
+      end
+
+      it "still requires a title when it's turned off" do
+        post "/api/v1/curriculums", params: { whole_library: false }, headers: headers, as: :json
+
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+    end
+
+    it "stores what each copy was made from" do
+      template = create(:section_template, user: user, title: "Acme", description: "Payments",
+        content: "<ol><li>A</li></ol><p>B</p>", details: { role: "Lead", start_date: "2022-03-01", current: true })
+
+      post "/api/v1/curriculums", params: { title: "CV", section_template_ids: [ template.id ] }, headers: headers, as: :json
+
+      section = response.parsed_body["curriculum"]["sections"].sole
+      entry = template.entries.sole
+      expect(section["base_items"]).to eq(CvItems.list(entry["content"]).to_h { |item| [ item[:id], item[:html] ] })
+      expect(section["base_fields"]).to eq(entry["id"] => {
+        "title" => "Acme", "role" => "Lead", "organization" => nil, "location" => nil,
+        "start_date" => "2022-03-01", "end_date" => nil, "current" => true, "description" => "Payments"
+      })
     end
 
     it "requires a title" do

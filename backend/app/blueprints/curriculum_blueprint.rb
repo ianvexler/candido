@@ -4,7 +4,7 @@ class CurriculumBlueprint < ApplicationBlueprint
     :job_board_entry_id, :source_curriculum_id, :tailored_for
 
   field :section_count do |curriculum, _options|
-    curriculum.curriculum_sections.size
+    curriculum.visible_sections.size
   end
 
   field :cv_for_job do |curriculum, _options|

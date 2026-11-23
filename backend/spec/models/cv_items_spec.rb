@@ -162,4 +162,14 @@ RSpec.describe CvItems do
       expect(CvItems.strip_ticks(html)).to eq('<p data-cv-item="a">A b <em>c</em> <span>d</span></p>')
     end
   end
+
+  describe ".find" do
+    it "gives one item, inside its kind of list" do
+      html = '<p data-cv-item="a">A</p><ol><li data-cv-item="b" data-cv-off="true">B</li><li data-cv-item="c">C</li></ol>'
+
+      expect(described_class.find(html, "a")).to eq('<p data-cv-item="a">A</p>')
+      expect(described_class.find(html, "b")).to eq('<ol><li data-cv-item="b">B</li></ol>')
+      expect(described_class.find(html, "x")).to be_nil
+    end
+  end
 end

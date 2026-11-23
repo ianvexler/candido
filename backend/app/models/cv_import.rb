@@ -95,7 +95,7 @@ class CvImport < ApplicationRecord
       templates = chosen.map { |attributes| user.section_templates.create!(attributes) }
       user.update_resume_profile!(merged_profile) if fill_profile
       update!(applied_at: Time.current)
-      curriculum = Curriculum.create_with_sections!(user, { title: new_cv_title }, templates) if create_cv && templates.any?
+      curriculum = Curriculum.create_with_sections!(user, { title: Curriculum.free_title(user, CV_TITLE) }, templates) if create_cv && templates.any?
       { section_templates: templates, profile: user.resume_header_profile, curriculum: curriculum }
     end
   end
@@ -103,14 +103,6 @@ class CvImport < ApplicationRecord
   private
 
   CV_TITLE = "My CV".freeze
-
-  # "My CV", or the first free "My CV 2", "My CV 3"…
-  def new_cv_title
-    taken = user.curriculums.pluck(:title).to_set
-    return CV_TITLE unless taken.include?(CV_TITLE)
-
-    (2..).lazy.map { |number| "#{CV_TITLE} #{number}" }.find { |title| taken.exclude?(title) }
-  end
 
   def merged_profile
     current = user.resume_header_profile
