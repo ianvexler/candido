@@ -43,26 +43,6 @@ class CurriculumSection < ApplicationRecord
 
   before_validation { self.placement = placement.presence }
 
-  SYNCED_FIELDS = %i[section_type entries styles].freeze
-
-  # True when the library section was edited after this copy was last synced.
-  def library_updated?
-    return false if section_template.nil? || synced_at.nil?
-
-    section_template.updated_at > synced_at
-  end
-
-  # Overwrites this copy with the library section's current fields, but
-  # still leaves out the entries this resume left out.
-  def sync_from_template!
-    raise ArgumentError, "section has no library section" if section_template.nil?
-
-    left_out = entries.select { |entry| entry["hidden"] }.pluck("id")
-    synced = SYNCED_FIELDS.index_with { |field| section_template.public_send(field).deep_dup }
-    synced[:entries] = synced[:entries].map { |entry| entry.merge("hidden" => left_out.include?(entry["id"])) }
-    update!(**synced, synced_at: Time.current)
-  end
-
   # Adds copies of the library entries this section doesn't have. They are left
   # out, except for what is being included: everything, one entry, or one item of it.
   def add_missing_entries(template, entry: nil, item_id: nil)

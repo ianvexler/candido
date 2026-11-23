@@ -66,7 +66,7 @@ Rails.application.routes.draw do
     put "curriculums/:curriculum_id/sections/order", to: "curriculum_sections#reorder"
     put "curriculums/:curriculum_id/sections/:id", to: "curriculum_sections#update"
     delete "curriculums/:curriculum_id/sections/:id", to: "curriculum_sections#destroy"
-    post "curriculums/:curriculum_id/sections/:id/sync", to: "curriculum_sections#sync"
+    post "curriculums/:curriculum_id/sections/:id/transfer", to: "library_transfers#create"
 
     get "uploads/:filename",
       to: "uploads#show",

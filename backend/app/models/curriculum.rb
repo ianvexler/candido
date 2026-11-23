@@ -119,7 +119,7 @@ class Curriculum < ApplicationRecord
     transaction do
       copies = curriculum_sections.where(section_template_id: template.id)
       # Before the CV itself, the order in which saving a section takes them.
-      copies.lock.load
+      copies.reorder(:id).lock.load
       with_lock do
         template.reload
         entry = template.resolve_entry!(entry_id, item_id)

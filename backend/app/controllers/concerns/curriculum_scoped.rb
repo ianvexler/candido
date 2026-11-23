@@ -4,8 +4,15 @@ module CurriculumScoped
   private
 
   def render_curriculum(curriculum)
-    curriculum = Curriculum.includes(:user, curriculum_sections: :section_template).find(curriculum.id)
+    curriculum = Curriculum.includes(:user, :curriculum_sections).find(curriculum.id)
     render json: { curriculum: serialize(curriculum, with: CurriculumBlueprint, view: :full) }
+  end
+
+  def find_section!(curriculum)
+    section = curriculum.curriculum_sections.find_by(id: params[:id])
+    raise ApiError.new("Section not found", status: :not_found) if section.nil?
+
+    section
   end
 
   # The current user's library sections, in the order the ids were given.

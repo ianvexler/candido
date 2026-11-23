@@ -103,7 +103,6 @@ RSpec.describe "Curriculums" do
         { "position" => 1, "section_template_id" => first.id }
       ])
       expect(body["sections"].last["entries"].first).to include("content" => a_string_including(">Acme</p>"))
-      expect(body["sections"].last["library_updated"]).to be(false)
     end
 
     it "rejects another user's library section and creates nothing" do
