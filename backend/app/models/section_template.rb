@@ -39,7 +39,7 @@ class SectionTemplate < ApplicationRecord
   private
 
   # Ticks belong to CVs.
-  def normalize_content(html, previous)
+  def normalize_content(html, previous, taken)
     content = super
     CvItems.set_off(content, CvItems.list(content).pluck(:id), false)
   end

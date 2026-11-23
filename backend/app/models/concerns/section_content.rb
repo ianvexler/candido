@@ -60,16 +60,18 @@ module SectionContent
     list = [ {} ] if list.empty?
     contents = Array(entries_was).grep(Hash).to_h { |entry| entry.values_at("id", "content") }
     seen = Set.new
+    item_ids = Set.new
     self.entries = list.map do |raw|
       raw = raw.stringify_keys
-      entry = normalize_entry(raw, contents.delete(raw["id"].to_s))
+      entry = normalize_entry(raw, contents.delete(raw["id"].to_s), item_ids)
       entry["id"] = SecureRandom.uuid unless entry["id"].match?(ENTRY_ID) && seen.exclude?(entry["id"])
       seen << entry["id"]
+      item_ids.merge(CvItems.list(entry["content"]).pluck(:id))
       entry
     end
   end
 
-  def normalize_entry(raw, previous_content)
+  def normalize_entry(raw, previous_content, taken_item_ids)
     current = boolean(raw["current"])
     {
       "id" => raw["id"].to_s,
@@ -79,13 +81,13 @@ module SectionContent
       "end_date" => current ? nil : month(raw["end_date"]),
       "current" => current,
       "description" => raw["description"].to_s.strip.presence,
-      "content" => normalize_content(raw["content"], previous_content),
+      "content" => normalize_content(raw["content"], previous_content, taken_item_ids),
       "hidden" => boolean(raw["hidden"])
     }
   end
 
-  def normalize_content(html, previous)
-    CvItems.assign(self.class.sanitize_content(html), previous: previous)
+  def normalize_content(html, previous, taken)
+    CvItems.assign(self.class.sanitize_content(html), previous: previous, taken: taken)
   end
 
   def boolean(value)

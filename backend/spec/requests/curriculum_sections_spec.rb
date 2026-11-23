@@ -88,6 +88,18 @@ RSpec.describe "Curriculum sections" do
       expect(second[:id]).not_to eq("a")
     end
 
+    it "gives an item id used by an earlier entry a new ticked one" do
+      off = '<p data-cv-item="a" data-cv-off="true">A</p>'
+      section.update!(entries: [ { id: "one", content: off }, { id: "two", content: "<ul><li data-cv-item=\"b\">B</li></ul>#{off}" } ])
+
+      first, second = section.reload.entries.map { |entry| CvItems.list(entry["content"]) }
+      expect(first.sole).to include(id: "a", off: true)
+      expect(second.first).to include(id: "b")
+      expect(second.last).to include(text: "A", off: false)
+      expect(second.last[:id]).not_to eq("a")
+      expect { section.update!(entries: section.entries.deep_dup) }.not_to change { section.reload.entries }
+    end
+
     it "replaces an item id over 64 characters" do
       long = "a" * 65
 
