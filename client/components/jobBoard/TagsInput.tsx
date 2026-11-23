@@ -82,22 +82,24 @@ const TagsInput = ({ allEntries, tags, onTagsChange, compact = false }: TagsInpu
           className={cn(
             "flex w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50",
             tags.length > 0 ? "gap-2" : "text-muted-foreground",
-            compact && "h-9 text-base rounded-none border-0 border-b border-border bg-transparent px-0 py-0"
+            compact && "min-h-9 text-base rounded-none border-0 border-b border-border bg-transparent px-0 py-1.5"
           )}
         >
           {tags.length > 0 ? (
-            <span className={cn("flex gap-1.5", compact ? "min-w-0 overflow-hidden" : "flex-wrap")}>
+            <span className="flex min-w-0 flex-wrap gap-1.5">
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex shrink-0 items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                  className="inline-flex max-w-full items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
                 >
                   {tag}
                 </span>
               ))}
             </span>
+          ) : compact ? (
+            "Add"
           ) : (
-            compact ? "Add" : "Add tags..."
+            "Add tags..."
           )}
 
           {tags.length > 0 && !compact && (

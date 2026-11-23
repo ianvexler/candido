@@ -12,20 +12,22 @@ class CurriculumBlueprint < ApplicationBlueprint
     job && { id: job.id, company: job.company }
   end
 
-  # What a copy was made for, and how its review stands; nil for one of the user's own CVs.
-  # Preload as CurriculumsController#index does when listing.
-  field :tailoring do |curriculum, _options|
-    next nil if curriculum.tailored_for.blank?
+  view :listed do
+    # What a copy was made for, and how its review stands; nil for one of the user's own CVs.
+    # Preload as CurriculumsController#index does when listing.
+    field :tailoring do |curriculum, _options|
+      next nil if curriculum.tailored_for.blank?
 
-    job = curriculum.job_board_entry
-    run = curriculum.latest_run_summary
-    {
-      job: job && { id: job.id, title: job.title, company: job.company, status: job.status },
-      source_title: curriculum.source_curriculum&.title,
-      fit: curriculum.latest_fit_tailoring&.read_attribute(:fit),
-      review_status: run&.shown_status,
-      pending_suggestions: run ? run.read_attribute(:pending_suggestions) : 0
-    }
+      job = curriculum.job_board_entry
+      run = curriculum.latest_run_summary
+      {
+        job: job && { id: job.id, title: job.title, company: job.company, status: job.status },
+        source_title: curriculum.source_curriculum&.title,
+        fit: curriculum.latest_fit_tailoring&.read_attribute(:fit),
+        review_status: run&.shown_status,
+        pending_suggestions: run ? run.read_attribute(:pending_suggestions) : 0
+      }
+    end
   end
 
   view :full do

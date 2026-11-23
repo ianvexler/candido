@@ -8,7 +8,7 @@ class CurriculumsController < ApplicationController
     curriculums = current_user.curriculums
       .includes(:curriculum_sections, :cv_for_job, :job_board_entry, :source_curriculum, :latest_fit_tailoring, :latest_run_summary)
       .order(updated_at: :desc)
-    render json: { curriculums: serialize(curriculums, with: CurriculumBlueprint) }
+    render json: { curriculums: serialize(curriculums, with: CurriculumBlueprint, view: :listed) }
   end
 
   def show

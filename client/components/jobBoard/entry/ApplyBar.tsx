@@ -20,17 +20,23 @@ interface ApplyBarProps {
   entry: JobBoardEntry;
   readiness: Readiness;
   onApplied: () => void;
+  className?: string;
 }
 
 /** Where the application stands, and sending it. Nothing here waits for the CV to be ready. */
-const ApplyBar = ({ entry, readiness, onApplied }: ApplyBarProps) => {
+const ApplyBar = ({ entry, readiness, onApplied, className }: ApplyBarProps) => {
   const [asking, setAsking] = useState(false);
   const url = postingUrl(entry.url);
   const isReady = readiness.state === "ready";
   const status = readiness.state === "suggestions" ? `${readiness.label} to review` : STATUS[readiness.state];
 
   return (
-    <div className="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border bg-neutral-200 px-4 py-3 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20">
+    <div
+      className={cn(
+        "sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border bg-neutral-200 py-3",
+        className
+      )}
+    >
       {asking ? (
         <>
           <p role="status" className="text-sm">

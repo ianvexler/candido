@@ -22,6 +22,7 @@ export const useJobTailoring = (entry: JobBoardEntry, onPatchEntry: (id: number,
   const take = useCallback(
     (id: number, next: CvTailoring | null) => {
       setLoaded({ copyId: id, tailoring: next });
+      setError(null);
       onPatchEntry(entryId, tailoringPatch(id, next));
     },
     [entryId, onPatchEntry]
@@ -48,6 +49,14 @@ export const useJobTailoring = (entry: JobBoardEntry, onPatchEntry: (id: number,
     return () => controller.abort();
     // `active` restarts it when a review is started here.
   }, [copyId, active, take]);
+
+  // A job save's response can carry the review as it was a moment earlier: what was loaded here wins.
+  const shownStatus = entry.cv_curriculum?.review_status;
+  useEffect(() => {
+    if (loaded && loaded.copyId === copyId && (loaded.tailoring?.status ?? null) !== shownStatus) {
+      onPatchEntry(entryId, tailoringPatch(loaded.copyId, loaded.tailoring));
+    }
+  }, [loaded, copyId, shownStatus, entryId, onPatchEntry]);
 
   const start = async () => {
     if (copyId === undefined) return;

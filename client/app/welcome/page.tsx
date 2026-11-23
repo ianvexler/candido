@@ -201,8 +201,6 @@ const WelcomePage = () => {
       <Sheet open={adding} onOpenChange={(open) => !open && setAdding(false)}>
         {adding && (
           <JobFormSheet
-            mode="create"
-            entry={null}
             allEntries={jobs}
             onClose={() => setAdding(false)}
             onAddJob={(added) => setJobs((prev) => [...prev, added])}

@@ -160,7 +160,9 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {state === "copy" && next && <DropdownMenuItem onSelect={() => openCopy()}>Open</DropdownMenuItem>}
-        {replaceWays(kind, state).filter((way) => canTailor || way !== "use").map((way) => (
+        {replaceWays(kind, state)
+          .filter((way) => canTailor || way !== "use")
+          .map((way) => (
           <DropdownMenuItem key={way} onSelect={() => replaceWith(way)}>
             {FILL_ICONS[way]}
             {way === "use" ? "Replace with one of my CVs" : way === "upload" ? "Replace with a file" : "Replace with text"}
