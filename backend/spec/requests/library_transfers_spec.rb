@@ -88,27 +88,27 @@ RSpec.describe "Library transfers" do
       expect(section.base_items).not_to have_key("m")
     end
 
-    it "updates an item where the library has it, in another entry" do
-      edit(section, "one" => { "content" => "" })
-      edit(section, "three" => { "content" => '<p data-cv-item="a">Better</p>' })
+    describe "with an item the library has in another entry" do
+      before do
+        edit(section, "one" => { "content" => "" })
+        edit(section, "three" => { "content" => '<p data-cv-item="a">Better</p>' })
+      end
 
-      transfer("to_library", "three", "a")
+      it "updates it there" do
+        transfer("to_library", "three", "a", expected_library: '<p data-cv-item="a">A</p>')
 
-      expect(response).to have_http_status(:ok)
-      expect(content_of(library, "one")).to eq('<p data-cv-item="a">Better</p>')
-      expect(item_ids(library, "three")).to eq([ "e" ])
-      expect(section.reload.base_items).to include("a" => '<p data-cv-item="a">Better</p>')
-    end
+        expect(response).to have_http_status(:ok)
+        expect(content_of(library, "one")).to eq('<p data-cv-item="a">Better</p>')
+        expect(item_ids(library, "three")).to eq([ "e" ])
+        expect(section.reload.base_items).to include("a" => '<p data-cv-item="a">Better</p>')
+      end
 
-    it "accepts the other entry's text as what the client has" do
-      edit(section, "one" => { "content" => "" })
-      edit(section, "three" => { "content" => '<p data-cv-item="a">Better</p>' })
-
-      transfer("to_library", "three", "a", expected_library: '<p data-cv-item="a">A</p>')
-      expect(response).to have_http_status(:ok)
-
-      transfer("to_library", "three", "a", expected_library: '<p data-cv-item="a">A</p>')
-      expect(response).to have_http_status(:conflict)
+      it "refuses a client that has other text or believes it absent" do
+        [ '<p data-cv-item="a">Stale</p>', nil ].each do |expected|
+          expect { transfer("to_library", "three", "a", expected_library: expected) }.not_to change { everything(section, library) }
+          expect(response).to have_http_status(:conflict)
+        end
+      end
     end
 
     describe "with an entry the library lacks" do
@@ -147,15 +147,17 @@ RSpec.describe "Library transfers" do
         expect(section.base_items).not_to have_key("x")
       end
 
-      it "updates its items that the library has in other entries there" do
+      it "skips its items that the library has in other entries" do
         edit(section, "one" => { "content" => "" })
         edit(section, "own" => { "content" => '<p data-cv-item="a">Better</p><p data-cv-item="x">X</p>' })
+        section.update!(base_items: { "a" => "earlier" })
 
         transfer("to_library", "own")
 
-        expect(content_of(library, "one")).to eq('<p data-cv-item="a">Better</p>')
+        expect(response).to have_http_status(:ok)
+        expect(content_of(library, "one")).to eq('<p data-cv-item="a">A</p>')
         expect(content_of(library, "own")).to eq('<p data-cv-item="x">X</p>')
-        expect(section.reload.base_items).to include("a" => '<p data-cv-item="a">Better</p>', "x" => '<p data-cv-item="x">X</p>')
+        expect(section.reload.base_items).to eq("a" => "earlier", "x" => '<p data-cv-item="x">X</p>')
       end
     end
 
