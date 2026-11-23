@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { CalendarPlusIcon, GitBranchIcon, KanbanIcon, TrendingUpIcon, TrophyIcon } from "lucide-react";
 import getJobBoardEntriesStats from "@/api/resources/jobBoardEntries/getJobBoardEntriesStats";
+import Description from "@/components/common/Description";
 import Loader from "@/components/common/Loader";
 import PageContainer from "@/components/common/PageContainer";
+import Title from "@/components/common/Title";
 import ClosingSoon from "@/components/dashboard/ClosingSoon";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import PipelineChart from "@/components/dashboard/PipelineChart";
@@ -61,12 +63,14 @@ const HomePage = () => {
   return (
     <PageContainer>
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-6 rounded-xl bg-candido-black px-5 py-3 text-white">
-          <div className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-3">
-            <h1 className="text-xl font-bold tracking-tight">{firstName ? `Hi, ${firstName}` : "Dashboard"}</h1>
-            <p className="text-sm text-white/80">{summary()}</p>
+        <div className="mb-2 flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <Title>{firstName ? `Hi, ${firstName}` : "Dashboard"}</Title>
+            <Description className="mt-1">{summary()}</Description>
           </div>
-          <Image src={Logo} alt="Candido" height={28} className="hidden sm:block shrink-0" />
+          <div className="hidden shrink-0 rounded-lg bg-candido-black px-5 py-3 sm:block">
+            <Image src={Logo} alt="Candido" height={36} />
+          </div>
         </div>
 
         {stats && isEmpty && (

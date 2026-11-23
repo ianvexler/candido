@@ -7,7 +7,7 @@
 **Approaches:** hand-built SVG charts (chosen: no dependency, two simple charts); Recharts (only worth it for many more graphs); color only (can't show activity over time).
 
 ## Design
-- Dark banner: greeting, active and closing-soon summary, logo.
+- Header: greeting with active and closing-soon summary, and the logo alone in a black box.
 - Stat tiles: this week, active, response rate, offers; tinted icons.
 - Columns: jobs added per week, last 12 weeks (Monday start, UTC, as `this_week` already does).
 - Donut: board jobs by status, with a legend that carries counts. Archived jobs are excluded.
