@@ -74,9 +74,13 @@ class CurriculumSection < ApplicationRecord
     end
   end
 
-  # Ticks library content in this copy, adding what it lacks. Text and ticks of
-  # what it already has otherwise stay as they are.
+  # Ticks library content in this copy, adding what it lacks. Text stays as it
+  # is, and so do ticks, except that everything in a left out section or entry
+  # counts as unticked: including part of one shows only that part.
   def include_from_library!(template, entry: nil, item_id: nil)
+    if entry && hidden?
+      self.entries = entries.map { |other| other.merge("hidden" => true) }
+    end
     self.hidden = false
     if item_id
       include_item(template, entry, item_id)
@@ -105,9 +109,10 @@ class CurriculumSection < ApplicationRecord
 
   def include_item(template, library_entry, item_id)
     if (entry = entry_with_item(item_id))
+      entry = untick_items_if_hidden(entry)
       change_entry(entry, "content" => CvItems.set_off(entry["content"], [ item_id ], false), "hidden" => false)
     elsif (entry = find_entry(library_entry["id"]))
-      add_items(entry, library_entry, [ item_id ])
+      add_items(untick_items_if_hidden(entry), library_entry, [ item_id ])
     else
       add_entry(template, library_entry, ticked: true, only_item: item_id)
     end
@@ -143,8 +148,18 @@ class CurriculumSection < ApplicationRecord
     self.entries = entries.dup.insert(after ? after + 1 : 0, copy)
   end
 
+  def untick_items_if_hidden(entry)
+    return entry unless entry["hidden"]
+
+    ids = CvItems.list(entry["content"]).pluck(:id)
+    change_entry(entry, "content" => CvItems.set_off(entry["content"], ids, true))
+  end
+
+  # Returns the entry as changed.
   def change_entry(entry, changes)
-    self.entries = entries.map { |other| other.equal?(entry) ? entry.merge(changes) : other }
+    changed = entry.merge(changes)
+    self.entries = entries.map { |other| other.equal?(entry) ? changed : other }
+    find_entry(entry["id"])
   end
 
   def item_ids
