@@ -82,10 +82,10 @@ const LandingPage = () => (
       </div>
     </section>
 
-    <section className="mx-auto grid max-w-[1120px] items-center gap-10 px-4 pt-16 sm:pt-20 sm:px-6 md:grid-cols-[1fr_1.1fr]">
-      <Image src={Lost} alt="" sizes="(min-width: 768px) 320px" className="mx-auto block w-full max-w-[290px] self-end md:max-w-[320px] max-md:order-2" />
-      <div className="md:pb-14">
-        <h2 className="text-[clamp(38px,4.2vw,56px)]">Lost in your own spreadsheet?</h2>
+    <section className="mx-auto grid max-w-[1120px] gap-x-16 px-4 pt-16 sm:px-6 sm:pt-20 lg:grid-cols-[320px_1fr]">
+      <h2 className="text-[clamp(38px,4.2vw,56px)] lg:col-span-2">Lost in your own spreadsheet?</h2>
+      <Image src={Lost} alt="" sizes="320px" className="mx-auto block w-full max-w-[320px] self-end max-lg:order-2 max-lg:mt-10" />
+      <div className="lg:pb-14">
         <p className="mt-5 max-w-[30em] text-[18px]">
           Rows you forgot to update, deadlines you missed, and no idea which CV went where. You don&apos;t have to start
           over to fix it. Upload your Excel or CSV file and Candido turns each job into a card on your board.
@@ -99,8 +99,8 @@ const LandingPage = () => (
     </section>
 
     <section className="bg-[var(--landing-amber)]">
-      <div className="mx-auto grid max-w-[1120px] items-center gap-8 px-4 sm:px-6 md:grid-cols-[1.1fr_1fr]">
-        <div className="pt-14 sm:py-16">
+      <div className="mx-auto grid max-w-[1120px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-2">
+        <div className="pt-14 lg:py-16">
           <h2 className="text-[clamp(42px,5vw,64px)]">Get your hat on</h2>
           <p className="mt-5 max-w-[30em] text-[18px]">
             Job hunting is hard work. Keep it all in one place, and you can spend your time on the applications instead
@@ -113,7 +113,7 @@ const LandingPage = () => (
           </ol>
           <CtaLink href="/register" className="mt-6">Create account</CtaLink>
         </div>
-        <Image src={Builder} alt="" sizes="(min-width: 768px) 380px" className="mx-auto block w-full max-w-[380px] self-end md:pt-10" />
+        <Image src={Builder} alt="" sizes="(min-width: 1024px) 460px, 380px" className="mx-auto block w-full max-w-[380px] self-end lg:max-w-[460px]" />
       </div>
     </section>
 
