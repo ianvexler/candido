@@ -327,6 +327,61 @@ RSpec.describe "Curriculum sections" do
       expect(ticks(section)).to eq([ [ "one", false, "a" ], [ "two", true, "(b)" ], [ "three", false, "e" ] ])
     end
 
+    it "shows only the ticked item when its section was left out" do
+      section = copy_with(library.entries, hidden: true)
+
+      include_content(entry_id: "two", item_id: "c")
+
+      expect(section.reload.hidden).to be(false)
+      expect(ticks(section)).to eq([ [ "one", true, "a" ], [ "two", false, "(b) c (d)" ], [ "three", true, "e" ] ])
+    end
+
+    it "shows only the ticked item when its entry was left out" do
+      section = copy_with(library.entries.map { |entry| entry.merge("hidden" => entry["id"] == "two") })
+
+      include_content(entry_id: "two", item_id: "c")
+
+      expect(ticks(section)).to eq([ [ "one", false, "a" ], [ "two", false, "(b) c (d)" ], [ "three", false, "e" ] ])
+    end
+
+    it "shows only an added item when its entry or section was left out" do
+      without_d = { id: "two", hidden: true, content: '<p data-cv-item="b">B</p><ol><li data-cv-item="c">C</li></ol>' }
+      section = copy_with([ library.entries.first, without_d ])
+
+      include_content(entry_id: "two", item_id: "d")
+      expect(ticks(section)).to eq([ [ "one", false, "a" ], [ "two", false, "(b) (c) d" ] ])
+
+      section.update!(hidden: true)
+      include_content(entry_id: "three", item_id: "e")
+      expect(ticks(section)).to eq([ [ "one", true, "a" ], [ "two", true, "(b) (c) d" ], [ "three", false, "e" ] ])
+    end
+
+    it "shows only the ticked entry, with its earlier ticks, when its section was left out" do
+      off = library.entries.map { |entry| entry.merge("content" => entry["content"].sub('"c"', '"c" data-cv-off="true"')) }
+      section = copy_with(off, hidden: true)
+
+      include_content(entry_id: "two")
+
+      expect(ticks(section)).to eq([ [ "one", true, "a" ], [ "two", false, "b (c) d" ], [ "three", true, "e" ] ])
+    end
+
+    it "leaves siblings alone when the section and entry are included" do
+      off = library.entries.map { |entry| entry.merge("content" => entry["content"].sub('"c"', '"c" data-cv-off="true"')) }
+      section = copy_with(off)
+
+      include_content(entry_id: "two", item_id: "c")
+
+      expect(ticks(section)).to eq([ [ "one", false, "a" ], [ "two", false, "b c d" ], [ "three", false, "e" ] ])
+    end
+
+    it "restores earlier ticks when the whole section is included" do
+      section = copy_with(library.entries, hidden: true)
+
+      include_content
+
+      expect(ticks(section)).to eq([ [ "one", false, "a" ], [ "two", false, "b c d" ], [ "three", false, "e" ] ])
+    end
+
     it "changes the first of several copies" do
       second, first = curriculum.import_section_templates!([ library, library ])
       second.update!(position: 9)
