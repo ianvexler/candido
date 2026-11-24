@@ -1,4 +1,4 @@
-import { Editor } from "@tiptap/core";
+import { Editor, type EditorOptions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Slice } from "@tiptap/pm/model";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,9 +9,9 @@ import { SuggestionHighlight } from "./review/SuggestionHighlight";
 
 let editor: Editor | null = null;
 
-const make = (content: string) => {
+const make = (content: string, options: Partial<EditorOptions> = {}) => {
   editor?.destroy();
-  editor = new Editor({ extensions: [StarterKit, HiddenMark, SuggestionHighlight, CvItem], content });
+  editor = new Editor({ extensions: [StarterKit, HiddenMark, SuggestionHighlight, CvItem], content, ...options });
   return editor;
 };
 
@@ -68,14 +68,22 @@ const expectValid = (e: Editor) => {
 };
 
 describe("loading", () => {
-  it("changes nothing", () => {
-    const html = `<h3 data-cv-item="h">h</h3>${p("a")}${ul(li("b"))}<blockquote data-cv-item="q"><p>q</p></blockquote>`;
-    const e = make(html);
-    const onTransaction = vi.fn();
-    e.on("transaction", onTransaction);
+  it("changes nothing, also when the cursor moves", () => {
+    // A last paragraph, so that the editor doesn't add one.
+    const html = `<h3 data-cv-item="h">h</h3>${ul(li("b"))}<blockquote data-cv-item="q"><p>q</p></blockquote>${p("a")}`;
+    let seen = 0;
+    let docChanges = 0;
+    const e = make(html, {
+      onTransaction: ({ transaction, appendedTransactions }) => {
+        seen += 1;
+        docChanges += [transaction, ...appendedTransactions].filter((tr) => tr.docChanged).length;
+      },
+    });
     expect(e.getHTML()).toBe(html);
     cursor(e, "a", 1);
-    expect(onTransaction.mock.calls.some(([{ transaction }]) => transaction.docChanged)).toBe(false);
+    expect(seen).toBeGreaterThan(0);
+    expect(docChanges).toBe(0);
+    expect(e.getHTML()).toBe(html);
   });
 
   it("gives ids with the first edit only, to items only", () => {
