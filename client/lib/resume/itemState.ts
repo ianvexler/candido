@@ -136,6 +136,12 @@ const ACTION_LABELS: Record<TransferDirection, string> = {
 export const actionLabel = (state: ItemState, action: TransferDirection) =>
   state === "cv_only" ? "Add to library" : ACTION_LABELS[action];
 
+/** What a row's button says. "Edited" when only the CV's text changed, which may well be meant. */
+export const changeLabel = (state: ItemState): "Edited" | "Changed" | null => {
+  if (state === "cv_changed") return "Edited";
+  return state !== "cv_only" && actionsFor(state).length > 0 ? "Changed" : null;
+};
+
 /** One of an entry's fields on each side, as shown; "" if blank. */
 export type FieldDifference = { label: string; cv: string; library: string };
 

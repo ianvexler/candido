@@ -3,7 +3,7 @@
 import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
-import { actionLabel, actionsFor, FieldDifference, ItemState } from "@/lib/resume/itemState";
+import { actionLabel, actionsFor, changeLabel, FieldDifference, ItemState } from "@/lib/resume/itemState";
 import { cn } from "@/lib/utils";
 import { LibraryIcon } from "lucide-react";
 import { Popover } from "radix-ui";
@@ -21,19 +21,22 @@ interface ItemChangeMenuProps {
   onChoose: (action: TransferDirection) => void;
 }
 
-const ChangedButton = ({ label, className, ...props }: ComponentProps<typeof Button> & { label: string }) => (
+type ChangedButtonProps = ComponentProps<typeof Button> & { label: string; state: ItemState };
+
+const ChangedButton = ({ label, state, className, ...props }: ChangedButtonProps) => (
   <Button
     {...props}
     type="button"
-    variant="outline"
+    variant={state === "cv_changed" ? "ghost" : "outline"}
     size="xs"
-    aria-label={`Changed: ${label}`}
+    aria-label={`${changeLabel(state)}: ${label}`}
     className={cn(
       "mt-0.5 font-normal shadow-none aria-disabled:opacity-60 [@media(pointer:coarse)]:my-0.5 [@media(pointer:coarse)]:h-8",
+      state === "cv_changed" && "text-muted-foreground",
       className
     )}
   >
-    Changed
+    {changeLabel(state)}
   </Button>
 );
 
@@ -63,7 +66,7 @@ const Chooser = ({ label, state, changed, busy, onChoose }: ItemChangeMenuProps)
   return (
     <Popover.Root open={open} onOpenChange={(next) => setOpen(next && !busy)}>
       <Popover.Trigger asChild>
-        <ChangedButton label={label} aria-disabled={busy || undefined} />
+        <ChangedButton label={label} state={state} aria-disabled={busy || undefined} />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
@@ -110,7 +113,7 @@ const ItemChangeMenu = (props: ItemChangeMenuProps) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <ChangedButton label={label} aria-disabled={busy || undefined} />
+        <ChangedButton label={label} state={state} aria-disabled={busy || undefined} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {actions.map((action) => (
@@ -137,7 +140,7 @@ export const changeControls = (
   props: Omit<ItemChangeMenuProps, "state">
 ): { add?: ReactNode; change?: ReactNode } => ({
   add: offer === "cv_only" ? <AddToLibraryItem busy={props.busy} onChoose={props.onChoose} /> : undefined,
-  change: offer !== null && offer !== "cv_only" ? <ItemChangeMenu {...props} state={offer} /> : undefined,
+  change: offer !== null && changeLabel(offer) ? <ItemChangeMenu {...props} state={offer} /> : undefined,
 });
 
 export default ItemChangeMenu;
