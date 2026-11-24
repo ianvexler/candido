@@ -11,11 +11,11 @@ import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { RefObject, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import CvItem from "./CvItem";
@@ -53,10 +53,15 @@ export interface SuggestionProps {
   onStaleChange?: (staleIds: number[]) => void;
 }
 
+export type EntryChange = Partial<SectionEntry> | ((latest: SectionEntry) => Partial<SectionEntry>);
+
 interface SectionEntryEditorProps extends SuggestionProps {
   entry: SectionEntry;
   sectionType: string;
-  onChange: (changes: Partial<SectionEntry>) => void;
+  /** A function gets the latest entry, which may be newer than `entry`. */
+  onChange: (changes: EntryChange) => void;
+  /** The editor on screen for each entry, as it may have been remounted since. */
+  editors: RefObject<Map<string, Editor>>;
   /** Absent when the entry can't move that way. */
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -74,6 +79,7 @@ const SectionEntryEditor = ({
   entry,
   sectionType,
   onChange,
+  editors,
   onMoveUp,
   onMoveDown,
   onDelete,
@@ -111,12 +117,6 @@ const SectionEntryEditor = ({
     content: visibleContent(entry.content),
     hidden: listItems(entry.content).filter((item) => item.off).map((item) => item.id),
   }));
-  // Updates can come faster than renders.
-  const latestContent = useRef(entry.content);
-  useLayoutEffect(() => {
-    latestContent.current = entry.content;
-  }, [entry.content]);
-
   const editor = useEditor({
     extensions: [
       TextStyleKit,
@@ -139,11 +139,18 @@ const SectionEntryEditor = ({
       },
     },
     onUpdate: ({ editor: current }) => {
-      const content = normalizeContent(mergeEdited(latestContent.current, current.getHTML(), loaded.hidden));
-      latestContent.current = content;
-      onChange({ content });
+      const visible = current.getHTML();
+      onChange((latest) => ({ content: normalizeContent(mergeEdited(latest.content, visible, loaded.hidden)) }));
     },
   });
+  useEffect(() => {
+    if (!editor) return;
+    const shown = editors.current;
+    shown.set(entry.id, editor);
+    return () => {
+      if (shown.get(entry.id) === editor) shown.delete(entry.id);
+    };
+  }, [editor, editors, entry.id]);
 
   // --- Review suggestions -------------------------------------------------
   const pending = useMemo(() => suggestions.filter((s) => s.status === "pending"), [suggestions]);
@@ -181,7 +188,8 @@ const SectionEntryEditor = ({
 
   // Reports stale ids when they change. Runs after edits and when the
   // suggestions or summary change; with no suggestions it does nothing.
-  const reportedStale = useRef("");
+  // The first report is always made: an editor before this one may have had others.
+  const reportedStale = useRef<string | null>(null);
   useEffect(() => {
     if (!onStaleChange || !editor) return;
     if (pending.length === 0 && reportedStale.current === "") return;
@@ -243,12 +251,15 @@ const SectionEntryEditor = ({
     }
     if (changesText) {
       if (fieldOf(s) === "description") {
-        // Read from the field: the summary may have been edited while the decision was saving.
-        const latest = descriptionRef.current?.value ?? description;
-        const match = findQuote(latest, s.quote);
-        if (match) onChange({ description: latest.slice(0, match.from) + text + latest.slice(match.to) });
-      } else if (editor) {
-        replaceQuote(editor, s.quote, text);
+        // The summary may have been edited while the decision was saving.
+        onChange((entryNow) => {
+          const latest = entryNow.description ?? "";
+          const match = findQuote(latest, s.quote);
+          return match ? { description: latest.slice(0, match.from) + text + latest.slice(match.to) } : {};
+        });
+      } else {
+        const shown = editors.current.get(entry.id);
+        if (shown) replaceQuote(shown, s.quote, text);
       }
     }
     closeCard();
