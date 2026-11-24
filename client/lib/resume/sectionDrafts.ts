@@ -4,6 +4,8 @@ import { markPending, markSettled, trackSave } from "./saveTracker";
 import { cleanFields, emptyEntry, endsBeforeStart } from "./sectionEntries";
 
 const SAVE_DELAY_MS = 600;
+// Only someone typing on without a pause gets this far.
+const MAX_FLUSHES = 20;
 
 /** What can be edited. Library sections have no `hidden` or `placement`. */
 export type SectionDraft = SectionFields & { hidden?: boolean; placement?: SectionPlacement | null };
@@ -33,6 +35,8 @@ interface Draft<T> {
   saved: T;
   /** What was last sent, until it is known to be saved. */
   sent: T | null;
+  /** The server may have other text than `saved`, so what is shown is sent even if it's the same. */
+  uncertain: boolean;
   /** Counts what may need saving; `savedEdits` is the count when last sent and saved. */
   edits: number;
   savedEdits: number;
@@ -162,6 +166,12 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
   let lastVersion = 0;
   let disposed = false;
 
+  const unsavedIn = ({ current, saved, uncertain }: Draft<T>): SectionPatch | null => {
+    const patch = unsaved(current, saved);
+    if (!uncertain || current.entries.some(endsBeforeStart)) return patch;
+    return { ...patch, ...clean(current) };
+  };
+
   const find = (id: number) => drafts.find((draft) => draft.current.id === id);
 
   const notify = () =>
@@ -176,6 +186,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
       current: section,
       saved: section,
       sent: null,
+      uncertain: false,
       edits: 0,
       savedEdits: 0,
       versions: {},
@@ -237,15 +248,16 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
   /** Resolves false if the save failed. */
   const send = (draft: Draft<T>): Promise<boolean> => {
     stopWaiting(draft);
-    const patch = draft.removed ? null : unsaved(draft.current, draft.saved);
+    const patch = draft.removed ? null : unsavedIn(draft);
     if (!patch) {
       markSettled(draft.editKey);
       return Promise.resolve(true);
     }
 
     const sent = draft.current;
-    const { replaced, edits } = draft;
+    const { replaced, edits, uncertain } = draft;
     draft.sent = sent;
+    if (patch.entries) draft.uncertain = false;
     const request = trackSave(
       `section-${sent.id}`,
       save(sent, patch).then(
@@ -256,6 +268,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
           return true;
         },
         (error) => {
+          draft.uncertain ||= uncertain;
           // Perhaps only because it is being deleted. If not, it's sent again after.
           if (draft.deletion) draft.due = true;
           else if (!draft.removed) onError(error);
@@ -280,7 +293,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
       // The rest is newer than this response.
       const { section_type, entries, hidden, placement } = record;
       draft.saved = { ...draft.saved, section_type, entries, hidden, placement };
-      if (unsaved(current, draft.saved)) edited(draft);
+      if (unsavedIn(draft)) edited(draft);
       return;
     }
 
@@ -300,11 +313,14 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     notify();
   };
 
+  const isDirty = (draft: Draft<T>) =>
+    !draft.removed && (draft.request !== null || (draft.edits !== draft.savedEdits && unsavedIn(draft) !== null));
+
   const flushOne = async (draft: Draft<T>): Promise<boolean> => {
     while (!draft.removed) {
       if (draft.request) await draft.request;
       // Once saved, only edits are sent again: the server may not store it as sent.
-      else if (draft.edits === draft.savedEdits || !unsaved(draft.current, draft.saved)) break;
+      else if (!isDirty(draft)) break;
       else if (draft.deletion) await draft.deletion;
       else if (!(await send(draft))) return false;
     }
@@ -313,8 +329,17 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     return true;
   };
 
-  /** Saves everything now. Resolves false if something couldn't be saved. */
-  const flush = async () => (await Promise.all(drafts.map(flushOne))).every(Boolean);
+  /** Saves everything now. Resolves false if something couldn't be saved, or typing didn't stop. */
+  const flush = async () => {
+    // Not those loaded after these.
+    const flushed = drafts;
+    for (let round = 0; round < MAX_FLUSHES; round += 1) {
+      if (!(await Promise.all(flushed.map(flushOne))).every(Boolean)) return false;
+      // One that was done may have been typed in while another was being saved.
+      if (!flushed.some(isDirty)) return true;
+    }
+    return false;
+  };
 
   return {
     flush,
@@ -325,13 +350,26 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     /** A section as the server has it, as far as is known here. */
     saved: (id: number) => find(id)?.saved,
 
-    /** Sets fields that aren't edited here, newer than what a save on its way will bring. */
-    setRecord: (id: number, fields: Partial<Omit<T, keyof SectionDraft | "id">>) => {
+    /** Nothing of it waits to be saved. An invalid date range keeps text from being sent at all. */
+    isSaved: (id: number) => {
+      const draft = find(id);
+      return draft !== undefined && !isDirty(draft);
+    },
+
+    /**
+     * Sets fields that aren't edited here, newer than what a save on its way will
+     * bring. `textChanged`: the server's text did too, so what is shown is sent.
+     */
+    setRecord: (id: number, fields: Partial<Omit<T, keyof SectionDraft | "id">>, textChanged = false) => {
       const draft = find(id);
       if (!draft) return;
       draft.replaced += 1;
       draft.current = { ...draft.current, ...fields };
       draft.saved = { ...draft.saved, ...fields };
+      if (textChanged) {
+        draft.uncertain = true;
+        edited(draft);
+      }
       notify();
     },
 
