@@ -642,6 +642,23 @@ describe("saved", () => {
   });
 });
 
+describe("flush", () => {
+  it("resolves false if typing never stops", async () => {
+    const { drafts, calls } = setup([section(), section({ id: 2 })]);
+    const type = (id: number, title: string) => drafts.change(id, edit("e2", { title }));
+    let result: boolean | null = null;
+    type(1, "0");
+    void drafts.flush().then((saved) => (result = saved));
+    for (let round = 1; round < 200 && result === null; round += 1) {
+      // The other section is done by now.
+      type(round % 2 ? 2 : 1, String(round));
+      calls.splice(0).forEach((call) => call.resolve());
+      await settle();
+    }
+    expect(result).toBe(false);
+  });
+});
+
 describe("setRecord", () => {
   it("keeps edits, and isn't undone by a save already on its way", async () => {
     const { drafts, calls, shown } = setup();

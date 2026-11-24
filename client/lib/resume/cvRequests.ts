@@ -21,11 +21,18 @@ export const TRANSFER_UNSAVED = "Your latest edit isn't saved, so nothing was ch
 export const TRANSFER_INVALID_DATES =
   "Fix the end month that is before its start month in this section first. Then try again.";
 export const CHANGED_ELSEWHERE = "This changed elsewhere. Check it and try again.";
-export const KEPT_YOURS = "You edited this while it was updating, so your text was kept.";
+const KEPT_YOURS = "You edited this while it was updating, so your text was kept.";
 const TRANSFER_KEPT_CHANGING = "This section kept changing. Check it and try again.";
 
 /** A request that stopped, with why, to show. */
 export class RequestStopped extends Error {}
+
+/** A pull that stopped because its text was edited meanwhile. Nothing failed. */
+export class TextKept extends RequestStopped {
+  constructor() {
+    super(KEPT_YOURS);
+  }
+}
 
 interface CvRequestsOptions {
   /** The sections as edited. */
@@ -40,7 +47,8 @@ interface CvRequestsOptions {
   /** A section as the server has it. */
   saved: (id: number) => CurriculumSection | undefined;
   change: (id: number, change: (latest: SectionDraft) => SectionPatch) => void;
-  setRecord: (id: number, record: Pick<CurriculumSection, "base_items" | "base_fields" | "section_template_id">) => void;
+  setRecord: (id: number, record: Pick<CurriculumSection, "base_items" | "base_fields" | "section_template_id">, textChanged: boolean) => void;
+  isSaved: (id: number) => boolean;
   /** The library as shown. */
   templates: () => SectionTemplate[];
   /** Shows a library section as the server has it now, if it still does. `id` is what it was known by. */
@@ -65,6 +73,7 @@ export const createCvRequests = ({
   saved,
   change,
   setRecord,
+  isSaved,
   templates,
   takeTemplate,
   sendTransfer,
@@ -81,7 +90,9 @@ export const createCvRequests = ({
       if (!(await flush())) throw new RequestStopped(UNSAVED);
       const before = current();
       // Such a section isn't saved, so the response would undo what was typed.
-      if (copyOf(before, payload.section_template_id)?.entries.some(endsBeforeStart)) throw new RequestStopped(INVALID_DATES);
+      const ours = copyOf(before, payload.section_template_id);
+      if (ours?.entries.some(endsBeforeStart)) throw new RequestStopped(INVALID_DATES);
+      if (ours && !isSaved(ours.id)) continue;
 
       const copy = copyOf(await sendInclude(payload), payload.section_template_id);
       if (!copy) return;
@@ -105,7 +116,8 @@ export const createCvRequests = ({
       const known = saved(sectionId);
       if (!before || !known) return;
       if (before.entries.some(endsBeforeStart)) throw new RequestStopped(TRANSFER_INVALID_DATES);
-      if (direction === "to_cv" && !sameText(asked, before, target)) throw new RequestStopped(KEPT_YOURS);
+      if (!isSaved(sectionId)) continue;
+      if (direction === "to_cv" && !sameText(asked, before, target)) throw new TextKept();
       const cv = valueIn(known, target);
       if (cv === null) return;
 
@@ -127,7 +139,7 @@ export const createCvRequests = ({
       } else {
         // The section sent back may be older than what was saved meanwhile.
         const { base_items, base_fields, section_template_id } = section;
-        setRecord(sectionId, { base_items, base_fields, section_template_id });
+        setRecord(sectionId, { base_items, base_fields, section_template_id }, direction === "to_cv");
         let kept = false;
         if (direction === "to_cv") {
           change(sectionId, (latest) => {
@@ -136,7 +148,7 @@ export const createCvRequests = ({
             return patch;
           });
         }
-        if (kept) throw new RequestStopped(KEPT_YOURS);
+        if (kept) throw new TextKept();
       }
       if (conflict) throw new RequestStopped(CHANGED_ELSEWHERE);
       return true;

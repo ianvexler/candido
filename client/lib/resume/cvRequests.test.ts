@@ -4,7 +4,7 @@ import {
   createCvRequests,
   CHANGED_ELSEWHERE,
   INVALID_DATES,
-  KEPT_YOURS,
+  TextKept,
   MAX_INCLUDES,
   TRANSFER_INVALID_DATES,
   TRANSFER_UNSAVED,
@@ -46,6 +46,7 @@ const setup = (initial = [section(1), section(2, { section_template_id: 20 })]) 
     saved: vi.fn((id: number) => shown.find((item) => item.id === id)),
     change: vi.fn(),
     setRecord: vi.fn(),
+    isSaved: vi.fn(() => true),
     templates: vi.fn((): SectionTemplate[] => []),
     takeTemplate: vi.fn(),
     sendTransfer: vi.fn(async (): Promise<TransferResult> => ({ conflict: false, section: section(1), section_template: null })),
@@ -315,7 +316,7 @@ describe("transfer", () => {
     await requests.transfer(ofItem, "to_cv");
     expect(replace).not.toHaveBeenCalled();
     expect(takeTemplate).toHaveBeenCalledOnce();
-    expect(setRecord).toHaveBeenCalledWith(1, expect.objectContaining({ base_items: { x: li("Library") } }));
+    expect(setRecord).toHaveBeenCalledWith(1, expect.objectContaining({ base_items: { x: li("Library") } }), true);
     const pull = change.mock.calls[0][1];
     expect(pull(section(1, { entries: [written("CV", "Typed")] }))).toEqual({ entries: [written("Library", "Typed")] });
   });
@@ -326,7 +327,7 @@ describe("transfer", () => {
       edit(1, { entries: [written("Typed")] });
       return true;
     });
-    await expect(requests.transfer(ofItem, "to_cv")).rejects.toThrow(KEPT_YOURS);
+    await expect(requests.transfer(ofItem, "to_cv")).rejects.toBeInstanceOf(TextKept);
     expect(sendTransfer).not.toHaveBeenCalled();
   });
 
@@ -337,7 +338,7 @@ describe("transfer", () => {
       edit(1, { entries: [written("Typed")] });
       return result("Library");
     });
-    await expect(requests.transfer(ofItem, "to_cv")).rejects.toThrow(KEPT_YOURS);
+    await expect(requests.transfer(ofItem, "to_cv")).rejects.toBeInstanceOf(TextKept);
   });
 
   it("goes again when it was refused and edited here meanwhile", async () => {
@@ -350,6 +351,20 @@ describe("transfer", () => {
     expect(sendTransfer).toHaveBeenCalledTimes(2);
     expect(sendTransfer).toHaveBeenLastCalledWith(1, expect.objectContaining({ expected_cv: li("Typed") }));
     expect(replace).toHaveBeenCalledOnce();
+  });
+
+  it("saves again when typed in since, and gives up in the end", async () => {
+    const once = start();
+    once.isSaved.mockReturnValueOnce(false);
+    await once.requests.transfer(ofItem, "to_library");
+    expect(once.flush).toHaveBeenCalledTimes(2);
+    expect(once.sendTransfer).toHaveBeenCalledOnce();
+    const never = start();
+    never.isSaved.mockReturnValue(false);
+    await expect(never.requests.transfer(ofItem, "to_library")).rejects.toThrow();
+    await expect(never.requests.include({ section_template_id: 10 })).rejects.toThrow();
+    expect(never.sendTransfer).not.toHaveBeenCalled();
+    expect(never.sendInclude).not.toHaveBeenCalled();
   });
 
   it("waits its turn", async () => {

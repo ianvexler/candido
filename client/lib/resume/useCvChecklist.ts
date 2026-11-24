@@ -7,7 +7,7 @@ import { CurriculumSection } from "@/lib/types";
 import { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { moveSection, tickEntry, tickItem, tickSection } from "./checklist";
-import { createCvRequests, KEPT_YOURS, RequestStopped } from "./cvRequests";
+import { createCvRequests, RequestStopped, TextKept } from "./cvRequests";
 import { sectionColumn } from "./exportDocument";
 import { apiErrorMessage } from "./reviewPanel";
 import { moveEntry } from "./sectionEntries";
@@ -46,7 +46,7 @@ export type ChecklistActions = {
 
 type Drafts = Pick<
   ReturnType<typeof useSectionDrafts<CurriculumSection>>,
-  "current" | "saved" | "change" | "setRecord" | "flush" | "replace" | "add" | "reorder" | "remove"
+  "current" | "saved" | "isSaved" | "change" | "setRecord" | "flush" | "replace" | "add" | "reorder" | "remove"
 >;
 
 const NOTHING_PENDING: ReadonlySet<string> = new Set();
@@ -55,7 +55,7 @@ type Library = Pick<ReturnType<typeof useSectionLibrary>, "current" | "take" | "
 /** What the checklist does to a CV. The functions stay the same. */
 export const useCvChecklist = (
   curriculumId: number,
-  { current, saved, change, setRecord, flush, replace, add, reorder, remove }: Drafts,
+  { current, saved, isSaved, change, setRecord, flush, replace, add, reorder, remove }: Drafts,
   { current: templates, take: takeTemplate, refresh: refreshLibrary }: Library
 ) => {
   const [pending, setPending] = useState(NOTHING_PENDING);
@@ -70,6 +70,7 @@ export const useCvChecklist = (
       sendInclude: async (payload) => (await includeFromLibrary(curriculumId, payload)).curriculum.sections ?? [],
       sendOrder: (ids) => reorderCurriculumSections(curriculumId, ids),
       saved,
+      isSaved,
       change,
       setRecord,
       templates,
@@ -126,7 +127,7 @@ export const useCvChecklist = (
         if (done && direction === "to_library") toast.success("Library updated");
       } catch (error) {
         if (error instanceof RequestStopped) {
-          if (error.message === KEPT_YOURS) toast(error.message);
+          if (error instanceof TextKept) toast(error.message);
           else toast.error(error.message);
         } else {
           console.error(error);
