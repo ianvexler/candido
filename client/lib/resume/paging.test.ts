@@ -96,6 +96,13 @@ describe("paginate", () => {
     expect(paginate([head("h", 0, 20), b("t", 20, 270)], 100)).toEqual({ breaks: [], pages: 3, used: 70 });
   });
 
+  it("rules a block only on the page it ends up starting", () =>
+    expect(paginate([b("a", 0, 60), b(null, 60, 110), head("h", 110, 130), b("b", 130, 190)], 100)).toEqual({
+      breaks: [{ key: "h", top: 110, page: 2 }],
+      pages: 3,
+      used: 80,
+    }));
+
   it("counts lead space when cutting an over-tall block", () =>
     expect(paginate([b("t", 30, 280)], 100)).toMatchObject({ pages: 3, used: 80, breaks: [] }));
 
@@ -121,6 +128,33 @@ describe("paginate, fuzzed", () => {
       const pages = r.breaks.map((x) => x.page);
       expect(pages).toEqual([...pages].sort((a, c) => a - c));
       expect(new Set(pages).size).toBe(pages.length);
+      expect(r.used).toBeGreaterThan(0);
+      expect(r.used).toBeLessThanOrEqual(ph + 0.5);
+      expect(r.pages).toBeGreaterThanOrEqual((pages.at(-1) ?? 0) + 1);
+    }
+  });
+});
+
+describe("paginate, fuzzed", () => {
+  it("never leaves an empty page, and keeps breaks and use in range", () => {
+    let seed = 7;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let n = 0; n < 3000; n++) {
+      const ph = 100;
+      let y = rand() < 0.3 ? rand() * 40 : 0;
+      const blocks: Block[] = [];
+      const count = 1 + Math.floor(rand() * 12);
+      for (let i = 0; i < count; i++) {
+        const h = 1 + rand() * (rand() < 0.15 ? 300 : 70);
+        blocks.push({ key: rand() < 0.2 ? null : `k${i}`, top: y, bottom: y + h, keepWithNext: rand() < 0.3 });
+        y += h + (rand() < 0.5 ? rand() * 20 : 0);
+      }
+      const r = paginate(blocks, ph);
+      const pages = r.breaks.map((x) => x.page);
+      expect(pages).toEqual([...pages].sort((a, c) => a - c));
+      expect(new Set(pages).size).toBe(pages.length);
+      const keys = r.breaks.map((x) => x.key);
+      expect(new Set(keys).size).toBe(keys.length);
       expect(r.used).toBeGreaterThan(0);
       expect(r.used).toBeLessThanOrEqual(ph + 0.5);
       expect(r.pages).toBeGreaterThanOrEqual((pages.at(-1) ?? 0) + 1);

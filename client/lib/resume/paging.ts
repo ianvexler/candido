@@ -11,6 +11,7 @@ const TOLERANCE = 0.5;
 
 export function paginate(blocks: Block[], pageHeight: number): Paging & { breaks: PageBreak[] } {
   const breaks: PageBreak[] = [];
+  const ruled: number[] = []; // block index of each break
   let page = 0;
   let pageStart = 0; // page 0 starts at the content top, so lead space above the first block counts
   let first = 0; // index of the block that starts the current page
@@ -33,6 +34,11 @@ export function paginate(blocks: Block[], pageHeight: number): Paging & { breaks
         pageStart = blocks[at].top;
         first = at;
         needRule = true;
+        // Blocks from `at` on are placed again; a rule given earlier would be stale.
+        while (ruled.length && ruled[ruled.length - 1] >= at) {
+          ruled.pop();
+          breaks.pop();
+        }
         i = at; // place everything from there again on the new page
         continue;
       }
@@ -49,6 +55,7 @@ export function paginate(blocks: Block[], pageHeight: number): Paging & { breaks
 
     if (needRule && block.key !== null) {
       breaks.push({ key: block.key, top: block.top, page });
+      ruled.push(i);
       needRule = false;
     }
     if (!fits) {
