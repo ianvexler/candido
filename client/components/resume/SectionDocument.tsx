@@ -2,25 +2,26 @@
 
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { Button } from "@/components/ui/Button";
-import { cleanFields, emptyEntry, endsBeforeStart, moveEntry, sameFields } from "@/lib/resume/sectionEntries";
-import { markPending, markSettled, trackSave } from "@/lib/resume/saveTracker";
+import { emptyEntry, moveEntry } from "@/lib/resume/sectionEntries";
+import type { EntryEditor, EntryVersions, SectionChange } from "@/lib/resume/sectionDrafts";
 import { CvSuggestion, SectionEntry, SectionFields } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import type { Editor } from "@tiptap/react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { ReactNode, Ref, useEffect, useMemo, useRef, useState } from "react";
-import toast from "react-hot-toast";
 import IconAction from "./IconAction";
-import SectionEntryEditor, { SuggestionProps } from "./SectionEntryEditor";
+import SectionEntryEditor, { EntryChange, SuggestionProps } from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
 
-const SAVE_DELAY_MS = 600;
+const NO_VERSIONS: EntryVersions = {};
 const NO_SUGGESTIONS: CvSuggestion[] = [];
 
-interface SectionDocumentProps<T extends SectionFields & { id: number }> extends SuggestionProps {
-  section: T;
-  /** Persists the fields and resolves with the saved record. */
-  save: (fields: SectionFields) => Promise<T>;
-  onSaved: (next: T) => void;
+interface SectionDocumentProps extends SuggestionProps {
+  /** With at least one entry. */
+  section: SectionFields & { id: number };
+  /** From useSectionDrafts; an entry's editor is remounted when its version changes. */
+  versions?: EntryVersions;
+  onChange: (change: SectionChange, editor?: EntryEditor) => void;
   /** Deletes the record. Rejecting keeps the section on screen. */
   onDelete: () => Promise<void>;
   deleteLabel: string;
@@ -42,13 +43,12 @@ interface SectionDocumentProps<T extends SectionFields & { id: number }> extends
 
 /**
  * A paper-style editor for one section and its entries. Controls stay out of the way until the
- * section is hovered, focused or text is selected. Edits autosave after a pause.
- * The editors are uncontrolled: remount this (change its key) to load new content.
+ * section is hovered, focused or text is selected. Saving is up to `onChange`.
  */
-const SectionDocument = <T extends SectionFields & { id: number }>({
+const SectionDocument = ({
   section,
-  save,
-  onSaved,
+  versions = NO_VERSIONS,
+  onChange,
   onDelete,
   deleteLabel,
   deleteTitle,
@@ -66,64 +66,21 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
   onSuggestionClose,
   onSuggestionResolve,
   onStaleChange,
-}: SectionDocumentProps<T>) => {
-  const [sectionType, setSectionType] = useState(section.section_type);
-  const [entries, setEntries] = useState<SectionEntry[]>(() =>
-    section.entries.length > 0 ? section.entries : [emptyEntry()]
-  );
+}: SectionDocumentProps) => {
+  const { section_type: sectionType, entries } = section;
   const [deleteOpen, setDeleteOpen] = useState(false);
-  // Bumped on every edit; a non-zero value means there are unsaved changes.
-  const [dirty, setDirty] = useState(0);
-  const markDirty = () => setDirty((count) => count + 1);
+  const editors = useRef(new Map<string, Editor>());
 
-  const changeEntries = (change: (entries: SectionEntry[]) => SectionEntry[]) => {
-    setEntries(change);
-    markDirty();
-  };
-  const changeEntry = (id: string, changes: Partial<SectionEntry>) =>
-    changeEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, ...changes } : entry)));
-
-  // Export waits on unsaved edits (this key) and on save requests (trackSave).
-  const editKey = `section-${section.id}:edit`;
-
-  // Unmounting cancels the debounce, so the edit will never be saved; requests
-  // already sent settle on their own.
-  useEffect(() => () => markSettled(editKey), [editKey]);
-
-  useEffect(() => {
-    if (dirty === 0) {
-      markSettled(editKey);
-      return;
-    }
-    markPending(editKey);
-
-    const timer = setTimeout(() => {
-      setDirty(0);
-      // Shown inline; the server would reject it anyway.
-      if (entries.some(endsBeforeStart)) {
-        markSettled(editKey);
-        return;
-      }
-      const fields = cleanFields(sectionType, entries);
-      // Editor housekeeping (e.g. its trailing paragraph) can fire updates
-      // without any real change; saving those would mark CV copies as stale.
-      if (sameFields(fields, section)) {
-        markSettled(editKey);
-        return;
-      }
-
-      const request = trackSave(`section-${section.id}`, save(fields));
-      markSettled(editKey);
-      void request
-        .then(onSaved)
-        .catch((error) => {
-          console.error(error);
-          toast.error(error?.response?.data?.error ?? "Couldn't save this section. Check your connection and try again.");
-        });
-    }, SAVE_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [dirty, sectionType, entries, section, save, onSaved, editKey]);
+  const changeEntries = (change: (entries: SectionEntry[]) => SectionEntry[], editor?: EntryEditor) =>
+    onChange((current) => ({ entries: change(current.entries) }), editor);
+  const changeEntry = (id: string, changes: EntryChange) =>
+    changeEntries(
+      (list) =>
+        list.map((entry) =>
+          entry.id === id ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
+        ),
+      { entryId: id, version: versions[id] ?? 0 }
+    );
 
   // --- Review suggestions -------------------------------------------------
   // Reviews from before sections had entries are about the first one.
@@ -154,11 +111,6 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
     onStaleChange(staleKey ? staleKey.split(",").map(Number) : []);
   }, [onStaleChange, staleKey]);
 
-  const onConfirmDelete = async () => {
-    setDirty(0);
-    await onDelete();
-  };
-
   return (
     <>
       <article
@@ -187,10 +139,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
 
         <input
           value={sectionType}
-          onChange={(event) => {
-            setSectionType(event.target.value);
-            markDirty();
-          }}
+          onChange={(event) => onChange({ section_type: event.target.value })}
           placeholder="Section heading, e.g. Experience"
           aria-label="Section heading"
           className={cn(ghostInput, "block w-full max-w-[calc(100%-9rem)] py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal")}
@@ -199,8 +148,9 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
         <div className="mt-1 space-y-11">
           {entries.map((entry, index) => (
             <SectionEntryEditor
-              key={entry.id}
+              key={`${entry.id}:${versions[entry.id] ?? 0}`}
               entry={entry}
+              editors={editors}
               sectionType={sectionType}
               onChange={(changes) => changeEntry(entry.id, changes)}
               onMoveUp={index > 0 ? () => changeEntries((list) => moveEntry(list, entry.id, -1)) : undefined}
@@ -236,7 +186,7 @@ const SectionDocument = <T extends SectionFields & { id: number }>({
       <ConfirmationModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={onConfirmDelete}
+        onConfirm={onDelete}
         title={deleteTitle}
         description={deleteDescription}
         confirmLabel="Delete"

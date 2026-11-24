@@ -1,14 +1,13 @@
 "use client";
 
 import { deleteCurriculumSection } from "@/api/resources/curriculums/deleteCurriculumSection";
-import { updateCurriculumSection } from "@/api/resources/curriculums/updateCurriculumSection";
 import { CurriculumSection, CvSuggestion } from "@/lib/types";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { sectionColumn } from "@/lib/resume/exportDocument";
 import { EyeIcon, EyeOffIcon, GripVerticalIcon, PanelLeftIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import IconAction from "./IconAction";
-import { trackSave } from "@/lib/resume/saveTracker";
+import type { EntryEditor, EntryVersions, SectionChange } from "@/lib/resume/sectionDrafts";
 import SectionDocument from "./SectionDocument";
 import type { SuggestionAction } from "./review/SuggestionCard";
 
@@ -16,8 +15,11 @@ interface CurriculumSectionCardProps {
   curriculumId: number;
   section: CurriculumSection;
   index: number;
-  onChange: (section: CurriculumSection) => void;
-  onRemoved: (id: number) => void;
+  /** See SectionDocument. */
+  versions?: EntryVersions;
+  onChange: (change: SectionChange, editor?: EntryEditor) => void;
+  /** Removes it once the deletion is done; rejects if that fails. */
+  onRemove: (deletion: Promise<unknown>) => Promise<void>;
   /** The resume uses a two-column template, so the section can move between columns. */
   twoColumn?: boolean;
   /** This section's review suggestions; see SectionDocument. */
@@ -34,8 +36,9 @@ const CurriculumSectionCard = ({
   curriculumId,
   section,
   index,
+  versions,
   onChange,
-  onRemoved,
+  onRemove,
   twoColumn = false,
   suggestions,
   activeSuggestionId,
@@ -48,36 +51,12 @@ const CurriculumSectionCard = ({
   const inSidebar = twoColumn && sectionColumn(section) === "sidebar";
 
   // Stores the choice explicitly, so it wins over the guess from the section type.
-  const toggleColumn = async () => {
-    try {
-      const response = await trackSave(
-        `section-${section.id}`,
-        updateCurriculumSection(curriculumId, section.id, { placement: inSidebar ? "main" : "sidebar" })
-      );
-      onChange(response.section);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to move the section");
-    }
-  };
-
-  const toggleHidden = async () => {
-    try {
-      const response = await trackSave(
-        `section-${section.id}`,
-        updateCurriculumSection(curriculumId, section.id, { hidden: !section.hidden })
-      );
-      onChange(response.section);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to update section");
-    }
-  };
+  const toggleColumn = () => onChange({ placement: inSidebar ? "main" : "sidebar" });
+  const toggleHidden = () => onChange((current) => ({ hidden: !current.hidden }));
 
   const remove = async () => {
     try {
-      await deleteCurriculumSection(curriculumId, section.id);
-      onRemoved(section.id);
+      await onRemove(deleteCurriculumSection(curriculumId, section.id));
     } catch (error) {
       console.error(error);
       toast.error("Failed to remove section");
@@ -109,8 +88,8 @@ const CurriculumSectionCard = ({
       dimmed={section.hidden}
       canHideEntries
       notice={notice}
-      save={async (fields) => (await updateCurriculumSection(curriculumId, section.id, fields)).section}
-      onSaved={onChange}
+      versions={versions}
+      onChange={onChange}
       onDelete={remove}
       deleteLabel="Remove from this CV"
       deleteTitle="Remove this section from the CV?"
@@ -137,7 +116,7 @@ const CurriculumSectionCard = ({
             <IconAction
               label={inSidebar ? "Move to the main column" : "Move to the sidebar"}
               active={inSidebar}
-              onClick={() => void toggleColumn()}
+              onClick={toggleColumn}
             >
               <PanelLeftIcon />
             </IconAction>
@@ -145,7 +124,7 @@ const CurriculumSectionCard = ({
           <IconAction
             label={section.hidden ? "Show in this CV" : "Leave out of this CV"}
             active={section.hidden}
-            onClick={() => void toggleHidden()}
+            onClick={toggleHidden}
           >
             {section.hidden ? <EyeOffIcon /> : <EyeIcon />}
           </IconAction>

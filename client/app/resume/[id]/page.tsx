@@ -9,6 +9,7 @@ import { updateCvSuggestion } from "@/api/resources/cvTailorings/updateCvSuggest
 import { getJobBoardEntry } from "@/api/resources/jobBoardEntries/getJobBoardEntry";
 import { reorderCurriculumSections } from "@/api/resources/curriculums/reorderCurriculumSections";
 import { updateCurriculum } from "@/api/resources/curriculums/updateCurriculum";
+import { updateCurriculumSection } from "@/api/resources/curriculums/updateCurriculumSection";
 import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile";
 import Loader from "@/components/common/Loader";
 import AddSheetButton from "@/components/resume/AddSheetButton";
@@ -23,6 +24,8 @@ import SectionPreview from "@/components/resume/SectionPreview";
 import { resolveDesign } from "@/lib/resume/design";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import { trackSave, waitForSaves } from "@/lib/resume/saveTracker";
+import type { SectionPatch } from "@/lib/resume/sectionDrafts";
+import { useSectionDrafts } from "@/lib/resume/useSectionDrafts";
 import { apiErrorMessage, isConflict, statusForAction } from "@/lib/resume/reviewPanel";
 import { isTailoringActive } from "@/lib/resume/suggestions";
 import { pollUntil, PollTimeoutError } from "@/lib/poll";
@@ -45,11 +48,15 @@ interface ResumePageProps {
   params: Promise<{ id: string }>;
 }
 
+const saveSection = async (section: CurriculumSection, patch: SectionPatch) =>
+  (await updateCurriculumSection(section.curriculum_id, section.id, patch)).section;
+
 const ResumePage = ({ params }: ResumePageProps) => {
   const { id } = use(params);
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
   const [profile, setProfile] = useState<ResumeHeader | null>(null);
-  const [sections, setSections] = useState<CurriculumSection[]>([]);
+  const { sections, versions, load, add, change, remove, reorder, flush } =
+    useSectionDrafts<CurriculumSection>(saveSection);
   const [title, setTitle] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -72,12 +79,14 @@ const ResumePage = ({ params }: ResumePageProps) => {
       return { cv_tailoring: null };
     });
 
-    void Promise.all([getCurriculum(id), getResumeProfile(), latestTailoring])
+    // A page just left may still be saving.
+    void waitForSaves()
+      .then(() => Promise.all([getCurriculum(id), getResumeProfile(), latestTailoring]))
       .then(([response, profileResponse, tailoringResponse]) => {
         if (cancelled) return;
         setProfile(profileResponse.profile);
         setCurriculum(response.curriculum);
-        setSections(response.curriculum.sections ?? []);
+        load(response.curriculum.sections ?? []);
         setTitle(response.curriculum.title);
         setTailoring(tailoringResponse.cv_tailoring);
         setActiveSuggestionId(null);
@@ -92,7 +101,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, load]);
 
   // Polls while a review runs; stops on unmount or when the resume changes.
   // The server always ends a run (it expires one that stops working), so the
@@ -245,6 +254,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
   // point it at the print view once pending autosaves have reached the server.
   const exportPdf = async () => {
     const tab = window.open("", "_blank");
+    void flush();
     const saved = await waitForSaves();
     if (!saved) {
       toast("Your latest changes are still saving, so the PDF may not include them.");
@@ -284,6 +294,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
     setReviewError(null);
     try {
       // Let pending autosaves land first, so the review reads the latest text.
+      void flush();
       await waitForSaves();
       const response = await rerunCvTailoring(curriculum.id);
       setActiveSuggestionId(null);
@@ -297,13 +308,10 @@ const ResumePage = ({ params }: ResumePageProps) => {
     }
   };
 
-  const replaceSection = (next: CurriculumSection) =>
-    setSections((current) => current.map((item) => (item.id === next.id ? next : item)));
-
   const onAddSections = async ({ sectionTemplateIds }: SectionPickerResult) => {
     try {
       const response = await addCurriculumSections(curriculum.id, sectionTemplateIds);
-      setSections(response.curriculum.sections ?? []);
+      add(response.curriculum.sections ?? []);
     } catch (error) {
       toast.error("Failed to add sections");
       throw error;
@@ -316,9 +324,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
       const response = await addEmptyCurriculumSection(curriculum.id, sectionType);
       // The endpoint appends, so the last one is the new section.
       const first = (response.curriculum.sections ?? []).at(-1);
-      if (first) {
-        setSections((current) => (current.some((section) => section.id === first.id) ? current : [...current, first]));
-      }
+      if (first) add([first]);
       toast.success(`${sectionType} section added`);
       if (first) {
         requestAnimationFrame(() =>
@@ -338,17 +344,15 @@ const ResumePage = ({ params }: ResumePageProps) => {
     const next = move(previous, event);
     if (next.every((section, index) => section.id === previous[index].id)) return;
 
-    setSections(next);
+    const ids = next.map((section) => section.id);
+    reorder(ids);
     void trackSave(
       "order",
-      reorderCurriculumSections(
-        curriculum.id,
-        next.map((section) => section.id)
-      )
+      reorderCurriculumSections(curriculum.id, ids)
     ).catch((error) => {
       console.error(error);
       toast.error("Failed to save the new order");
-      setSections(previous);
+      reorder(previous.map((section) => section.id));
     });
   };
 
@@ -443,11 +447,10 @@ const ResumePage = ({ params }: ResumePageProps) => {
               curriculumId={curriculum.id}
               section={section}
               index={index}
-              onChange={replaceSection}
+              versions={versions[section.id]}
+              onChange={(patch, editor) => change(section.id, patch, editor)}
               twoColumn={resolveDesign(curriculum.styles).template === "sidebar"}
-              onRemoved={(sectionId) =>
-                setSections((current) => current.filter((item) => item.id !== sectionId))
-              }
+              onRemove={(deletion) => remove(section.id, deletion)}
               {...(tailored && {
                 suggestions: suggestionsBySection.get(section.id) ?? NO_SUGGESTIONS,
                 activeSuggestionId,
