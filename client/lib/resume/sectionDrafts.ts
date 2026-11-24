@@ -321,6 +321,9 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
   return {
     flush,
 
+    /** The sections as edited, which may be newer than what is rendered. */
+    current: () => drafts.map((draft) => draft.current),
+
     /** Starts over with these. What was still unsaved is sent. */
     load: (sections: T[]) => {
       void flush();

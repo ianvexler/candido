@@ -52,17 +52,21 @@ export const statusForAction = (action: "accept" | "edit" | "reject"): "accepted
   action === "accept" ? "accepted" : action === "edit" ? "edited" : "rejected";
 
 /**
- * The panel's groups. Suggestions for sections no longer in the resume are
- * left out. `left` counts every pending one, stale included.
+ * The panel's groups. Suggestions for sections no longer in the resume aren't
+ * listed. `leftOut` are pending ones about text that isn't ticked. `left` counts
+ * the other pending ones, stale included.
  */
 export const reviewGroups = (
   suggestions: CvSuggestion[],
   staleIds: Set<number>,
   sectionIds: Set<number>,
-): { open: CvSuggestion[]; stale: CvSuggestion[]; done: CvSuggestion[]; left: number } => {
+  leftOutIds: Set<number>,
+): { open: CvSuggestion[]; stale: CvSuggestion[]; leftOut: CvSuggestion[]; done: CvSuggestion[]; left: number } => {
   const present = suggestions.filter((s) => sectionIds.has(s.curriculum_section_id));
-  const groups = splitSuggestions(present, (s) => staleIds.has(s.id));
-  return { ...groups, left: groups.open.length + groups.stale.length };
+  const isLeftOut = (s: CvSuggestion) => s.status === "pending" && leftOutIds.has(s.id);
+  const groups = splitSuggestions(present.filter((s) => !isLeftOut(s)), (s) => staleIds.has(s.id));
+  const leftOut = splitSuggestions(present.filter(isLeftOut), () => false).open;
+  return { ...groups, leftOut, left: groups.open.length + groups.stale.length };
 };
 
 /** The `{ error }` message an API call failed with, or the fallback. */

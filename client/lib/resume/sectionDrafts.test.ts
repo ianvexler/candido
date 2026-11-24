@@ -614,3 +614,9 @@ describe("the list", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 });
+
+it("gives the sections as edited right away", () => {
+  const { drafts } = setup();
+  drafts.change(1, { section_type: "Jobs" });
+  expect(drafts.current().map(({ section_type }) => section_type)).toEqual(["Jobs"]);
+});

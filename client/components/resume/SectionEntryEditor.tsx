@@ -14,13 +14,14 @@ import { TextStyleKit } from "@tiptap/extension-text-style";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
-import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, Trash2Icon } from "lucide-react";
+import { memo, RefObject, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import CvItem from "./CvItem";
 import HiddenMark from "./HiddenMark";
 import IconAction from "./IconAction";
+import LeaveOutArea from "./LeaveOutArea";
 import { normalizeContent } from "./documentContent";
 import SuggestionCard, { SuggestionAction } from "./review/SuggestionCard";
 import { SuggestionHighlight, replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
@@ -49,8 +50,6 @@ export interface SuggestionProps {
   onSuggestionClose?: () => void;
   /** Records the decision; the text changes here only once this resolves. A rejection is shown as a toast. */
   onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
-  /** Pending suggestions whose quote is no longer in the text. Called when the set changes. */
-  onStaleChange?: (staleIds: number[]) => void;
 }
 
 export type EntryChange = Partial<SectionEntry> | ((latest: SectionEntry) => Partial<SectionEntry>);
@@ -58,17 +57,20 @@ export type EntryChange = Partial<SectionEntry> | ((latest: SectionEntry) => Par
 interface SectionEntryEditorProps extends SuggestionProps {
   entry: SectionEntry;
   sectionType: string;
+  /** From useSectionDrafts. The editor is remounted when it changes. */
+  version: number;
   /** A function gets the latest entry, which may be newer than `entry`. */
-  onChange: (changes: EntryChange) => void;
+  onEntryChange: (id: string, changes: EntryChange, version: number) => void;
   /** The editor on screen for each entry, as it may have been remounted since. */
   editors: RefObject<Map<string, Editor>>;
-  /** Absent when the entry can't move that way. */
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  /** Absent for a section's only entry: delete the section instead. */
-  onDelete?: () => void;
-  /** Offers leaving the entry out, as a resume does. */
-  canHide?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMove: (id: string, by: -1 | 1) => void;
+  /** False for a section's only entry: delete the section instead. */
+  canDelete: boolean;
+  onDelete: (id: string) => void;
+  /** In a CV: offers leaving items out; see LeaveOutArea. */
+  onLeaveOut?: (entryId: string, itemId: string, focusAt: number | null) => void;
 }
 
 /**
@@ -78,19 +80,22 @@ interface SectionEntryEditorProps extends SuggestionProps {
 const SectionEntryEditor = ({
   entry,
   sectionType,
-  onChange,
+  version,
+  onEntryChange,
   editors,
-  onMoveUp,
-  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMove,
+  canDelete,
   onDelete,
-  canHide = false,
+  onLeaveOut,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
   onSuggestionResolve,
-  onStaleChange,
 }: SectionEntryEditorProps) => {
+  const onChange = (changes: EntryChange) => onEntryChange(entry.id, changes, version);
   // Kept as typed: a half-typed month isn't a date yet.
   const [startMonth, setStartMonth] = useState(toMonthInput(entry.start_date));
   const [endMonth, setEndMonth] = useState(toMonthInput(entry.end_date));
@@ -186,22 +191,6 @@ const SectionEntryEditor = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, contentItemsKey, cardId]);
 
-  // Reports stale ids when they change. Runs after edits and when the
-  // suggestions or summary change; with no suggestions it does nothing.
-  // The first report is always made: an editor before this one may have had others.
-  const reportedStale = useRef<string | null>(null);
-  useEffect(() => {
-    if (!onStaleChange || !editor) return;
-    if (pending.length === 0 && reportedStale.current === "") return;
-    const ids = pending.filter(isStale).map((s) => s.id);
-    const key = ids.join(",");
-    if (key === reportedStale.current) return;
-    reportedStale.current = key;
-    onStaleChange(ids);
-    // isStale reads editor and description, both listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onStaleChange, editor, pending, description, entry.content]);
-
   const cardAnchor = useMemo(() => {
     if (!cardSuggestion || !editor) return null;
     const editorDom = editor.view.dom;
@@ -265,15 +254,13 @@ const SectionEntryEditor = ({
     closeCard();
   };
 
+  const content = (
+    <EditorContent editor={editor} className="cv-document-body" onClick={pending.length > 0 ? onEditorClick : undefined} />
+  );
+
   return (
     <>
-      <div data-entry-id={entry.id} className={cn("group/entry relative transition-opacity", entry.hidden && "opacity-55")}>
-        {entry.hidden && (
-          <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            <EyeOffIcon className="size-3" />
-            Left out of this CV
-          </span>
-        )}
+      <div data-entry-id={entry.id} className="group/entry relative">
         <div className="flex items-start justify-between gap-2">
           <input
             value={entry.title}
@@ -287,13 +274,13 @@ const SectionEntryEditor = ({
             )}
           />
           <div className="-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100">
-            {onMoveUp && (
-              <IconAction label="Move entry up" onClick={onMoveUp}>
+            {canMoveUp && (
+              <IconAction label="Move entry up" onClick={() => onMove(entry.id, -1)}>
                 <ArrowUpIcon />
               </IconAction>
             )}
-            {onMoveDown && (
-              <IconAction label="Move entry down" onClick={onMoveDown}>
+            {canMoveDown && (
+              <IconAction label="Move entry down" onClick={() => onMove(entry.id, 1)}>
                 <ArrowDownIcon />
               </IconAction>
             )}
@@ -306,17 +293,11 @@ const SectionEntryEditor = ({
                 <CalendarPlusIcon />
               </IconAction>
             ) : null}
-            {canHide && (
+            {canDelete && (
               <IconAction
-                label={entry.hidden ? "Show entry in this CV" : "Leave entry out of this CV"}
-                active={entry.hidden}
-                onClick={() => onChange({ hidden: !entry.hidden })}
+                label="Delete entry"
+                onClick={() => (isEmptyEntry(entry) ? onDelete(entry.id) : setDeleteOpen(true))}
               >
-                {entry.hidden ? <EyeOffIcon /> : <EyeIcon />}
-              </IconAction>
-            )}
-            {onDelete && (
-              <IconAction label="Delete entry" onClick={() => (isEmptyEntry(entry) ? onDelete() : setDeleteOpen(true))}>
                 <Trash2Icon />
               </IconAction>
             )}
@@ -427,7 +408,13 @@ const SectionEntryEditor = ({
 
         <div className="relative mt-4">
           {editor && <FormatBubble editor={editor} />}
-          <EditorContent editor={editor} className="cv-document-body" onClick={pending.length > 0 ? onEditorClick : undefined} />
+          {editor && onLeaveOut ? (
+            <LeaveOutArea editor={editor} onLeaveOut={(itemId, focusAt) => onLeaveOut(entry.id, itemId, focusAt)}>
+              {content}
+            </LeaveOutArea>
+          ) : (
+            content
+          )}
           {editor && (
             <BlockToolbar
               editor={editor}
@@ -447,15 +434,15 @@ const SectionEntryEditor = ({
         />
       )}
 
-      {onDelete && (
+      {canDelete && (
         <ConfirmationModal
           isOpen={deleteOpen}
           onClose={() => setDeleteOpen(false)}
-          onConfirm={async () => onDelete()}
+          onConfirm={async () => onDelete(entry.id)}
           title="Delete this entry?"
           description={
-            canHide
-              ? "Only this CV's copy is deleted. To keep it here but not show it, leave it out instead."
+            onLeaveOut
+              ? "Only this CV's copy is deleted. To keep it here but not show it, untick it instead."
               : "This removes it from the library section. CVs that already use it keep their copy."
           }
           confirmLabel="Delete"
@@ -466,4 +453,4 @@ const SectionEntryEditor = ({
   );
 };
 
-export default SectionEntryEditor;
+export default memo(SectionEntryEditor);

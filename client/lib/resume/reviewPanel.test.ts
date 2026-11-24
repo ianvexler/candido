@@ -63,7 +63,7 @@ describe("reviewGroups", () => {
       suggestion(1),
       suggestion(4, { status: "rejected" }),
     ];
-    const groups = reviewGroups(list, new Set([2]), new Set([1]));
+    const groups = reviewGroups(list, new Set([2]), new Set([1]), new Set());
     expect(groups.open.map((s) => s.id)).toEqual([1]);
     expect(groups.stale.map((s) => s.id)).toEqual([2]);
     expect(groups.done.map((s) => s.id)).toEqual([3, 4]);
@@ -71,9 +71,24 @@ describe("reviewGroups", () => {
   });
 
   it("leaves out suggestions for removed sections", () => {
-    const groups = reviewGroups([suggestion(1, { curriculum_section_id: 9 })], new Set(), new Set([1]));
+    const groups = reviewGroups([suggestion(1, { curriculum_section_id: 9 })], new Set(), new Set([1]), new Set());
     expect(groups.open).toEqual([]);
     expect(groups.left).toBe(0);
+  });
+
+  it("keeps suggestions on left out text apart, whether or not their text is found", () => {
+    const list = [suggestion(1), suggestion(2), suggestion(3), suggestion(4)];
+    const groups = reviewGroups(list, new Set([2, 3]), new Set([1]), new Set([1, 2]));
+    expect(groups.leftOut.map((s) => s.id)).toEqual([1, 2]);
+    expect(groups.stale.map((s) => s.id)).toEqual([3]);
+    expect(groups.open.map((s) => s.id)).toEqual([4]);
+    expect(groups.left).toBe(2);
+  });
+
+  it("keeps a resolved suggestion done when its text is left out", () => {
+    const groups = reviewGroups([suggestion(1, { status: "accepted" })], new Set(), new Set([1]), new Set([1]));
+    expect(groups.done.map((s) => s.id)).toEqual([1]);
+    expect(groups.leftOut).toEqual([]);
   });
 });
 
