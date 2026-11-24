@@ -1,6 +1,9 @@
+import { PageEditing, PageEditingContext, TextSlot } from "@/components/resume/page/PageEditing";
+import { PageText } from "@/components/resume/page/PageText";
 import { DesignSettings, designStyle } from "@/lib/resume/design";
-import { ExportSection, ResumeDocument } from "@/lib/resume/exportDocument";
+import { ExportEntry, ExportSection, ResumeDocument } from "@/lib/resume/exportDocument";
 import { PaperSize, ResumeHeader } from "@/lib/types";
+import { useContext } from "react";
 import { FONT_FAMILIES } from "./fonts";
 
 /** What every template receives. */
@@ -26,13 +29,28 @@ export const templateRootProps = (design: DesignSettings, paper: PaperSize) => (
   style: designStyle(design, FONT_FAMILIES),
 });
 
-/** Name, headline, contact details and links. `stacked` puts each detail on its own line. */
-export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeHeader; stacked?: boolean }) => {
+/** The text as printed, or the same element editable. */
+const slotText = (
+  editing: PageEditing | null,
+  slot: TextSlot,
+  { as: As, className, text, block }: { as: "h1" | "h2" | "h3" | "p"; className: string; text: string; block?: string }
+) => {
+  const binding = editing?.text(slot);
+  if (binding) return <PageText as={As} className={className} binding={binding} block={block} />;
+  return (
+    text && (
+      <As className={className} data-block={editing ? block : undefined}>
+        {text}
+      </As>
+    )
+  );
+};
+
+/** The contact details and links. */
+export const ContactLines = ({ header, stacked = false }: { header: ResumeHeader; stacked?: boolean }) => {
   const contact = [header.email, header.phone, header.location].filter(Boolean);
   return (
-    <header className="rc-header" data-stacked={stacked || undefined}>
-      {header.name && <h1 className="rc-name">{header.name}</h1>}
-      {header.headline && <p className="rc-headline">{header.headline}</p>}
+    <>
       {contact.length > 0 &&
         (stacked ? (
           <ul className="rc-contact">
@@ -52,34 +70,65 @@ export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeH
           ))}
         </p>
       )}
+    </>
+  );
+};
+
+/** Name, headline, contact details and links. `stacked` puts each detail on its own line. */
+export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeHeader; stacked?: boolean }) => {
+  const editing = useContext(PageEditingContext);
+  return (
+    <header className="rc-header" data-stacked={stacked || undefined} data-block={editing ? "header" : undefined}>
+      {slotText(editing, { kind: "name" }, { as: "h1", className: "rc-name", text: header.name })}
+      {slotText(editing, { kind: "headline" }, { as: "p", className: "rc-headline", text: header.headline })}
+      {editing?.contact() ?? <ContactLines header={header} stacked={stacked} />}
     </header>
   );
 };
 
+/** An entry's role and organisation, then its dates and place. */
+export const EntryLine = ({ entry }: { entry: ExportEntry }) =>
+  (entry.subtitle || entry.meta) && (
+    <div className="rc-entry-line">
+      <span className="rc-subtitle">{entry.subtitle}</span>
+      <span className="rc-meta">{entry.meta}</span>
+    </div>
+  );
+
+const EntryBody = ({ entry }: { entry: ExportEntry }) => {
+  const body = useContext(PageEditingContext)?.body(entry) ?? null;
+  if (body !== null) return <div className="rc-body">{body}</div>;
+  return entry.html && <div className="rc-body" dangerouslySetInnerHTML={{ __html: entry.html }} />;
+};
+
 /** One section: its heading, then each entry's title, role and dates, summary and content. */
 export const ResumeSectionBlock = ({ section }: { section: ExportSection }) => {
+  const editing = useContext(PageEditingContext);
+  const sectionId = section.id;
   // The heading sits in the first entry's head, so print keeps the two together.
-  const heading = section.heading && <h2 className="rc-heading">{section.heading}</h2>;
+  const heading = slotText(
+    editing,
+    { kind: "heading", sectionId },
+    { as: "h2", className: "rc-heading", text: section.heading, block: section.entries.length === 0 ? "heading" : undefined }
+  );
 
   return (
-    <section className="rc-section">
+    <section className="rc-section" data-section-id={editing ? sectionId : undefined}>
       {section.entries.length === 0 && heading}
-      {section.entries.map((entry, index) => (
-        <div key={entry.id} className="rc-entry">
-          <div className="rc-section-head">
-            {index === 0 && heading}
-            {entry.title && <h3 className="rc-title">{entry.title}</h3>}
-            {(entry.subtitle || entry.meta) && (
-              <div className="rc-entry-line">
-                <span className="rc-subtitle">{entry.subtitle}</span>
-                <span className="rc-meta">{entry.meta}</span>
-              </div>
-            )}
-            {entry.summary && <p className="rc-summary">{entry.summary}</p>}
+      {section.entries.map((entry, index) => {
+        const entryId = entry.id;
+        return (
+          <div key={entryId} className="rc-entry" data-entry-id={editing ? entryId : undefined}>
+            <div className="rc-section-head" data-block={editing ? "head" : undefined}>
+              {index === 0 && heading}
+              {slotText(editing, { kind: "title", sectionId, entryId }, { as: "h3", className: "rc-title", text: entry.title })}
+              {editing?.line(entry) ?? <EntryLine entry={entry} />}
+              {slotText(editing, { kind: "summary", sectionId, entryId }, { as: "p", className: "rc-summary", text: entry.summary })}
+            </div>
+            <EntryBody entry={entry} />
           </div>
-          {entry.html && <div className="rc-body" dangerouslySetInnerHTML={{ __html: entry.html }} />}
-        </div>
-      ))}
+        );
+      })}
     </section>
   );
 };

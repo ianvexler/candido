@@ -1,0 +1,24 @@
+/*
+ * Text edited on the page must lay out exactly as it prints. Browsers give
+ * editable elements wrapping rules of their own, which these undo.
+ */
+.resume-classic .page-text {
+  white-space: pre-wrap;
+  overflow-wrap: inherit;
+  line-break: auto;
+  outline: none;
+}
+
+/* Floated without height, so it neither takes space nor moves the caret. */
+.resume-classic .page-text[data-empty]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Holds the line open; a <br> the browser leaves behind does so itself. */
+.resume-classic .page-text:empty::after {
+  content: "\200b";
+}
