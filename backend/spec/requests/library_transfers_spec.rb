@@ -27,7 +27,8 @@ RSpec.describe "Library transfers" do
 
   def current(record, entry_id, item_id)
     entry = record&.find_entry(entry_id)
-    return entry&.slice(*SectionContent::FIELD_KEYS) unless item_id
+    return entry&.slice(*SectionContent::HEAD_KEYS) unless item_id
+    return entry && entry["description"] if item_id == SectionContent::SUMMARY_ID
 
     item_html(entry && entry["content"], item_id)
   end
@@ -48,6 +49,68 @@ RSpec.describe "Library transfers" do
   def everything(*records) = records.map { |record| record.reload.attributes }
 
   before { section }
+
+  describe "an entry's summary" do
+    let(:summary) { SectionContent::SUMMARY_ID }
+
+    before do
+      edit(library, "one" => { "description" => "Library summary" })
+      edit(section, "one" => { "description" => "My summary", "description_off" => true, "title" => "Mine" })
+    end
+
+    it "goes to the library alone" do
+      transfer("to_library", "one", summary)
+
+      expect(response).to have_http_status(:ok)
+      expect(library.reload.find_entry("one")).to include("description" => "My summary", "title" => "One", "description_off" => false)
+      expect(section.reload.find_entry("one")).to include("description" => "My summary", "description_off" => true, "title" => "Mine")
+      expect(section.base_fields["one"]).to include("description" => "My summary", "title" => "One")
+    end
+
+    it "comes from the library alone, and stays unticked" do
+      transfer("to_cv", "one", summary)
+
+      expect(section.reload.find_entry("one")).to include("description" => "Library summary", "description_off" => true, "title" => "Mine")
+      expect(section.base_fields["one"]["description"]).to eq("Library summary")
+    end
+
+    it "can be kept, changing only its base" do
+      before = [ entries_json(section), entries_json(library) ]
+      transfer("keep", "one", summary)
+
+      expect([ entries_json(section), entries_json(library) ]).to eq(before)
+      expect(section.reload.base_fields["one"]).to include("description" => "Library summary", "title" => "One")
+    end
+
+    it "can be added to a library entry without one" do
+      edit(library, "one" => { "description" => nil })
+      transfer("to_library", "one", summary)
+
+      expect(library.reload.find_entry("one")["description"]).to eq("My summary")
+    end
+
+    it "isn't moved with the other fields" do
+      transfer("to_cv", "one")
+
+      expect(section.reload.find_entry("one")).to include("title" => "One", "description" => "My summary")
+      expect(section.base_fields["one"]["description"]).to be_nil
+    end
+
+    it "is refused when the library's changed" do
+      transfer("to_library", "one", summary, expected_library: "Older")
+
+      expect(response).to have_http_status(:conflict)
+      expect(library.reload.find_entry("one")["description"]).to eq("Library summary")
+    end
+
+    it "goes with the entry the library lacks, without its tick" do
+      edit(library, "one" => { "id" => "other" })
+      transfer("to_library", "one", summary)
+
+      expect(library.reload.find_entry("one")).to include("title" => "Mine", "description" => "My summary", "content" => "", "description_off" => false)
+      expect(section.reload.base_fields["one"]["description"]).to eq("My summary")
+    end
+  end
 
   describe "to_library" do
     it "replaces the item, without hidden text or ticks, and changes no CV's text or ticks" do

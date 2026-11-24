@@ -3,7 +3,7 @@
 import "@/components/richEditor/styles.scss";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { cn } from "@/lib/utils";
-import { CvSuggestion, SectionEntry } from "@/lib/types";
+import { SUMMARY_ID, CvSuggestion, SectionEntry } from "@/lib/types";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { listItems, mergeEdited, visibleContent } from "@/lib/resume/items";
 import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
@@ -22,7 +22,7 @@ import { normalizeContent } from "./documentContent";
 import SuggestionCard, { SuggestionAction } from "./review/SuggestionCard";
 import { contentExtensions, replaceInContent } from "./review/replaceInContent";
 import { replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
-import { ghostInput } from "./styles";
+import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
 import { hasDetails, suggestsDetails } from "./sectionDetails";
 import { useOpenWhileFocused } from "./useOpenWhileFocused";
 
@@ -112,7 +112,8 @@ const SectionEntryEditor = ({
   const [deleteNote, setDeleteNote] = useState("");
   const description = entry.description ?? "";
   const showTitle = Boolean(entry.title) || startedBlank || title.open;
-  const showSummary = Boolean(description) || summary.open;
+  const summaryOff = onLeaveOut !== undefined && Boolean(entry.description_off && description.trim());
+  const showSummary = !summaryOff && (Boolean(description) || summary.open);
 
   const edit =
     (field: "title" | "description") =>
@@ -311,7 +312,7 @@ const SectionEntryEditor = ({
                 <HeadingIcon />
               </IconAction>
             )}
-            {!showSummary && (
+            {!showSummary && !summaryOff && (
               <IconAction label="Add a one-line summary" onClick={() => openAndFocus(summary.setOpen, descriptionRef)}>
                 <TextIcon />
               </IconAction>
@@ -357,19 +358,37 @@ const SectionEntryEditor = ({
         />
 
         {showSummary && (
-          <textarea
-            ref={descriptionRef}
-            value={description}
-            onChange={edit("description")}
+          <div
+            className={cn("group/summary relative mt-1", onLeaveOut && LEAVE_OUT_SPACE)}
             {...summary.focusProps}
-            placeholder="Add a one-line summary"
-            aria-label="Summary"
-            rows={1}
-            className={cn(
-              ghostInput,
-              "field-sizing-content mt-1 block w-full resize-none py-0.5 text-sm text-muted-foreground"
+          >
+            <textarea
+              ref={descriptionRef}
+              value={description}
+              onChange={edit("description")}
+              placeholder="Add a one-line summary"
+              aria-label="Summary"
+              rows={1}
+              className={cn(
+                ghostInput,
+                "field-sizing-content block w-full resize-none py-0.5 text-sm text-muted-foreground"
+              )}
+            />
+            {onLeaveOut && description.trim() && (
+              <button
+                type="button"
+                aria-label="Leave out the summary"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onLeaveOut(entry.id, SUMMARY_ID, null)}
+                className={cn(
+                  LEAVE_OUT_BUTTON,
+                  "pointer-events-none top-0 opacity-0 group-focus-within/summary:pointer-events-auto group-focus-within/summary:opacity-100 group-hover/summary:pointer-events-auto group-hover/summary:opacity-100"
+                )}
+              >
+                Leave out
+              </button>
             )}
-          />
+          </div>
         )}
 
         <div className="relative mt-3">

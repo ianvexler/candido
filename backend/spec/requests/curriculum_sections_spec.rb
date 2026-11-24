@@ -49,6 +49,18 @@ RSpec.describe "Curriculum sections" do
   end
 
   describe "PUT /api/v1/curriculums/:curriculum_id/sections/:id" do
+    it "unticks a summary, which a page that doesn't know of it keeps" do
+      first = section.entries.first
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}", params: { entries: [ first.merge("description" => "Sum", "description_off" => true) ] }, headers: headers, as: :json
+      expect(response.parsed_body["section"]["entries"].sole).to include("description" => "Sum", "description_off" => true)
+
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}", params: { entries: [ first.except("description_off").merge("description" => "Sum 2") ] }, headers: headers, as: :json
+      expect(response.parsed_body["section"]["entries"].sole).to include("description" => "Sum 2", "description_off" => true)
+
+      put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}", params: { entries: [ first.merge("description" => "", "description_off" => true) ] }, headers: headers, as: :json
+      expect(response.parsed_body["section"]["entries"].sole).to include("description" => nil, "description_off" => false)
+    end
+
     it "edits the CV copy without touching the library" do
       put "/api/v1/curriculums/#{curriculum.id}/sections/#{section.id}",
         params: { entries: [ section.entries.first.merge("content" => "<p>Tailored</p>") ], hidden: true },
@@ -225,6 +237,60 @@ RSpec.describe "Curriculum sections" do
       expect(ticks(copied)).to eq([ [ "one", false, "a" ], [ "two", false, "b c d" ], [ "three", false, "e" ] ])
       expect(copied.base_items.keys).to eq(%w[a b c d e])
       expect(copied.base_fields.keys).to eq(%w[one two three])
+    end
+
+    describe "with a summary" do
+      let(:summary) { SectionContent::SUMMARY_ID }
+      let(:library) do
+        create(:section_template, user: user, entries: [ { id: "one", title: "One", description: "Sum", content: '<p data-cv-item="a">A</p>' } ])
+      end
+
+      def entry = copied.find_entry("one")
+
+      it "copies only the summary of an entry the CV lacks" do
+        include_content(entry_id: "one", item_id: summary)
+
+        expect(entry).to include("description" => "Sum", "description_off" => false, "hidden" => false)
+        expect(ticks(copied)).to eq([ [ "one", false, "(a)" ] ])
+      end
+
+      it "copies it unticked with another item" do
+        include_content(entry_id: "one", item_id: "a")
+
+        expect(entry).to include("description" => "Sum", "description_off" => true)
+        expect(ticks(copied)).to eq([ [ "one", false, "a" ] ])
+      end
+
+      it "adds it to an entry without one, and to its base" do
+        copy_with([ { id: "one", title: "One", content: '<p data-cv-item="a" data-cv-off="true">A</p>' } ], base_fields: {})
+        include_content(entry_id: "one", item_id: summary)
+
+        expect(entry).to include("description" => "Sum", "description_off" => false)
+        expect(copied.base_fields["one"]).to eq("description" => "Sum")
+        expect(ticks(copied)).to eq([ [ "one", false, "(a)" ] ])
+      end
+
+      it "keeps the CV's own, and shows only that in a left out entry" do
+        copy_with([ { id: "one", description: "Own", description_off: true, content: '<p data-cv-item="a">A</p>', hidden: true } ])
+        include_content(entry_id: "one", item_id: summary)
+
+        expect(entry).to include("description" => "Own", "description_off" => false, "hidden" => false)
+        expect(ticks(copied)).to eq([ [ "one", false, "(a)" ] ])
+      end
+
+      it "unticks it when showing only another item of a left out entry" do
+        copy_with([ { id: "one", description: "Own", content: '<p data-cv-item="a">A</p>', hidden: true } ])
+        include_content(entry_id: "one", item_id: "a")
+
+        expect(entry).to include("description_off" => true, "hidden" => false)
+      end
+
+      it "doesn't find one the library lacks" do
+        library.update!(entries: [ library.entries.first.merge("description" => nil) ])
+        include_content(entry_id: "one", item_id: summary)
+
+        expect(response).to have_http_status(:not_found)
+      end
     end
 
     it "adds an entry after its nearest earlier neighbour and leaves other ticks alone" do

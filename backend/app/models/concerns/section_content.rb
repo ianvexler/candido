@@ -20,9 +20,14 @@ module SectionContent
   MAX_ENTRIES = 60
   MAX_LINE = 200
   LINE_FIELDS = %w[role organization location].freeze
-  # An entry's own fields, which a CV and the library compare as one unit.
-  FIELD_KEYS = %w[title role organization location start_date end_date current description].freeze
-  ENTRY_FIELDS = [ :id, *FIELD_KEYS.map(&:to_sym), :content, :hidden ].freeze
+  # An entry's own fields, which a CV and the library compare as one unit, and
+  # its summary (`description`), which counts as one of its items: CVs can leave
+  # it out (`description_off`).
+  HEAD_KEYS = %w[title role organization location start_date end_date current].freeze
+  FIELD_KEYS = [ *HEAD_KEYS, "description" ].freeze
+  # Names the summary where an item id is expected. Not a valid item id.
+  SUMMARY_ID = "$summary".freeze
+  ENTRY_FIELDS = [ :id, *FIELD_KEYS.map(&:to_sym), :description_off, :content, :hidden ].freeze
   ENTRY_ID = /\A[\w-]{1,64}\z/
   # From when a section was a single entry; a later migration drops them.
   OLD_COLUMNS = %w[title description content role organization location start_date end_date current].freeze
@@ -66,12 +71,12 @@ module SectionContent
   def normalize_entries
     list = Array(entries).grep(Hash)
     list = [ {} ] if list.empty?
-    contents = Array(entries_was).grep(Hash).to_h { |entry| entry.values_at("id", "content") }
+    previous = Array(entries_was).grep(Hash).index_by { |entry| entry["id"] }
     seen = Set.new
     item_ids = Set.new
     self.entries = list.map do |raw|
       raw = raw.stringify_keys
-      entry = normalize_entry(raw, contents.delete(raw["id"].to_s), item_ids)
+      entry = normalize_entry(raw, previous.delete(raw["id"].to_s) || {}, item_ids)
       entry["id"] = SecureRandom.uuid unless entry["id"].match?(ENTRY_ID) && seen.exclude?(entry["id"])
       seen << entry["id"]
       item_ids.merge(CvItems.list(entry["content"]).pluck(:id))
@@ -79,8 +84,9 @@ module SectionContent
     end
   end
 
-  def normalize_entry(raw, previous_content, taken_item_ids)
+  def normalize_entry(raw, previous, taken_item_ids)
     current = boolean(raw["current"])
+    description = raw["description"].to_s.strip.presence
     {
       "id" => raw["id"].to_s,
       "title" => raw["title"].to_s.squish,
@@ -88,8 +94,10 @@ module SectionContent
       "start_date" => month(raw["start_date"]),
       "end_date" => current ? nil : month(raw["end_date"]),
       "current" => current,
-      "description" => raw["description"].to_s.strip.presence,
-      "content" => normalize_content(raw["content"], previous_content, taken_item_ids),
+      "description" => description,
+      # Pages from before it existed don't send it.
+      "description_off" => description.present? && boolean(raw.fetch("description_off") { previous["description_off"] }),
+      "content" => normalize_content(raw["content"], previous["content"], taken_item_ids),
       "hidden" => boolean(raw["hidden"])
     }
   end

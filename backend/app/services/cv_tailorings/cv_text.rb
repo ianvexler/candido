@@ -1,7 +1,7 @@
 module CvTailorings
   # Turns a curriculum into plain, labelled text for the tailoring prompt.
   # Each entry is its own numbered block. Hidden sections, hidden entries,
-  # unticked items and hidden inline text never reach the model.
+  # unticked items and summaries, and hidden inline text never reach the model.
   module CvText
     BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, blockquote".freeze
 
@@ -15,7 +15,7 @@ module CvTailorings
           curriculum_section_id: section.id,
           entry_id: entry["id"],
           heading: [ section.section_type, entry["title"].presence ].compact.join(" · "),
-          description: Normalizer.squish(entry["description"]),
+          description: entry["description_off"] ? "" : Normalizer.squish(entry["description"]),
           blocks: blocks_for(entry["content"])
         }
       end

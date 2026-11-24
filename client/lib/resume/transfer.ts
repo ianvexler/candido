@@ -1,9 +1,9 @@
 import type { TransferValue } from "@/api/resources/curriculums/transferWithLibrary";
-import { CurriculumSection, EntryFieldKeys, EntryFields, SectionEntry, SectionFields } from "@/lib/types";
+import { CurriculumSection, EntryFieldKeys, EntryFields, SUMMARY_ID, SectionEntry, SectionFields } from "@/lib/types";
 import { listItems, replaceItem, sameMarkup } from "./items";
 import type { SectionDraft, SectionPatch } from "./sectionDrafts";
 
-/** One item, or an entry's own fields. */
+/** One item (SUMMARY_ID: the description), or an entry's own fields. */
 export type TransferSubject = { entryId: string; itemId?: string };
 export type TransferTarget = TransferSubject & { sectionId: number };
 
@@ -22,6 +22,7 @@ export const valueIn = (
   const entries = section?.entries ?? [];
   const entry = entries.find(({ id }) => id === entryId);
   if (itemId === undefined) return entry ? fieldsOf(entry) : null;
+  if (itemId === SUMMARY_ID) return entry?.description?.trim() || null;
 
   const searched = anywhere ? entries : entry ? [entry] : [];
   const items = searched.flatMap(({ content }) => listItems(content));
@@ -31,7 +32,7 @@ export const valueIn = (
 /** Whether the subject's text is the same in both. Ticks don't count. */
 export const sameText = (a: SectionDraft, b: SectionDraft, subject: TransferSubject): boolean => {
   const [first, second] = [valueIn(a, subject), valueIn(b, subject)];
-  if (first === null || second === null) return first === second;
+  if (first === null || second === null || subject.itemId === SUMMARY_ID) return first === second;
   if (typeof first === "string" && typeof second === "string") return sameMarkup(first, second);
   return JSON.stringify(first) === JSON.stringify(second);
 };
@@ -58,6 +59,7 @@ export const pullInto = (
   });
   if (typeof value !== "string") return withChanges(value);
   if (itemId === undefined) return {};
+  if (itemId === SUMMARY_ID) return withChanges({ description: value });
   if (shown.content === sent.content) return withChanges({ content: next.content });
 
   const old = valueIn(latest, subject);

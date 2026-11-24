@@ -571,3 +571,85 @@ describe("offers", () => {
   it("offers nothing on an item without an id", () =>
     expect(offered([cv([entry("a", "<p>x</p>")], { section_template_id: 10 })], [library([entry("a")])])).toEqual([[null, null]]));
 });
+
+describe("an entry's summary", () => {
+  const SUM = "$summary";
+  const own = (changes: Partial<SectionEntry> = {}) => entry("a", ul(li("x")), { description: "Sum", ...changes });
+  const rows = (section: ReturnType<typeof first>) =>
+    section.entries[0].items.map(({ id, inCv, ticked, state }) => [id, inCv, ticked, state]);
+  const exported = (section: SectionDraft) =>
+    buildResumeDocument({ title: "t", header: emptyHeader, sections: [{ ...section, id: 1 }] }).sections[0]?.entries[0];
+
+  it("is its first item, and counts", () => {
+    const section = first([cv([own()])]);
+    expect(rows(section)).toEqual([[SUM, true, true, "cv_only"], ["x", true, true, "cv_only"]]);
+    expect([section.included, section.total]).toEqual([2, 2]);
+    const off = first([cv([own({ description_off: true })])]);
+    expect([off.included, off.total, off.state]).toEqual([1, 2, "partial"]);
+  });
+
+  it("isn't an item when blank", () => expect(rows(first([cv([own({ description: "  " })])])).map(([id]) => id)).toEqual(["x"]));
+
+  it("is listed when only the library has it", () => {
+    const section = cv([own({ description: null })], { section_template_id: 10 });
+    expect(rows(first([section], [library([own()])]))[0]).toEqual([SUM, false, false, "library_only"]);
+  });
+
+  it.each([
+    ["same", "Sum", "Sum"],
+    ["cv_changed", "Old", "Old"],
+    ["library_changed", "New", "Sum"],
+    ["both_changed", "New", "Old"],
+    ["differs", "New", undefined],
+  ])("is %s", (state, theirs, base) => {
+    const fields: CurriculumSection["base_fields"] = base === undefined ? {} : { a: { description: base } };
+    const section = cv([own()], { section_template_id: 10, base_fields: fields });
+    const built = first([section], [library([own({ description: theirs })])]);
+    expect(rows(built)[0][3]).toBe(state);
+    expect(built.entries[0].fieldsState).toBe("same");
+  });
+
+  it("is added to the library with its entry, if that lacks it", () => {
+    const { entries } = first([cv([own()])]);
+    expect(itemOffer(entries[0], entries[0].items[0])).toBeNull();
+    expect(entryOffer(entries[0])).toBe("cv_only");
+  });
+
+  it("is left out and back, with its text kept", () => {
+    const section = cv([own()]);
+    const left = { ...section, ...tickItem(section, "a", SUM, false) };
+    expect(left.entries[0]).toMatchObject({ description: "Sum", description_off: true, hidden: false });
+    expect(exported(left)).toMatchObject({ summary: "", title: "Entry a" });
+    const back = { ...left, ...tickItem(left, "a", SUM, true) };
+    expect(exported(back)?.summary).toBe("Sum");
+  });
+
+  it("shows alone in a left out entry", () => {
+    const section = cv([own({ hidden: true })]);
+    const [shown] = tickItem(section, "a", SUM, true).entries!;
+    expect(shown).toMatchObject({ hidden: false, description_off: false });
+    expect(listItems(shown.content)[0].off).toBe(true);
+  });
+
+  it("is unticked when another item shows alone", () => {
+    const [shown] = tickItem(cv([own({ hidden: true })]), "a", "x", true).entries!;
+    expect(shown.description_off).toBe(true);
+  });
+
+  it("comes back with an entry that had nothing ticked", () => {
+    const section = cv([entry("a", ul(li("x", true)), { description: "Sum", description_off: true, hidden: true })]);
+    expect(tickEntry(section, "a", true).entries![0].description_off).toBe(false);
+  });
+
+  it("as the last ticked thing of an untitled entry, leaves the entry out", () => {
+    const section = cv([entry("a", ul(li("x", true)), { title: "", description: "Sum" })]);
+    expect(tickItem(section, "a", SUM, false)).toMatchObject({ hidden: true, entries: [{ hidden: true }] });
+  });
+
+  it("left out, can be shown again for a suggestion", () => {
+    const section = cv([own({ description_off: true })]);
+    const suggestion = { entry_id: "a", field: "description", quote: "Sum" } as CvSuggestion;
+    expect(suggestionPlace(section, suggestion)).toBe("left_out");
+    expect(tickSuggestion(section, suggestion).entries![0].description_off).toBe(false);
+  });
+});

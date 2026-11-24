@@ -161,16 +161,22 @@ export type SectionEntry = {
   /** Shared by the library entry and its copies in resumes. */
   id: string;
   title: string;
+  /** One line; counts as one of the entry's items, see SUMMARY_ID. */
   description: string | null;
+  /** Whether a resume leaves the description out. Entries last saved before this existed lack it. */
+  description_off?: boolean;
   /** Editor HTML. Hidden text is wrapped in <span data-cv-hidden>. */
   content: string;
   /** Left out of the resume. */
   hidden: boolean;
 } & SectionDetails
 
-/** An entry's own fields, which a CV and the library compare as one unit. */
+/** Names an entry's description where an item id is expected. */
+export const SUMMARY_ID = "$summary";
+
+/** An entry's own fields, which a CV and the library compare as one unit. The description is apart. */
 export const EntryFieldKeys = [
-  "title", "role", "organization", "location", "start_date", "end_date", "current", "description",
+  "title", "role", "organization", "location", "start_date", "end_date", "current",
 ] as const;
 export type EntryFields = Pick<SectionEntry, (typeof EntryFieldKeys)[number]>;
 
@@ -229,7 +235,7 @@ export type CurriculumSection = SectionFields & {
   /** The library html each item was last matched with, by item id. */
   base_items: Record<string, string>;
   /** The library fields each entry was last matched with, by entry id. */
-  base_fields: Record<string, EntryFields>;
+  base_fields: Record<string, Partial<EntryFields> & { description?: string | null }>;
   created_at: Date;
   updated_at: Date;
 }

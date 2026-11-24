@@ -70,6 +70,13 @@ afterEach(async () => {
 });
 
 describe("sameFields", () => {
+  it("takes an entry saved before summaries had ticks as ticked", () => {
+    const { description_off, ...older } = entry("a", { description: "Sum" });
+    expect(description_off).toBe(false);
+    expect(sameFields({ section_type: "Work", entries: [older] }, { section_type: "Work", entries: [{ ...older, description_off: false }] })).toBe(true);
+    expect(sameFields({ section_type: "Work", entries: [older] }, { section_type: "Work", entries: [{ ...older, description_off: true }] })).toBe(false);
+  });
+
   it("ignores spacing, the editor's trailing paragraph and key order", () => {
     const saved = { section_type: "Projects", entries: [entry("a", { content: "<p>x</p>" })] };
     const { title, ...rest } = entry("a", { content: "<p>x</p><p></p>", role: " " });

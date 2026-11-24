@@ -85,7 +85,7 @@ const cleanValue = (fields: EntryFields, key: keyof EntryFields) => {
   const value = fields[key];
   if (key === "current") return Boolean(value);
   if (key === "end_date" && fields.current) return null;
-  return key === "description" ? (value as string | null)?.trim() || null : cleanLine((value as string | null) ?? null);
+  return cleanLine((value as string | null) ?? null);
 };
 
 const sameEntryFields = (a: EntryFields, b: EntryFields) =>
@@ -105,12 +105,16 @@ const compare = <T>(cv: T | null, library: T | null, base: T | null, same: (a: T
 export const itemState = (cv: string | null, library: string | null, base: string | null): ItemState =>
   compare(cv, library, base, sameHtml);
 
-/** The same for an entry's own fields. */
+/** The same for an entry's description, as plain text. */
+export const summaryState = (cv: string | null, library: string | null, base: string | null): ItemState =>
+  compare(cv, library, base, (a, b) => a === b);
+
+/** The same for an entry's own fields. A base may have only the description. */
 export const fieldsState = (
   cv: EntryFields | null,
   library: EntryFields | null,
-  base: EntryFields | null
-): ItemState => compare(cv, library, base, sameEntryFields);
+  base: Partial<EntryFields> | null
+): ItemState => compare(cv, library, base && "title" in base ? (base as EntryFields) : null, sameEntryFields);
 
 const ALL_ACTIONS: TransferDirection[] = ["to_library", "to_cv", "keep"];
 
@@ -168,9 +172,6 @@ const FIELD_LABELS: [label: string, value: (fields: EntryFields) => string | nul
 ];
 
 export const differingFields = (cv: EntryFields, library: EntryFields): FieldDifference[] =>
-  [
-    ...FIELD_LABELS.map(([label, value]) => ({ label, cv: cleanLine(value(cv)), library: cleanLine(value(library)) })),
-    { label: "Summary", cv: cleanValue(cv, "description"), library: cleanValue(library, "description") },
-  ]
+  FIELD_LABELS.map(([label, value]) => ({ label, cv: cleanLine(value(cv)), library: cleanLine(value(library)) }))
     .filter((field) => field.cv !== field.library)
     .map((field) => ({ label: field.label, cv: String(field.cv ?? ""), library: String(field.library ?? "") }));

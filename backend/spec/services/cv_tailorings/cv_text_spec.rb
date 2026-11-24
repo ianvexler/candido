@@ -72,4 +72,11 @@ RSpec.describe CvTailorings::CvText do
     expect(text).to include("Summary: Backend")
     expect(text).to include("- Hello")
   end
+
+  it "leaves out an unticked summary" do
+    curriculum = create(:curriculum)
+    curriculum.curriculum_sections.create!(section_type: "Experience", entries: [ { description: "Secret", description_off: true, content: "<p>A</p>" } ])
+
+    expect(described_class.call(curriculum.reload).sole).to include(description: "", blocks: [ "A" ])
+  end
 end
