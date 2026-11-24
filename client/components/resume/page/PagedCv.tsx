@@ -3,15 +3,14 @@
 import { DesignSettings, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, ExportEntry, KeptPlace, ResumeDocument } from "@/lib/resume/exportDocument";
 import { showHiddenText } from "@/lib/resume/items";
-import type { EntryEditor, EntryVersions, SectionChange } from "@/lib/resume/sectionDrafts";
-import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader, SectionEntry } from "@/lib/types";
+import type { EntryVersions } from "@/lib/resume/sectionDrafts";
+import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@/lib/types";
 import {
-  createContext,
   FocusEvent,
   ReactNode,
   useCallback,
-  useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -19,17 +18,16 @@ import {
   useSyncExternalStore,
 } from "react";
 import { ResumeTemplate } from "../templates/ResumeTemplate";
-import type { EntryChange } from "../useEntryEditor";
 import type { SuggestionProps } from "../useEntrySuggestions";
-import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, HiddenPlace, MARK_SIZE } from "./HiddenTextMarks";
-import { showHiddenInEditor } from "./hiddenText";
-import { createNearStore, NearStore } from "./nearStore";
+import BodySlot, { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
+import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, MARK_SIZE } from "./HiddenTextMarks";
+import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
 import { createPageSections, sourceOfEntry, sourceOfSection } from "./pageDocument";
 import { PageEditing, PageEditingContext, TextBinding } from "./PageEditing";
 import type { PageEditors } from "./pageEditors";
-import PageEntryBody from "./PageEntryBody";
 import { pageWidth, SHEETS, sheetsHeight } from "./pageSize";
-import { scrollParent } from "./scrolling";
+import { placeOf } from "./pagePlace";
+import { useNearEntries } from "./useNearEntries";
 import { PagePaging, usePaging } from "./usePaging";
 
 /** Makes the header editable. */
@@ -42,8 +40,7 @@ interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** The drafts. */
   sections: CurriculumSection[];
   versions: Record<number, EntryVersions>;
-  /** The drafts' change. */
-  onSectionChange: (id: number, change: SectionChange, editor?: EntryEditor) => void;
+  onSectionChange: OnSectionChange;
   editors: PageEditors;
   /** Resolved: profile with this CV's overrides. */
   header: ResumeHeader;
@@ -59,72 +56,6 @@ interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   suggestionsBySection?: Map<number, CvSuggestion[]>;
 }
 
-type Bodies = SuggestionProps & {
-  onSectionChange: PagedCvProps["onSectionChange"];
-  editors: PageEditors;
-  near: NearStore;
-  open: PagedCvProps["open"];
-  suggestionsBySection?: Map<number, CvSuggestion[]>;
-};
-
-const BodiesContext = createContext<Bodies | null>(null);
-
-const entryKey = (sectionId: number | string, entryId: string) => `${sectionId}:${entryId}`;
-
-const changeEntry = (
-  onSectionChange: PagedCvProps["onSectionChange"],
-  sectionId: number,
-  entryId: string,
-  changes: EntryChange,
-  version?: number
-) =>
-  onSectionChange(
-    sectionId,
-    (current) => ({
-      entries: current.entries.map((entry) =>
-        entry.id === entryId ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
-      ),
-    }),
-    version === undefined ? undefined : { entryId, version }
-  );
-
-interface BodySlotProps {
-  sectionId: number;
-  /** Reviews from before sections had entries are about this one. */
-  isFirst: boolean;
-  entry: SectionEntry;
-  version: number;
-}
-
-const BodySlot = ({ sectionId, isFirst, entry, version }: BodySlotProps) => {
-  const { onSectionChange, editors, near, open, suggestionsBySection, ...suggestionProps } = useContext(BodiesContext)!;
-  const key = entryKey(sectionId, entry.id);
-  const subscribe = useCallback((listener: () => void) => near.subscribe(key, listener), [near, key]);
-  const isNear = useSyncExternalStore(subscribe, () => near.has(key));
-  const onEntryChange = useCallback(
-    (id: string, changes: EntryChange, from?: number) => changeEntry(onSectionChange, sectionId, id, changes, from),
-    [onSectionChange, sectionId]
-  );
-  const ofSection = suggestionsBySection?.get(sectionId);
-  const suggestions = useMemo(
-    () => ofSection?.filter((s) => (s.entry_id === null ? isFirst : s.entry_id === entry.id)),
-    [ofSection, isFirst, entry.id]
-  );
-
-  return (
-    <PageEntryBody
-      entry={entry}
-      version={version}
-      onEntryChange={onEntryChange}
-      editors={editors.of(sectionId)}
-      near={isNear}
-      open={open?.sectionId === sectionId && open.entryId === entry.id}
-      suggestions={suggestions}
-      {...suggestionProps}
-    />
-  );
-};
-
 const FIELDS = '.page-text, .ProseMirror, .page-entry-body > [role="textbox"]';
 
 /** Enter in a one-line field. */
@@ -133,13 +64,6 @@ const moveOn = (root: HTMLElement | null) => {
   const next = fields[fields.findIndex((field) => field === document.activeElement) + 1];
   if (next) next.focus();
   else (document.activeElement as HTMLElement | null)?.blur();
-};
-
-const placeOf = (element: Element): KeptPlace | null => {
-  const section = element.closest("[data-section-id]")?.getAttribute("data-section-id");
-  return section
-    ? { sectionId: Number(section), entryId: element.closest("[data-entry-id]")?.getAttribute("data-entry-id") ?? null }
-    : null;
 };
 
 const samePlace = (a: KeptPlace | null, b: KeptPlace | null) => a?.sectionId === b?.sectionId && a?.entryId === b?.entryId;
@@ -162,6 +86,7 @@ const Page = ({
   onSuggestionClose,
   onSuggestionResolve,
 }: PagedCvProps) => {
+  const pageId = useId();
   const outerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<number | null>(null);
@@ -212,7 +137,7 @@ const Page = ({
   }, [shownSections, leaveIfLeft]);
 
   // --- Editing --------------------------------------------------------------
-  const [near] = useState(createNearStore);
+  const near = useNearEntries(rootRef, shown, design.template);
   const editing = useMemo<PageEditing>(() => {
     const onEnter = () => moveOn(rootRef.current);
     return {
@@ -269,35 +194,6 @@ const Page = ({
     [onSectionChange, editors, near, open, suggestionsBySection, activeSuggestionId, onSuggestionClick, onSuggestionClose, onSuggestionResolve]
   );
 
-  // --- Near the screen ------------------------------------------------------
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const observed = useRef(new Set<Element>());
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    observerRef.current ??= new IntersectionObserver(
-      (entries) =>
-        entries.forEach(({ target, isIntersecting }) => {
-          const place = placeOf(target);
-          if (place?.entryId && target.isConnected) near.set(entryKey(place.sectionId, place.entryId), isIntersecting);
-        }),
-      { root: scrollParent(root), rootMargin: "100% 0px" }
-    );
-    const observer = observerRef.current;
-    const elements = new Set(root.querySelectorAll("[data-entry-id]"));
-    observed.current.forEach((element) => !elements.has(element) && observer.unobserve(element));
-    elements.forEach((element) => !observed.current.has(element) && observer.observe(element));
-    observed.current = elements;
-  }, [shown, design.template, near]);
-  useEffect(
-    () => () => {
-      observerRef.current?.disconnect();
-      observerRef.current = null;
-      observed.current = new Set();
-    },
-    []
-  );
-
   // --- Pages ----------------------------------------------------------------
   const [marks, setMarks] = useState<HiddenMarkAt[]>([]);
   const onLaidOut = useCallback(
@@ -307,18 +203,26 @@ const Page = ({
     },
     [shownSections]
   );
-  const paging = usePaging(rootRef, { design, paper, scale, onLaidOut });
+  const paging = usePaging(rootRef, { pageId, design, paper, scale, onLaidOut });
   useEffect(() => onPaging(paging), [onPaging, paging]);
 
   const showHidden = useCallback(
-    (places: HiddenPlace[]) =>
-      places.forEach(({ sectionId, entryId, itemIds }) => {
+    (places: HiddenPlace[]) => {
+      let focused = false;
+      byEntry(places).forEach(({ sectionId, entryId, itemIds }) => {
         const editor = editors.of(sectionId).current.get(entryId);
-        if (editor && !editor.isDestroyed) return showHiddenInEditor(editor, itemIds);
-        changeEntry(onSectionChange, sectionId, entryId, (entry) => ({ content: showHiddenText(entry.content, itemIds) }));
-        // The mark that was pressed goes away.
-        rootRef.current?.focus({ preventScroll: true });
-      }),
+        if (!editor || editor.isDestroyed) {
+          changeEntry(onSectionChange, sectionId, entryId, (entry) => ({ content: showHiddenText(entry.content, itemIds) }));
+          return;
+        }
+        showHiddenInEditor(editor, itemIds);
+        // Where undo hides it again.
+        if (!focused) editor.view.focus();
+        focused = true;
+      });
+      // The mark that was pressed goes away.
+      if (!focused) rootRef.current?.focus({ preventScroll: true });
+    },
     [editors, onSectionChange]
   );
 
@@ -353,6 +257,7 @@ const Page = ({
           </div>
           <div
             ref={rootRef}
+            data-cv-page={pageId}
             role="region"
             aria-label="CV page"
             tabIndex={-1}

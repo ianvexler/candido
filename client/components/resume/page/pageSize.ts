@@ -16,7 +16,7 @@ export const SHEETS: Record<PaperSize, { width: number; height: number }> = {
 export const SHEET_GAP = 22;
 
 /** Chrome prints onto whole pixels: the width between the page's margins rounded up, the height down. */
-export const pageMetrics = (design: DesignSettings, paper: PaperSize): PageMetrics => {
+export const pageMetrics = (design: Pick<DesignSettings, "template" | "margin_y">, paper: PaperSize): PageMetrics => {
   const { height } = SHEETS[paper];
   const marginTop = design.margin_y * PX_PER_MM;
   const pageHeight = isFullBleed(design) ? Math.floor(height) - 2 * marginTop : Math.floor(height - 2 * marginTop);
@@ -30,7 +30,7 @@ export const pageWidth = (design: DesignSettings, paper: PaperSize): number => {
 };
 
 /** Of a line of body text. */
-export const lineHeight = (design: DesignSettings) => design.body_size * PX_PER_PT * design.line_height;
+export const lineHeight = (design: Pick<DesignSettings, "body_size" | "line_height">) => design.body_size * PX_PER_PT * design.line_height;
 
 /** The height of that many sheets and the gaps between them. */
 export const sheetsHeight = (pages: number, { sheetHeight, gap }: PageMetrics) => pages * (sheetHeight + gap) - gap;

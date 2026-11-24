@@ -21,6 +21,8 @@ export type PagePaging = {
 };
 
 interface PagingOptions {
+  /** The data-cv-page of what holds the sections. */
+  pageId: string;
   design: DesignSettings;
   paper: PaperSize;
   scale: number;
@@ -53,16 +55,23 @@ const caretBox = (root: HTMLElement): DOMRect | null => {
 const inView = (box: DOMRect | null, view: { top: number; bottom: number }) =>
   box !== null && box.bottom > view.top && box.top < view.bottom;
 
-const pageColumn = ({ base, blocks }: MeasuredColumn, metrics: PageMetrics) => {
-  const { breaks, pages, used } = paginate(blocks, metrics.pageHeight);
+const pageColumn = ({ base, blocks }: MeasuredColumn, pageId: string, metrics: PageMetrics) => {
+  // By place in the column, so that each break leads back to its block.
+  const { breaks: found, pages, used } = paginate(
+    blocks.map((block, index) => ({ ...block, key: block.key === null ? null : String(index) })),
+    metrics.pageHeight
+  );
+  const breaks = found.flatMap((each) => {
+    const block = blocks[Number(each.key)];
+    return block.key === null ? [] : [{ ...each, key: block.key, block }];
+  });
   return {
     paging: { pages, used },
-    rules: (corrections?: number[]) => breakRules(breaks, metrics, corrections),
+    rules: (corrections?: number[]) => breakRules(breaks, pageId, metrics, corrections),
     /** What each break's space lacks, with the rules on: some margins only collapse without them. */
     missing: (scale: number): number[] => {
       let before = 0;
-      return breaks.map(({ key, top, page }) => {
-        const block = blocks.find((each) => each.key === key && each.top === top)!;
+      return breaks.map(({ key, page, block }) => {
         const total = base + page * (metrics.sheetHeight + metrics.gap) - printTop(block, scale, isPadded(key));
         const own = total - before;
         before = total;
@@ -77,8 +86,11 @@ const pageColumn = ({ base, blocks }: MeasuredColumn, metrics: PageMetrics) => {
  * sheet of its own: nothing in the page changes for it. `rootRef` holds the
  * template, and doesn't scroll.
  */
-export const usePaging = (rootRef: RefObject<HTMLElement | null>, { design, paper, scale, onLaidOut }: PagingOptions): PagePaging => {
-  const metrics = useMemo(() => pageMetrics(design, paper), [design, paper]);
+export const usePaging = (rootRef: RefObject<HTMLElement | null>, { pageId, design, paper, scale, onLaidOut }: PagingOptions): PagePaging => {
+  // By value: the owner may make an equal design on each render.
+  const { template, margin_y } = design;
+  const metrics = useMemo(() => pageMetrics({ template, margin_y }, paper), [template, margin_y, paper]);
+  const designKey = JSON.stringify(design);
   const [result, setResult] = useState<Result>({ paging: { pages: 1, used: 0 }, ready: false });
   const latest = useRef({ metrics, scale, onLaidOut });
   const queueRef = useRef<() => void>(() => {});
@@ -110,7 +122,7 @@ export const usePaging = (rootRef: RefObject<HTMLElement | null>, { design, pape
 
       sheet.disabled = true;
       const columns = measureColumns(root, at);
-      const paged = columns.map((column) => pageColumn(column, page));
+      const paged = columns.map((column) => pageColumn(column, pageId, page));
       const apply = (rules: string[]) => sheet.replaceSync(rules.filter(Boolean).join("\n"));
       apply(paged.map(({ rules }) => rules()));
       sheet.disabled = false;
@@ -189,7 +201,7 @@ export const usePaging = (rootRef: RefObject<HTMLElement | null>, { design, pape
       document.adoptedStyleSheets = document.adoptedStyleSheets.filter((each) => each !== sheet);
       queueRef.current = () => {};
     };
-  }, [rootRef]);
+  }, [rootRef, pageId]);
 
   useLayoutEffect(() => {
     fontsReady.current = false;
@@ -200,11 +212,9 @@ export const usePaging = (rootRef: RefObject<HTMLElement | null>, { design, pape
   }, [metrics, scale, onLaidOut]);
 
   // The template's attributes aren't all watched.
-  useLayoutEffect(() => queueRef.current(), [design, metrics, scale, onLaidOut]);
+  useLayoutEffect(() => queueRef.current(), [designKey, metrics, scale, onLaidOut]);
 
   const [exact] = useState(isExact);
-  return useMemo(
-    () => ({ ...result, metrics, lineHeight: lineHeight(design), exact }),
-    [result, metrics, design, exact]
-  );
+  const line = lineHeight(design);
+  return useMemo(() => ({ ...result, metrics, lineHeight: line, exact }), [result, metrics, line, exact]);
 };

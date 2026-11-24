@@ -21,6 +21,10 @@ const inside = (element: Element, path: number[] = []): [Element, number[]][] =>
     return splits ? inside(child, at) : [[child, at] as [Element, number[]]];
   });
 
+/** The first of a block that shows: its first paragraph may be all hidden. */
+const firstShown = (block: Element): Element =>
+  [...block.children].find((child) => child.getBoundingClientRect().height > 0) ?? block;
+
 /** Each column's blocks, from its first page's content top. */
 export const measureColumns = (root: HTMLElement, scale: number): MeasuredColumn[] => {
   const found = [...root.querySelectorAll<HTMLElement>(".rs-side, .rs-main")];
@@ -43,7 +47,7 @@ export const measureColumns = (root: HTMLElement, scale: number): MeasuredColumn
       if (sectionId === null) return;
       if (part.matches('[data-block="heading"]')) return add(part, blockKey({ sectionId, entryId, itemId: null, margin: true }));
       if (part.matches('[data-block="head"]')) {
-        return add(part, blockKey({ sectionId, entryId, itemId: null }), true, part.firstElementChild ?? part);
+        return add(part, blockKey({ sectionId, entryId, itemId: null }), true, firstShown(part));
       }
 
       const content = part.querySelector(":scope .ProseMirror") ?? part.querySelector(':scope [role="textbox"]') ?? part;
@@ -53,7 +57,7 @@ export const measureColumns = (root: HTMLElement, scale: number): MeasuredColumn
           return itemId ? blockKey({ sectionId, entryId, itemId, ...more }) : null;
         };
         if (LISTS.includes(block.tagName)) {
-          [...block.children].forEach((item) => add(item, itemKey(item), false, item.firstElementChild ?? item));
+          [...block.children].forEach((item) => add(item, itemKey(item), false, firstShown(item)));
         } else if (block.tagName === "BLOCKQUOTE") {
           // Its line runs from its first block on, which a margin on the quote doesn't stretch.
           inside(block).forEach(([child, path], index) =>

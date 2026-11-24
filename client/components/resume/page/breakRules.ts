@@ -21,9 +21,9 @@ export const isPadded = (key: string) => !placeOf(key).margin;
 const quoted = (value: string) =>
   `"${value.replace(/["\\]/g, "\\$&").replace(/\p{Cc}/gu, (char) => `\\${char.charCodeAt(0).toString(16)} `)}"`;
 
-export const breakSelector = (key: string): string => {
+export const breakSelector = (key: string, pageId: string): string => {
   const { sectionId, entryId, itemId, path = [] } = placeOf(key);
-  const section = `.paged-cv [data-section-id=${quoted(sectionId)}]`;
+  const section = `[data-cv-page=${quoted(pageId)}] [data-section-id=${quoted(sectionId)}]`;
   if (entryId === null) return `${section} > [data-block="heading"]`;
   const entry = `${section} [data-entry-id=${quoted(entryId)}]`;
   if (itemId === null) return `${entry} [data-block="head"]`;
@@ -33,9 +33,9 @@ export const breakSelector = (key: string): string => {
 /**
  * The style sheet that starts a column's pages where its breaks are. Padding, as
  * margins would collapse. `corrections` add to each break's own space what
- * measuring found missing.
+ * measuring found missing. `pageId` is the page's data-cv-page, as there may be several.
  */
-export const breakRules = (breaks: PageBreak[], metrics: PageMetrics, corrections: number[] = []): string => {
+export const breakRules = (breaks: PageBreak[], pageId: string, metrics: PageMetrics, corrections: number[] = []): string => {
   let added = 0;
   return breaks
     .map(({ key, top, page }, index) => {
@@ -43,7 +43,7 @@ export const breakRules = (breaks: PageBreak[], metrics: PageMetrics, correction
       added += space;
       const property = isPadded(key) ? "padding-top" : "margin-top";
       const size = Number((space + (corrections[index] ?? 0)).toFixed(3));
-      return `${breakSelector(key)}{${property}:${size}px!important}`;
+      return `${breakSelector(key, pageId)}{${property}:${size}px!important}`;
     })
     .join("\n");
 };

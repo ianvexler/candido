@@ -20,3 +20,5 @@ export const createNearStore = () => {
 };
 
 export type NearStore = ReturnType<typeof createNearStore>;
+
+export const entryKey = (sectionId: number, entryId: string) => `${sectionId}:${entryId}`;

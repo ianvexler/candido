@@ -2,6 +2,19 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { HIDDEN_MARK } from "../HiddenMark";
 
+/** Items of an entry that have hidden text. */
+export type HiddenPlace = { sectionId: number; entryId: string; itemIds: string[] };
+
+/** One for each entry. */
+export const byEntry = (places: HiddenPlace[]): HiddenPlace[] => {
+  const entries = new Map<string, HiddenPlace>();
+  places.forEach(({ sectionId, entryId, itemIds }) => {
+    const key = `${sectionId}:${entryId}`;
+    entries.set(key, { sectionId, entryId, itemIds: [...(entries.get(key)?.itemIds ?? []), ...itemIds] });
+  });
+  return [...entries.values()];
+};
+
 /** Shows the hidden text of these items of an editor, as one step to undo. */
 export const showHiddenInEditor = (editor: Editor, ids: string[]) => {
   const { state, view } = editor;
@@ -14,5 +27,4 @@ export const showHiddenInEditor = (editor: Editor, ids: string[]) => {
     else show(block, pos);
   });
   if (tr.docChanged) view.dispatch(tr);
-  view.focus();
 };

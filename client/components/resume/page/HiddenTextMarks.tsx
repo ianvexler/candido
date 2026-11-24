@@ -4,11 +4,11 @@ import type { ExportSection } from "@/lib/resume/exportDocument";
 import { EyeOffIcon } from "lucide-react";
 import { memo } from "react";
 import IconAction from "../IconAction";
+import type { HiddenPlace } from "./hiddenText";
 import { sourceOfEntry } from "./pageDocument";
 
-export type HiddenPlace = { sectionId: number; entryId: string; itemIds: string[] };
-/** Where the middle of it is, from the top of the sheets. */
-export type HiddenMarkAt = { top: number; places: HiddenPlace[] };
+/** Where the middle of it is, from the top of the sheets, and the edge its column is nearest. */
+export type HiddenMarkAt = { top: number; side: "left" | "right"; places: HiddenPlace[] };
 
 /** Their height, and how near two can be without being one. */
 export const MARK_SIZE = 24;
@@ -31,6 +31,19 @@ const shownItem = (entry: Element, itemId: string): Element | null => {
   return [item, ...above, head, entry].find(isShown) ?? null;
 };
 
+/** Those that would overlap as one. */
+export const mergeMarks = (marks: HiddenMarkAt[]): HiddenMarkAt[] => {
+  const merged: HiddenMarkAt[] = [];
+  [...marks]
+    .sort((a, b) => a.top - b.top)
+    .forEach((mark) => {
+      const last = merged.findLast(({ side }) => side === mark.side);
+      if (last && mark.top - last.top < MARK_SIZE) last.places = [...last.places, ...mark.places];
+      else merged.push({ ...mark });
+    });
+  return merged;
+};
+
 /** Where the sections' hidden text is, for an element the marks are placed in. */
 export const findHiddenMarks = (root: HTMLElement, scale: number, sections: ExportSection[]): HiddenMarkAt[] => {
   const found: HiddenMarkAt[] = [];
@@ -47,20 +60,13 @@ export const findHiddenMarks = (root: HTMLElement, scale: number, sections: Expo
         const { top, height } = lineBox(item);
         found.push({
           top: (top + height / 2 - base) / scale,
+          side: entry.closest(".rs-main") ? "right" : "left",
           places: [{ sectionId: section.id, entryId: shown.id, itemIds: [itemId] }],
         });
       });
     })
   );
-  // Those that would overlap are one.
-  return found
-    .sort((a, b) => a.top - b.top)
-    .reduce<HiddenMarkAt[]>((marks, mark) => {
-      const last = marks[marks.length - 1];
-      if (last && mark.top - last.top < MARK_SIZE) last.places.push(...mark.places);
-      else marks.push(mark);
-      return marks;
-    }, []);
+  return mergeMarks(found);
 };
 
 interface HiddenTextMarksProps {
@@ -72,14 +78,14 @@ interface HiddenTextMarksProps {
 
 /** Beside each item that has text the CV doesn't show. */
 const HiddenTextMarks = memo(({ marks, inside, onShow }: HiddenTextMarksProps) =>
-  marks.map(({ top, places }) => (
+  marks.map(({ top, side, places }) => (
     <IconAction
       key={JSON.stringify(places)}
       label="Show hidden text"
-      side="right"
+      side={side}
       onClick={() => onShow(places)}
       className="absolute size-6 text-muted-foreground/70 print:hidden [&_svg]:size-3.5"
-      style={{ top: top - MARK_SIZE / 2, left: inside ? 2 : -MARK_SIZE - 6 }}
+      style={{ top: top - MARK_SIZE / 2, [side]: inside ? 2 : -MARK_SIZE - 6 }}
     >
       <EyeOffIcon />
     </IconAction>
