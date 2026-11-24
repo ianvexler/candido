@@ -34,3 +34,6 @@ export const stripHiddenHtml = (html: string) => {
 
 export const hasVisibleText = (html: string) =>
   stripHiddenHtml(html).replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim().length > 0;
+
+/** What content prints as; "" if that has no text. */
+export const printedHtml = (html: string) => (hasVisibleText(html) ? stripHiddenHtml(html) : "");

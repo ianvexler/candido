@@ -49,7 +49,7 @@ const Divider = () => <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
 const keepSelection = (event: { preventDefault: () => void }) => event.preventDefault();
 
 /** Appears over selected text: inline formatting, links, and hide/show. */
-export const FormatBubble = ({ editor }: { editor: Editor }) => {
+export const FormatBubble = ({ editor, appendTo }: { editor: Editor; appendTo?: () => HTMLElement }) => {
   const state = useFormatState(editor);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
 
@@ -66,6 +66,7 @@ export const FormatBubble = ({ editor }: { editor: Editor }) => {
   return (
     <BubbleMenu
       editor={editor}
+      appendTo={appendTo}
       shouldShow={({ from, to }) => from !== to}
       options={{ placement: "top" }}
       className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-1 shadow-lg"

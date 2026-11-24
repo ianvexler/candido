@@ -1,4 +1,4 @@
-import { hasVisibleText, stripHiddenHtml } from "@/components/resume/documentContent";
+import { printedHtml } from "@/components/resume/documentContent";
 import { formatDateRange } from "@/components/resume/sectionDetails";
 import { ResumeHeader, ResumeHeaderTextFields, SectionEntry, SectionFields, SectionPlacement } from "@/lib/types";
 
@@ -68,7 +68,7 @@ const toExportEntry = (entry: SectionEntry): ExportEntry => ({
   subtitle: joinParts([entry.role, organizationLabel(entry)]),
   meta: joinParts([formatDateRange(entry), entry.location]),
   summary: entry.description_off ? "" : (entry.description?.trim() ?? ""),
-  html: hasVisibleText(entry.content) ? stripHiddenHtml(entry.content) : "",
+  html: printedHtml(entry.content),
 });
 
 const hasEntryContent = (entry: ExportEntry) =>
