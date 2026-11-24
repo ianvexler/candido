@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import { Fragment, type Node as PMNode } from "@tiptap/pm/model";
+import { Fragment, type MarkType, type Node as PMNode, Slice } from "@tiptap/pm/model";
 import { type EditorState, Plugin, PluginKey, Selection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import { AddMarkStep, Mapping, RemoveMarkStep, type Step, type StepMap } from "@tiptap/pm/transform";
 import type { EditorView } from "@tiptap/pm/view";
@@ -8,6 +8,7 @@ import { HIDDEN_MARK } from "../HiddenMark";
 // Long enough for the editor to read the text.
 const INPUT_END_MS = 60;
 
+const LEAF = "\n";
 // Not a character that text can have.
 const TAKEN = "\0";
 const FREE = /[^\0]+/g;
@@ -24,6 +25,15 @@ export const hiddenBetween = (doc: PMNode, from: number, to: number) => {
     return !found;
   });
   return found;
+};
+
+const withoutHiddenMark = (content: Fragment, mark: MarkType): Fragment => {
+  const nodes: PMNode[] = [];
+  content.forEach((node) => {
+    const copy = node.isText ? node : node.copy(withoutHiddenMark(node.content, mark));
+    nodes.push(copy.mark(mark.removeFromSet(node.marks)));
+  });
+  return Fragment.fromArray(nodes);
 };
 
 const hiddenRuns = (doc: PMNode): Run[] => {
@@ -48,7 +58,7 @@ const hiddenRuns = (doc: PMNode): Run[] => {
   return runs;
 };
 
-const textOf = (content: Fragment) => content.textBetween(0, content.size, undefined, "\n");
+const textOf = (content: Fragment) => content.textBetween(0, content.size, undefined, LEAF);
 
 /** Cut where the selection starts and ends. */
 const cutAt = (run: Run, cuts: number[]): Run[] => {
@@ -190,7 +200,8 @@ const keepHidden = (
   transactions: readonly Transaction[],
   before: EditorState,
   state: EditorState,
-  nothingSelected: boolean
+  nothingSelected: boolean,
+  pastedHidden: string[]
 ): Transaction | null => {
   if (!transactions.some((tr) => tr.docChanged)) return null;
   if (transactions.some(isExact)) return null;
@@ -244,10 +255,15 @@ const keepHidden = (
       putBack(tr, tr.mapping.map(Math.min(place, later?.at ?? place), 1), run.content);
     });
 
-  // What is pasted or dropped may be hidden; what is typed is to be seen.
+  // Only what was pasted or dropped hidden may be. The rest, such as what is typed, is to be seen.
   inserted
-    .filter((range) => !["paste", "drop"].includes(range.tr.getMeta("uiEvent")))
-    .flatMap(({ from, to }) => claims.rest(from, to))
+    .flatMap(({ from, to, tr: source }) => {
+      const carried = ["paste", "drop"].includes(source.getMeta("uiEvent")) ? pastedHidden : [];
+      return claims.rest(from, to).filter((place) => {
+        const text = state.doc.textBetween(place.from, place.to, undefined, LEAF);
+        return !carried.some((hidden) => hidden.includes(text));
+      });
+    })
     .forEach(({ from, to }) => {
       tr.removeMark(tr.mapping.map(from, 1), tr.mapping.map(to, -1), state.schema.marks[HIDDEN_MARK]);
     });
@@ -308,14 +324,27 @@ const HiddenGuard = Extension.create({
       timer = setTimeout(() => (composing = null), INPUT_END_MS);
     };
 
+    // What the last pasted or dropped slice has hidden.
+    let pastedHidden: string[] = [];
+
     return [
       new Plugin({
         key: new PluginKey("hiddenGuard"),
         view: () => ({ destroy: () => clearTimeout(timer) }),
         appendTransaction: (transactions, before, state) =>
-          keepHidden(transactions, before, state, composing?.nothingSelected ?? before.selection.empty),
+          keepHidden(transactions, before, state, composing?.nothingSelected ?? before.selection.empty, pastedHidden),
         filterTransaction: (tr) => !reveals(tr) && !linksHidden(tr),
         props: {
+          // Plain text comes with the marks of where it goes.
+          transformPasted: (slice, view, plain) => {
+            const { marks, topNodeType } = view.state.schema;
+            const content = plain ? withoutHiddenMark(slice.content, marks[HIDDEN_MARK]) : slice.content;
+            // Wrapped, as it may be bare text.
+            const { paragraph } = view.state.schema.nodes;
+            const blocks = content.firstChild?.isInline ? paragraph.create(null, content) : content;
+            pastedHidden = hiddenRuns(topNodeType.create(null, blocks)).map((run) => textOf(run.content));
+            return plain ? new Slice(content, slice.openStart, slice.openEnd) : slice;
+          },
           handleDOMEvents: {
             compositionstart: (view) => {
               start(view);

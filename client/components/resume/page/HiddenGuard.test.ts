@@ -288,6 +288,48 @@ describe("shorthand typed across hidden text", () => {
   });
 });
 
+describe("pasted text", () => {
+  const paste = (data: Record<string, string>) => {
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.assign(event, { clipboardData: { getData: (type: string) => data[type] ?? "", types: Object.keys(data), files: [] } });
+    editor.view.dom.dispatchEvent(event);
+  };
+  const shown = () => html().replace(/<span data-cv-hidden[^>]*>[^<]*<\/span>/g, "");
+
+  it.each([
+    ["plain text", { "text/plain": "NEW" }, "<p>NEW</p>"],
+    ["lines of it", { "text/plain": "NEW\nTWO" }, "<p>NEW</p><p>TWO</p>"],
+    ["html", { "text/html": "<b>NEW</b>", "text/plain": "NEW" }, "<p><strong>NEW</strong></p>"],
+  ])("is seen: %s over hidden text", (_, data, expected) => {
+    make(`<p>${H("one")} two</p>`);
+    editor.commands.setTextSelection({ from: 4, to: 8 });
+    editor.commands.setHidden();
+    paste(data);
+    expect(shown()).toBe(expected);
+    expect(html()).toContain(H("one"));
+  });
+
+  it.each([4, 1])("is seen with the caret at hidden text's edge or inside it: %i", (pos) => {
+    make(`<p>${H("onetwo")}</p>`);
+    caret(pos);
+    paste({ "text/plain": "NEW" });
+    expect(shown()).toBe("<p>NEW</p>");
+    expect(html()).toContain(H("onetwo"));
+  });
+
+  it("is seen unless it is what the slice has hidden", () => {
+    make(`<p>${H("one")} two</p>`);
+    editor.commands.setTextSelection({ from: 4, to: 8 });
+    editor.commands.setHidden();
+    paste({ "text/html": `<p data-pm-slice="1 1 []">a${H("own")}b</p>` });
+    expect(html()).toBe(`<p>${H("one")}a${H("own")}b</p>`);
+    // Such as a paste that takes the marks of the place.
+    editor.commands.setTextSelection({ from: 2, to: 3 });
+    editor.view.dispatch(editor.state.tr.insertText("X").setMeta("uiEvent", "paste"));
+    expect(shown()).toContain("X");
+  });
+});
+
 describe("code blocks", () => {
   it("never get text put back, which would show in them", () => {
     make(`<pre><code>code</code></pre><p>${H("secret")}bar</p>`);
