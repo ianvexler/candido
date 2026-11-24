@@ -61,8 +61,10 @@ const CvPage = ({ id }: { id: string }) => {
     });
 
     // A page just left may still be saving.
-    void waitForSaves()
-      .then(() => Promise.all([getCurriculum(id), getResumeProfile(), latestTailoring, refreshLibrary()]))
+    const ready = waitForSaves();
+    void ready.then(refreshLibrary);
+    void ready
+      .then(() => Promise.all([getCurriculum(id), getResumeProfile(), latestTailoring]))
       .then(([response, profileResponse, tailoringResponse]) => {
         if (cancelled) return;
         setProfile(profileResponse.profile);

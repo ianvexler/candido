@@ -409,7 +409,11 @@ const SectionEntryEditor = ({
         <div className="relative mt-4">
           {editor && <FormatBubble editor={editor} />}
           {editor && onLeaveOut ? (
-            <LeaveOutArea editor={editor} onLeaveOut={(itemId, focusAt) => onLeaveOut(entry.id, itemId, focusAt)}>
+            <LeaveOutArea
+              editor={editor}
+              cardOpen={cardSuggestion !== null}
+              onLeaveOut={(itemId, focusAt) => onLeaveOut(entry.id, itemId, focusAt)}
+            >
               {content}
             </LeaveOutArea>
           ) : (

@@ -620,3 +620,10 @@ it("gives the sections as edited right away", () => {
   drafts.change(1, { section_type: "Jobs" });
   expect(drafts.current().map(({ section_type }) => section_type)).toEqual(["Jobs"]);
 });
+
+it("keeps edits that can't be sent yet when a record changes their entry", () => {
+  const { drafts, shown } = setup();
+  drafts.change(1, edit("e1", { title: "Typed", start_date: "2024-02-01", end_date: "2023-02-01" }));
+  drafts.replace(section({ entries: [entry("e1", { title: "Theirs" }), entry("e2", { title: "New two" })] }));
+  expect(shown().entries.map(({ title }) => title)).toEqual(["Typed", "New two"]);
+});
