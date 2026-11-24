@@ -31,6 +31,11 @@ interface Draft<T> {
   current: T;
   /** As the server has it. */
   saved: T;
+  /** What was last sent, until it is known to be saved. */
+  sent: T | null;
+  /** Counts what may need saving; `savedEdits` is the count when last sent and saved. */
+  edits: number;
+  savedEdits: number;
   versions: EntryVersions;
   /** The version since which an entry's text isn't what its earlier editors show. */
   replacedAt: EntryVersions;
@@ -67,11 +72,16 @@ const sameEntries = (a: SectionEntry[], b: SectionEntry[]) =>
 
 const clean = (section: SectionFields) => cleanFields(section.section_type, section.entries);
 
-const sameSection = (a: SectionFields, b: SectionFields) =>
-  a.section_type === b.section_type && sameEntries(a.entries, b.entries);
+export const sameFields = (a: SectionFields, b: SectionFields) => {
+  const [first, second] = [clean(a), clean(b)];
+  return first.section_type === second.section_type && sameEntries(first.entries, second.entries);
+};
 
-const withEntry = <T extends SectionFields>(section: T): T =>
-  section.entries.length > 0 ? section : { ...section, entries: [emptyEntry()] };
+/** With an entry to write in: that of `shown`, emptied, if it has none. */
+const withEntry = <T extends SectionFields>(section: T, shown: SectionEntry[] = []): T =>
+  section.entries.length > 0
+    ? section
+    : { ...section, entries: [shown.length > 0 ? { ...emptyEntry(), id: shown[0].id } : emptyEntry()] };
 
 const byId = (entries: SectionEntry[], id: string) => entries.find((entry) => entry.id === id);
 
@@ -84,8 +94,7 @@ const OWN_KEYS = ["hidden", "placement"] as const;
 const unsaved = (current: SectionDraft, saved: SectionDraft): SectionPatch | null => {
   const patch: SectionPatch = {};
   if (!current.entries.some(endsBeforeStart)) {
-    const fields = clean(current);
-    if (!sameSection(fields, clean(saved))) Object.assign(patch, fields);
+    if (!sameFields(current, saved)) Object.assign(patch, clean(current));
   }
   OWN_KEYS.forEach((key) => {
     if (current[key] !== saved[key]) Object.assign(patch, { [key]: current[key] });
@@ -103,16 +112,38 @@ const takeStored = (shown: SectionEntry[], sent: SectionEntry[], stored: Section
   });
 };
 
-/** The new record's entries, with unsaved edits of entries that it doesn't change. */
-const keepUnsaved = (shown: SectionEntry[], saved: SectionEntry[], next: SectionEntry[]): SectionEntry[] => [
-  ...next.flatMap((entry) => {
-    const before = byId(saved, entry.id);
+const ids = (entries: SectionEntry[]) => entries.map((entry) => entry.id);
+
+const sameOrder = (a: SectionEntry[], b: SectionEntry[]) =>
+  ids(a).filter((id) => byId(b, id)).join() === ids(b).filter((id) => byId(a, id)).join();
+
+/**
+ * The new record's entries, with unsaved edits of those it doesn't change, and
+ * the order on screen if it doesn't change that. `known` is what the record may
+ * have without being changed: what was saved, and what is being saved.
+ */
+const keepUnsaved = (shown: SectionEntry[], known: SectionEntry[][], next: SectionEntry[]): SectionEntry[] => {
+  const unchanged = (entry: SectionEntry) =>
+    known.some((entries) => {
+      const before = byId(entries, entry.id);
+      return before !== undefined && sameEntry(entry, before);
+    });
+  const taken = next.flatMap((entry) => {
     const now = byId(shown, entry.id);
-    if (!now) return before && sameEntry(entry, before) ? [] : [entry];
-    return sameEntry(entry, now) || (before && sameEntry(entry, before)) ? [now] : [entry];
-  }),
-  ...shown.filter(({ id }) => !byId(saved, id) && !byId(next, id)),
-];
+    if (!now) return unchanged(entry) ? [] : [entry];
+    return unchanged(entry) || sameEntry(entry, now) ? [now] : [entry];
+  });
+  const unsavedOnes = shown.filter(({ id }) => !byId(next, id) && !byId(known[0], id));
+  if (!known.some((entries) => sameOrder(entries, next))) return [...taken, ...unsavedOnes];
+
+  const result = shown.flatMap(({ id }) => byId(taken, id) ?? byId(unsavedOnes, id) ?? []);
+  // New ones go after the entry they follow.
+  taken.forEach((entry, index) => {
+    if (byId(result, entry.id)) return;
+    result.splice(index > 0 ? ids(result).indexOf(taken[index - 1].id) + 1 : 0, 0, entry);
+  });
+  return result;
+};
 
 let instances = 0;
 
@@ -131,6 +162,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
   const instance = ++instances;
   let drafts: Draft<T>[] = [];
   let lastVersion = 0;
+  let disposed = false;
 
   const find = (id: number) => drafts.find((draft) => draft.current.id === id);
 
@@ -145,6 +177,9 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     return {
       current: section,
       saved: section,
+      sent: null,
+      edits: 0,
+      savedEdits: 0,
       versions: {},
       replacedAt: {},
       due: false,
@@ -191,6 +226,11 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     }, delayMs);
   };
 
+  const edited = (draft: Draft<T>) => {
+    draft.edits += 1;
+    schedule(draft);
+  };
+
   const run = (draft: Draft<T>) => {
     if (draft.request || draft.deletion) draft.due = true;
     else void send(draft);
@@ -206,11 +246,14 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     }
 
     const sent = draft.current;
-    const replaced = draft.replaced;
+    const { replaced, edits } = draft;
+    draft.sent = sent;
     const request = trackSave(
       `section-${sent.id}`,
       save(sent, patch).then(
         (record) => {
+          draft.sent = null;
+          draft.savedEdits = edits;
           settle(draft, sent, replaced, record);
           return true;
         },
@@ -232,14 +275,14 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
 
   const settle = (draft: Draft<T>, sent: T, replaced: number, response: T) => {
     if (draft.removed) return;
-    const record = withEntry(response);
     const { current } = draft;
+    const record = withEntry(response, current.entries);
 
     if (replaced !== draft.replaced) {
       // The rest is newer than this response.
       const { section_type, entries, hidden, placement } = record;
       draft.saved = { ...draft.saved, section_type, entries, hidden, placement };
-      if (unsaved(current, draft.saved)) schedule(draft);
+      if (unsaved(current, draft.saved)) edited(draft);
       return;
     }
 
@@ -251,7 +294,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     const before = clean(sent);
     // One with an invalid date range wasn't sent.
     const wasSent = !sent.entries.some(endsBeforeStart);
-    if (wasSent && !busy() && sameSection(clean(current), before)) {
+    if (wasSent && (disposed || !busy()) && sameFields(current, sent)) {
       if (record.section_type !== before.section_type) next.section_type = record.section_type;
       next.entries = takeStored(current.entries, before.entries, record.entries);
     }
@@ -262,11 +305,10 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
   const flushOne = async (draft: Draft<T>): Promise<boolean> => {
     while (!draft.removed) {
       if (draft.request) await draft.request;
+      // Once saved, only edits are sent again: the server may not store it as sent.
+      else if (draft.edits === draft.savedEdits || !unsaved(draft.current, draft.saved)) break;
       else if (draft.deletion) await draft.deletion;
-      else {
-        if (!unsaved(draft.current, draft.saved)) break;
-        if (!(await send(draft))) return false;
-      }
+      else if (!(await send(draft))) return false;
     }
     stopWaiting(draft);
     markSettled(draft.editKey);
@@ -282,6 +324,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     /** Starts over with these. What was still unsaved is sent. */
     load: (sections: T[]) => {
       void flush();
+      disposed = false;
       drafts = sections.map(newDraft);
       notify();
     },
@@ -299,7 +342,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
         });
       }
       show(draft, next, { editor });
-      schedule(draft);
+      edited(draft);
       notify();
     },
 
@@ -314,19 +357,18 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
         notify();
         return;
       }
-      const record = withEntry(section);
-      const { current, saved } = draft;
-      const next = { ...record, entries: keepUnsaved(current.entries, saved.entries, record.entries) };
-      if (current.section_type !== saved.section_type && record.section_type === saved.section_type) {
-        next.section_type = current.section_type;
-      }
-      OWN_KEYS.forEach((key) => {
-        if (current[key] !== saved[key] && record[key] === saved[key]) Object.assign(next, { [key]: current[key] });
+      const { current, saved, sent } = draft;
+      const record = withEntry(section, current.entries);
+      const known: SectionDraft[] = sent ? [saved, { ...sent, ...clean(sent) }] : [saved];
+      const entries = keepUnsaved(current.entries, known.map((fields) => fields.entries), record.entries);
+      const next = withEntry({ ...record, entries }, current.entries);
+      (["section_type", ...OWN_KEYS] as const).forEach((key) => {
+        if (known.some((fields) => fields[key] === record[key])) Object.assign(next, { [key]: current[key] });
       });
       draft.replaced += 1;
       draft.saved = record;
       show(draft, next);
-      if (unsaved(next, record)) schedule(draft);
+      if (unsaved(next, record)) edited(draft);
       notify();
     },
 
@@ -367,6 +409,9 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     },
 
     /** Sends what is still unsaved. */
-    dispose: () => void flush(),
+    dispose: () => {
+      disposed = true;
+      void flush();
+    },
   };
 };

@@ -254,9 +254,9 @@ const ResumePage = ({ params }: ResumePageProps) => {
   // point it at the print view once pending autosaves have reached the server.
   const exportPdf = async () => {
     const tab = window.open("", "_blank");
-    void flush();
+    const flushed = flush();
     const saved = await waitForSaves();
-    if (!saved) {
+    if (!saved || !(await flushed)) {
       toast("Your latest changes are still saving, so the PDF may not include them.");
     }
     // The export view prints only when asked, so the design can be adjusted first.
@@ -294,7 +294,10 @@ const ResumePage = ({ params }: ResumePageProps) => {
     setReviewError(null);
     try {
       // Let pending autosaves land first, so the review reads the latest text.
-      void flush();
+      if (!(await flush())) {
+        setReviewError("Your latest changes couldn't be saved, so the review wasn't started. Try again.");
+        return;
+      }
       await waitForSaves();
       const response = await rerunCvTailoring(curriculum.id);
       setActiveSuggestionId(null);

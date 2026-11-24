@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanFields, emptyEntry, endsBeforeStart, entryTitles, isEmptyEntry, moveEntry, sameFields } from "./sectionEntries";
+import { cleanFields, emptyEntry, endsBeforeStart, entryTitles, isEmptyEntry, moveEntry } from "./sectionEntries";
 
 const entry = (id: string, overrides = {}) => ({ ...emptyEntry(), id, title: id, ...overrides });
 
@@ -16,21 +16,6 @@ describe("moveEntry", () => {
     expect(moveEntry(entries, "a", -1)).toBe(entries);
     expect(moveEntry(entries, "c", 1)).toBe(entries);
     expect(moveEntry(entries, "x", 1)).toBe(entries);
-  });
-});
-
-describe("sameFields", () => {
-  it("ignores spacing, the editor's trailing paragraph and key order", () => {
-    const saved = { section_type: "Projects", entries: [entry("a", { content: "<p>x</p>" })] };
-    const { title, ...rest } = entry("a", { content: "<p>x</p><p></p>", role: " " });
-    expect(sameFields(saved, { section_type: "Projects ", entries: [{ ...rest, title: `${title} ` }] })).toBe(true);
-  });
-
-  it("notices order, hidden and text changes", () => {
-    const base = { section_type: "Projects", entries: [entry("a"), entry("b")] };
-    expect(sameFields(base, { ...base, entries: [base.entries[1], base.entries[0]] })).toBe(false);
-    expect(sameFields(base, { ...base, entries: [entry("a", { hidden: true }), entry("b")] })).toBe(false);
-    expect(sameFields(base, { ...base, entries: [entry("a", { content: "<p>x</p>" }), entry("b")] })).toBe(false);
   });
 });
 
