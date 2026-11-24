@@ -1,7 +1,7 @@
 import { Extension } from "@tiptap/core";
 import { Fragment, type Node as PMNode } from "@tiptap/pm/model";
 import { type EditorState, Plugin, PluginKey, Selection, TextSelection, type Transaction } from "@tiptap/pm/state";
-import { Mapping, RemoveMarkStep, type Step } from "@tiptap/pm/transform";
+import { AddMarkStep, Mapping, RemoveMarkStep, type Step, type StepMap } from "@tiptap/pm/transform";
 import type { EditorView } from "@tiptap/pm/view";
 import { HIDDEN_MARK } from "../HiddenMark";
 
@@ -12,10 +12,19 @@ const INPUT_END_MS = 60;
 const TAKEN = "\0";
 const FREE = /[^\0]+/g;
 
-/** A stretch of hidden text in one block. */
+/** Hidden text of one block, or the part of it that was or wasn't selected. */
 type Run = { from: number; to: number; content: Fragment };
 
 export const isHidden = (node: PMNode) => node.marks.some((mark) => mark.type.name === HIDDEN_MARK);
+
+export const hiddenBetween = (doc: PMNode, from: number, to: number) => {
+  let found = false;
+  doc.nodesBetween(from, to, (node) => {
+    found ||= node.isInline && isHidden(node);
+    return !found;
+  });
+  return found;
+};
 
 const hiddenRuns = (doc: PMNode): Run[] => {
   const runs: Run[] = [];
@@ -41,9 +50,10 @@ const hiddenRuns = (doc: PMNode): Run[] => {
 
 const textOf = (content: Fragment) => content.textBetween(0, content.size, undefined, "\n");
 
-const hasDeletion = ({ from, to }: Run, mapping: Mapping) => {
-  for (let pos = from; pos < to; pos++) if (mapping.mapResult(pos, 1).deletedAfter) return true;
-  return false;
+/** Cut where the selection starts and ends. */
+const cutAt = (run: Run, cuts: number[]): Run[] => {
+  const ends = [run.from, ...cuts.filter((cut) => cut > run.from && cut < run.to).sort((a, b) => a - b), run.to];
+  return ends.slice(1).map((to, i) => ({ from: ends[i], to, content: run.content.cut(ends[i] - run.from, to - run.from) }));
 };
 
 /** Hidden text of the new document, each character of which is only one old run's. */
@@ -52,72 +62,105 @@ const claimsOn = (doc: PMNode) => {
     const text = textOf(content);
     return { from, text, owners: Array<Run | null>(text.length).fill(null) };
   });
-  /** What can be the run's in a range. The rest is blanked out. */
-  const within = (run: Run, from: number, to: number) =>
+  type Part = (typeof parts)[number];
+  /** What is nobody's in a range. The rest is blanked out. */
+  const within = (from: number, to: number) =>
     parts.flatMap((part) => {
       const start = Math.max(from - part.from, 0);
-      const free = [...part.owners.keys()].map((i) => part.owners[i] === null || part.owners[i] === run);
-      const text = part.text.replace(/[^]/g, (char, i: number) => (free[i] ? char : TAKEN));
+      const text = part.text.replace(/[^]/g, (char, i: number) => (part.owners[i] ? TAKEN : char));
       const slice = text.slice(start, Math.max(to - part.from, start));
       return slice ? [{ part, start, text: slice }] : [];
     });
+  const take = (part: Part, run: Run, start: number, length: number) => {
+    part.owners.fill(run, start, start + length);
+    return part.from + start;
+  };
 
   return {
     /** What is still where it was. */
     own: (run: Run, pos: number) => {
       const part = parts.find(({ from, text }) => from <= pos && pos < from + text.length);
-      if (part) part.owners[pos - part.from] = run;
+      if (part) take(part, run, pos - part.from, 1);
     },
-    /** Where the whole run is in a range, if it is. */
+    /** Where the text is in a range, if it is. */
     claim: (run: Run, wanted: string, from: number, to: number): number | null => {
-      const found = within(run, from, to).find(({ text }) => text.includes(wanted));
-      if (!found) return null;
-      const start = found.start + found.text.indexOf(wanted);
-      found.part.owners.fill(run, start, start + wanted.length);
-      return found.part.from + start;
+      const found = within(from, to).find(({ text }) => text.includes(wanted));
+      return found ? take(found.part, run, found.start + found.text.indexOf(wanted), wanted.length) : null;
     },
-    /** What there is of the run in a range. */
-    pieces: (run: Run, whole: string, from: number, to: number) =>
-      within(run, from, to).flatMap(({ part, start, text }) =>
+    /** Pieces of the text in a range. */
+    pieces: (run: Run, whole: string, from: number, to: number): Place[] =>
+      within(from, to).flatMap(({ part, start, text }) =>
         [...text.matchAll(FREE)]
           .filter(([piece]) => whole.includes(piece))
           .map(({ 0: piece, index }) => {
-            part.owners.fill(run, start + index, start + index + piece.length);
-            const at = part.from + start + index;
+            const at = take(part, run, start + index, piece.length);
             return { from: at, to: at + piece.length };
           })
+      ),
+    /** What is nobody's. */
+    rest: (from: number, to: number): Place[] =>
+      within(from, to).flatMap(({ part, start, text }) =>
+        [...text.matchAll(FREE)].map(({ 0: piece, index }) => {
+          const at = part.from + start + index;
+          return { from: at, to: at + piece.length };
+        })
       ),
   };
 };
 
-/** A line break the browser put in place of deleted text, to keep the block open. */
-const strayBreaks = (transactions: readonly Transaction[], state: EditorState, inBlocks: (pos: number) => boolean) => {
-  const found = new Set<number>();
+type Place = { from: number; to: number };
+
+/** The ranges of the new document that each step put in, and whether in place of something else. */
+const insertions = (transactions: readonly Transaction[]) => {
+  const found: (Place & { tr: Transaction; step: number; oldFrom: number; oldTo: number })[] = [];
   transactions.forEach((tr, t) =>
-    tr.steps.forEach((step, s) =>
-      step.getMap().forEach((oldStart, oldEnd, newStart, newEnd) => {
-        if (oldStart === oldEnd || newStart === newEnd) return;
-        let had = false;
-        tr.docs[s].nodesBetween(oldStart, oldEnd, (node) => {
-          if (node.type.name === "hardBreak") had = true;
-        });
-        if (had) return;
-        const rest = new Mapping(tr.mapping.maps.slice(s + 1));
+    tr.steps.forEach((change, step) =>
+      change.getMap().forEach((oldFrom, oldTo, newFrom, newTo) => {
+        if (newFrom === newTo) return;
+        const rest = new Mapping(tr.mapping.maps.slice(step + 1));
         transactions.slice(t + 1).forEach((later) => rest.appendMapping(later.mapping));
-        const from = rest.map(newStart, -1);
-        state.doc.nodesBetween(from, rest.map(newEnd, 1), (node, pos) => {
-          if (node.type.name === "hardBreak" && pos >= from && inBlocks(pos)) found.add(pos);
-        });
+        found.push({ from: rest.map(newFrom, -1), to: rest.map(newTo, 1), tr, step, oldFrom, oldTo });
       })
     )
   );
+  return found;
+};
+
+/** A line break the browser put in place of deleted text, to keep the block open. */
+const strayBreaks = (inserted: ReturnType<typeof insertions>, state: EditorState, inBlocks: (pos: number) => boolean) => {
+  const found = new Set<number>();
+  inserted.forEach(({ from, to, tr, step, oldFrom, oldTo }) => {
+    if (oldFrom === oldTo) return;
+    let had = false;
+    tr.docs[step].nodesBetween(oldFrom, oldTo, (node) => {
+      if (node.type.name === "hardBreak") had = true;
+    });
+    if (had) return;
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (node.type.name === "hardBreak" && pos >= from && inBlocks(pos)) found.add(pos);
+    });
+  });
   return [...found].sort((a, b) => b - a);
 };
 
-/** Where a block can take text, at or near a position. */
-const textPlace = (doc: PMNode, pos: number) => {
-  const $pos = doc.resolve(pos);
-  return $pos.parent.inlineContent ? pos : Selection.near($pos, -1).from;
+/** Puts a run in a block that can have it, at or near a position. Code can't: it has no marks. */
+const putBack = (tr: Transaction, pos: number, content: Fragment) => {
+  const takes = (at: number) => {
+    const { parent } = tr.doc.resolve(at);
+    return parent.inlineContent && !parent.type.spec.code;
+  };
+  let at = pos;
+  if (!takes(at)) at = Selection.near(tr.doc.resolve(pos), -1).from;
+  if (takes(at)) return tr.insert(at, content);
+  const paragraph = tr.doc.type.schema.nodes.paragraph.create(null, content);
+  const $pos = tr.doc.resolve(pos);
+  return tr.insert($pos.parent.inlineContent ? $pos.after() : pos, paragraph);
+};
+
+const isUnchanged = (map: StepMap) => {
+  let unchanged = true;
+  map.forEach(() => (unchanged = false));
+  return unchanged;
 };
 
 /** Undo and redo are exact as they are, and set content is meant as it is. */
@@ -125,6 +168,20 @@ const isExact = (tr: Transaction) =>
   Boolean(tr.getMeta("history$")) || tr.getMeta("preventUpdate") !== undefined;
 
 const isShow = (step: Step) => step instanceof RemoveMarkStep && step.mark.type.name === HIDDEN_MARK;
+
+/** A link made from text as it was typed, with hidden text in its address. */
+const linksHidden = (tr: Transaction) =>
+  !tr.getMeta("preventAutolink") &&
+  tr.steps.some((step, i) => {
+    if (!(step instanceof AddMarkStep) || step.mark.type.name !== "link") return false;
+    let found = false;
+    tr.docs[i].nodesBetween(step.from, step.to, (node, pos) => {
+      if (!node.isText || !isHidden(node)) return;
+      const text = node.text!.slice(Math.max(step.from - pos, 0), step.to - pos);
+      found ||= String(step.mark.attrs.href).includes(text);
+    });
+    return found;
+  });
 
 /** Takes the hidden mark away as part of something else, such as making text code, which has no marks. */
 const reveals = (tr: Transaction) => !isExact(tr) && tr.steps.some(isShow) && !tr.steps.every(isShow);
@@ -138,51 +195,62 @@ const keepHidden = (
   if (!transactions.some((tr) => tr.docChanged)) return null;
   if (transactions.some(isExact)) return null;
 
-  const runs = hiddenRuns(before.doc);
-  if (runs.length === 0) return null;
-
+  const inserted = insertions(transactions);
   const mapping = new Mapping();
   transactions.forEach((tr) => mapping.appendMapping(tr.mapping));
-  const tr = state.tr;
+  if (mapping.maps.every((map) => isUnchanged(map))) return null;
 
-  const selected = ({ from, to }: Run) =>
-    !nothingSelected && before.selection.ranges.some(({ $from, $to }) => from < $to.pos && to > $from.pos);
-  const now = runs.map((run) => ({
-    run,
-    text: textOf(run.content),
-    from: mapping.map(run.from, -1),
-    to: mapping.map(run.to, 1),
-    at: null as number | null,
-  }));
-  const deleted = now.filter(({ run }) => hasDeletion(run, mapping));
-  if (deleted.length > 0) {
-    const claims = claimsOn(state.doc);
-    runs.forEach((run) => {
+  const { ranges } = before.selection;
+  const cuts = nothingSelected ? [] : ranges.flatMap(({ $from, $to }) => [$from.pos, $to.pos]);
+  const isSelected = ({ from, to }: Run) =>
+    !nothingSelected && ranges.some(({ $from, $to }) => from < $to.pos && to > $from.pos);
+  const now = hiddenRuns(before.doc)
+    .flatMap((run) => cutAt(run, cuts))
+    .map((run) => {
+      const left: number[] = [];
       for (let pos = run.from; pos < run.to; pos++) {
         const result = mapping.mapResult(pos, 1);
-        if (!result.deletedAfter) claims.own(run, result.pos);
+        // Not deletedAfter, which an insertion there sets too.
+        if (!result.deleted) left.push(result.pos);
       }
+      const whole = left.length === run.to - run.from && left.every((pos, i) => pos === left[0] + i);
+      const at: number | null = whole ? left[0] : null;
+      return { run, text: textOf(run.content), left, from: mapping.map(run.from, -1), to: mapping.map(run.to, 1), at };
     });
-    // Replaced as it was, or moved, as by joining blocks. The longest first: others may be part of it.
-    [...deleted]
-      .sort((a, b) => b.text.length - a.text.length)
-      .forEach((each) => {
-        each.at = claims.claim(each.run, each.text, each.from, each.to) ?? claims.claim(each.run, each.text, 0, state.doc.content.size);
-      });
+  const tr = state.tr;
+  const claims = claimsOn(state.doc);
+  now.forEach(({ run, left }) => left.forEach((pos) => claims.own(run, pos)));
+  // Replaced as it was, or moved, as by joining blocks. The longest first: others may be part of it.
+  now
+    .filter(({ left }) => left.length === 0)
+    .sort((a, b) => b.text.length - a.text.length)
+    .forEach((each) => {
+      each.at =
+        claims.claim(each.run, each.text, each.from, each.to) ??
+        claims.claim(each.run, each.text, 0, state.doc.content.size);
+    });
 
-    deleted
-      .filter(({ run, at }) => at === null && !selected(run))
-      .forEach(({ run, text, from, to }) => {
-        const pieces = claims.pieces(run, text, from, to);
-        // After new text that replaced what the caret was in or after, if the run was still to come.
-        const place = pieces[0]?.from ?? (run.from >= before.selection.from ? to : from);
-        const later = now.find((other) => other.run.from > run.from && other.at !== null && other.at >= from && other.at < to);
-        pieces.reverse().forEach((piece) => tr.delete(tr.mapping.map(piece.from, 1), tr.mapping.map(piece.to, -1)));
-        // Past those already put back there.
-        const at = textPlace(tr.doc, tr.mapping.map(Math.min(place, later?.at ?? place), 1));
-        tr.insert(at, tr.doc.resolve(at).parent.inlineContent ? run.content : state.schema.nodes.paragraph.create(null, run.content));
-      });
-  }
+  now
+    .filter(({ run, at }) => at === null && !isSelected(run))
+    .forEach(({ run, text, left, from, to }) => {
+      const lost = left.length < run.to - run.from;
+      const pieces = lost ? claims.pieces(run, text, from, to) : [];
+      const old = [...left.map((pos) => ({ from: pos, to: pos + 1 })), ...pieces].sort((a, b) => a.from - b.from);
+      // After new text that replaced what the caret was in or after, if the run was still to come.
+      const place = old[0]?.from ?? (run.from >= before.selection.from ? to : from);
+      const later = now.find((other) => other.run.from > run.from && other.at !== null && other.at >= from && other.at < to);
+      old.reverse().forEach((piece) => tr.delete(tr.mapping.map(piece.from, 1), tr.mapping.map(piece.to, -1)));
+      // Past those already put back there.
+      putBack(tr, tr.mapping.map(Math.min(place, later?.at ?? place), 1), run.content);
+    });
+
+  // What is pasted or dropped may be hidden; what is typed is to be seen.
+  inserted
+    .filter((range) => !["paste", "drop"].includes(range.tr.getMeta("uiEvent")))
+    .flatMap(({ from, to }) => claims.rest(from, to))
+    .forEach(({ from, to }) => {
+      tr.removeMark(tr.mapping.map(from, 1), tr.mapping.map(to, -1), state.schema.marks[HIDDEN_MARK]);
+    });
 
   const hasHidden = (pos: number) => {
     const { parent } = tr.doc.resolve(tr.mapping.map(pos, -1));
@@ -191,7 +259,7 @@ const keepHidden = (
     return found;
   };
   if (nothingSelected) {
-    strayBreaks(transactions, state, hasHidden).forEach((pos) => {
+    strayBreaks(inserted, state, hasHidden).forEach((pos) => {
       const at = tr.mapping.map(pos, 1);
       tr.delete(at, at + 1);
     });
@@ -246,7 +314,7 @@ const HiddenGuard = Extension.create({
         view: () => ({ destroy: () => clearTimeout(timer) }),
         appendTransaction: (transactions, before, state) =>
           keepHidden(transactions, before, state, composing?.nothingSelected ?? before.selection.empty),
-        filterTransaction: (tr) => !reveals(tr),
+        filterTransaction: (tr) => !reveals(tr) && !linksHidden(tr),
         props: {
           handleDOMEvents: {
             compositionstart: (view) => {

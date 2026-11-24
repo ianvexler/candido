@@ -1,9 +1,25 @@
-import { Node } from "@tiptap/core";
+import { Mark, Node } from "@tiptap/core";
 
 const LANGUAGE = "language-";
 
-/** Code blocks as StarterKit reads and writes them, without ways to make one. */
-const ShownCode = Node.create({
+/** Code as StarterKit reads and writes it, without ways to make some. */
+export const ShownCode = Mark.create({
+  name: "code",
+  excludes: "_",
+  code: true,
+  exitable: true,
+
+  parseHTML() {
+    return [{ tag: "code" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["code", HTMLAttributes, 0];
+  },
+});
+
+/** The same for code blocks. */
+export const ShownCodeBlock = Node.create({
   name: "codeBlock",
   content: "text*",
   marks: "",
@@ -33,5 +49,3 @@ const ShownCode = Node.create({
     return ["pre", HTMLAttributes, ["code", { class: language ? LANGUAGE + language : null }, 0]];
   },
 });
-
-export default ShownCode;

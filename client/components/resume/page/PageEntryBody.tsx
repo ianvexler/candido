@@ -11,22 +11,9 @@ import { memo, RefObject, useEffect, useLayoutEffect, useRef, useState } from "r
 import { flushSync } from "react-dom";
 import { printedHtml } from "../documentContent";
 import { BlockToolbar, FormatBubble } from "../EditorControls";
-import { contentExtensionsWith } from "../review/replaceInContent";
 import { OnEntryChange, useEntryEditor } from "../useEntryEditor";
 import { highlightClasses, SuggestionProps, useEntrySuggestions } from "../useEntrySuggestions";
-import HiddenGuard from "./HiddenGuard";
-import PrintedBlocks from "./PrintedBlocks";
-import PrivateCopy from "./PrivateCopy";
-import ShownCode from "./ShownCode";
-
-const PAGE_EXTENSIONS = [
-  // Pressing a link edits its text. New code isn't offered: making it would show hidden text.
-  ...contentExtensionsWith({ link: { openOnClick: false }, codeBlock: false }),
-  ShownCode,
-  HiddenGuard,
-  PrivateCopy,
-  PrintedBlocks,
-];
+import { pageExtensions } from "./pageExtensions";
 
 interface PageEntryBodyProps extends SuggestionProps {
   entry: SectionEntry;
@@ -72,7 +59,7 @@ const LoadedBody = ({ entry, version, onEntryChange, editors, takeFocusRef, ...s
     editors,
     placeholder: "Write here. Start a line with - for bullets.",
     className: cn("page-editor", highlightClasses),
-    extensions: PAGE_EXTENSIONS,
+    extensions: pageExtensions,
     // So that it is there for the press that loaded it.
     immediatelyRender: true,
   });

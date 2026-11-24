@@ -81,6 +81,16 @@ const PrivateCopy = Extension.create({
               return false;
             },
           },
+          // Code has no marks, so there it would show.
+          handlePaste: (view, event, slice) => {
+            if (!view.state.selection.$from.parent.type.spec.code || !hasHidden(slice.content)) return false;
+            view.dispatch(view.state.tr.replaceSelection(shownSlice(slice)).scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));
+            return true;
+          },
+          handleDrop: (view, event, slice) => {
+            const place = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            return place !== null && view.state.doc.resolve(place.pos).parent.type.spec.code === true && hasHidden(slice.content);
+          },
           transformPastedHTML: (html) => pasted || html,
         },
       }),

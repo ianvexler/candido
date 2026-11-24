@@ -1,13 +1,13 @@
 import { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
 import { afterEach, describe, expect, it } from "vitest";
-import { contentExtensions } from "../review/replaceInContent";
-import HiddenGuard from "./HiddenGuard";
+import { pageExtensions } from "./pageExtensions";
 
 let editor: Editor;
 
 const H = (text: string) => `<span data-cv-hidden="true">${text}</span>`;
-const make = (content: string) => (editor = new Editor({ extensions: [...contentExtensions, HiddenGuard], content }));
+const make = (content: string) => (editor = new Editor({ extensions: pageExtensions, content }));
 const html = () => editor.getHTML().replace(/ data-cv-item="[^"]*"/g, "");
 
 /** Where the first such text starts. */
@@ -162,15 +162,154 @@ describe("hidden text that is moved, or kept beside other that isn't", () => {
   });
 });
 
-describe("formatting", () => {
-  it("doesn't reveal hidden text as code", () => {
+describe("a change inside hidden text", () => {
+  it("puts typed text after it, to be seen", () => {
     make(`<p>foo${H("secret")}bar</p>`);
-    editor.commands.selectAll();
-    editor.commands.toggleCode();
-    editor.commands.setCodeBlock();
+    caret(at("secret") + 3);
+    type("Q");
+    expect(html()).toBe(`<p>foo${H("secret")}Qbar</p>`);
+    expect(editor.state.selection.from).toBe(at("Q") + 1);
+    type("R");
+    expect(html()).toBe(`<p>foo${H("secret")}QRbar</p>`);
+    editor.commands.undo();
     expect(html()).toBe(`<p>foo${H("secret")}bar</p>`);
   });
 
+  it("undoes a deletion", () => {
+    make(`<p>foo${H("secret")}bar</p>`);
+    caret(at("secret") + 4);
+    remove(at("secret") + 3, at("secret") + 4);
+    expect(html()).toBe(`<p>foo${H("secret")}bar</p>`);
+  });
+
+  it("keeps it whole before a split", () => {
+    make(`<p>foo${H("secret")}bar</p>`);
+    caret(at("secret") + 3);
+    press("Enter");
+    expect(html()).toBe(`<p>foo${H("secret")}</p><p>bar</p>`);
+    editor.commands.undo();
+    expect(html()).toBe(`<p>foo${H("secret")}bar</p>`);
+  });
+
+  it("puts a line break after it", () => {
+    make(`<p>foo${H("secret")}bar</p>`);
+    caret(at("secret") + 3);
+    editor.commands.setHardBreak();
+    expect(html()).toBe(`<p>foo${H("secret")}<br>bar</p>`);
+  });
+});
+
+describe("typed text is never hidden", () => {
+  it.each([
+    ["up to hidden text", "foo", 1, "secret", 0],
+    ["into it", "foo", 1, "secret", 3],
+    ["out of it", "secret", 3, "bar", 1],
+    ["within it", "secret", 1, "secret", 4],
+    ["all of it", "secret", 0, "secret", 6],
+    ["around it", "foo", 2, "bar", 1],
+  ])("over a selection %s", (_, a, i, b, j) => {
+    make(`<p>foo${H("secret")}bar</p>`);
+    editor.commands.setTextSelection({ from: at(a) + i, to: at(b) + j });
+    type("Q");
+    expect(html()).toMatch(/^[^Q]*Q[^Q]*$/);
+    expect(html().replace(/<span[^>]*>[^<]*<\/span>/g, "")).toContain("Q");
+  });
+
+  it("at the start of a block of hidden text, or with its mark stored", () => {
+    make(`<p>${H("secret")}</p>`);
+    for (const pos of [1, 7]) {
+      caret(pos);
+      editor.view.dispatch(editor.state.tr.addStoredMark(editor.schema.marks.hidden.create()));
+      type("Q");
+      expect(html().replace(/<span[^>]*>[^<]*<\/span>/g, "")).toBe("<p>Q</p>");
+      editor.commands.undo();
+    }
+  });
+});
+
+describe("shorthand typed across hidden text", () => {
+  /** As the browser types: the rules first, then the character itself. */
+  const keyIn = (text: string) => {
+    for (const char of text) {
+      const { from, to } = editor.state.selection;
+      const handled = editor.view.someProp("handleTextInput", (f) => f(editor.view, from, to, char, () => editor.state.tr.insertText(char, from, to)));
+      if (!handled) type(char);
+    }
+  };
+  const shown = () => html().replace(/<span data-cv-hidden[^>]*>[^<]*<\/span>/g, "");
+
+  it.each(["`", "**", "__", "~~", "*", "_"])("keeps every character of %s", (mark) => {
+    make(`<p>${mark}foo${H("secret")}bar</p>`);
+    caret(at("bar") + 3);
+    keyIn(mark);
+    expect(shown()).toBe(`<p>${mark}foobar${mark}</p>`);
+    expect(html()).toContain(H("secret"));
+  });
+
+  it.each(["`", "**", "~~"])("doesn't go by a hidden %s", (mark) => {
+    make(`<p>${H(`x${mark}`)}foo</p>`);
+    caret(at("foo") + 3);
+    keyIn(mark);
+    expect(shown()).toBe(`<p>foo${mark}</p>`);
+  });
+
+  it.each([["#", "### "], ["-", "- "], ["1.", "1. "], [">", "> "], ["---", "---"], ["```", "``` "]])("at the start, before hidden text: %s", (_, text) => {
+    make(`<p>${H("secret")}</p><p>end</p>`);
+    caret(1);
+    keyIn(text);
+    expect(html()).toContain(H("secret"));
+    expect(html().split("secret")).toHaveLength(2);
+  });
+
+  it("still works without hidden text", () => {
+    make("<p>**foo</p><p>x</p>");
+    caret(at("foo") + 3);
+    keyIn("**");
+    expect(html()).toBe("<p><strong>foo</strong></p><p>x</p>");
+    caret(at("x"));
+    keyIn("- ");
+    expect(html()).toBe("<p><strong>foo</strong></p><ul><li><p>x</p></li></ul>");
+  });
+
+  it("doesn't put hidden text in a link's address", () => {
+    make(`<p>foo${H("secret")}bar.com</p>`);
+    caret(at("bar") + 7);
+    keyIn(" ");
+    expect(shown()).toBe("<p>foobar.com </p>");
+    expect(html()).not.toMatch(/href="[^"]*secret/);
+  });
+
+  it("types backticks as they are, and shows code that is there", () => {
+    make("<p>a <code>x</code> `b</p>");
+    caret(at("`b") + 2);
+    keyIn("`");
+    expect(html()).toBe("<p>a <code>x</code> `b`</p>");
+    expect(editor.commands.toggleCode).toBeUndefined();
+  });
+});
+
+describe("code blocks", () => {
+  it("never get text put back, which would show in them", () => {
+    make(`<pre><code>code</code></pre><p>${H("secret")}bar</p>`);
+    caret(at("bar"));
+    remove(at("code") + 4, at("bar"));
+    expect(html()).toContain(H("secret"));
+    expect(editor.state.doc.textContent.split("secret")).toHaveLength(2);
+  });
+
+  it("refuse hidden text pasted or joined into them", () => {
+    make(`<pre><code>code</code></pre><p>${H("secret")}bar</p>`);
+    caret(at("code") + 1);
+    editor.view.pasteHTML(`<p data-pm-slice="1 1 []">a${H("other")}b</p>`, new Event("paste") as ClipboardEvent);
+    expect(html()).toContain("<code>cabode</code>");
+    expect(html()).not.toContain("other");
+    caret(at("bar"));
+    press("Backspace");
+    expect(html()).toContain(H("secret"));
+  });
+});
+
+describe("formatting", () => {
   it("undoes hiding together with typing", () => {
     make("<p>foo bar</p>");
     editor.commands.insertContentAt(8, "x");
@@ -318,6 +457,94 @@ it("doesn't hide what is typed on either side", () => {
   caret(at("bar"));
   type("2");
   expect(html()).toBe(`<p>foo1${H("secret")}2bar</p>`);
+});
+
+const TOKENS = /\[[A-Z]\d\]/g;
+const hiddenText = () => {
+  let text = "";
+  let end = 0;
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.marks.some((mark) => mark.type.name === "hidden")) return;
+    text += (pos === end ? "" : " ") + (node.text ?? "");
+    end = pos + node.nodeSize;
+  });
+  return text;
+};
+
+const FUZZED = [
+  `<p data-cv-item="a">ab${H("[A1]")}c${H("[A2]")}d</p>`,
+  `<ul><li data-cv-item="b"><p>${H("[B1]")}</p></li><li data-cv-item="c"><p>d${H("[A1]")}e</p><ul><li><p>f${H("[C1]")}</p></li></ul></li></ul>`,
+  `<pre><code>code</code></pre>`,
+  `<blockquote data-cv-item="d"><p>${H("[D1]")}g</p></blockquote>`,
+  `<h3 data-cv-item="e">h${H("[E1]")}</h3>`,
+].join("");
+
+it("keeps hidden text through any edits, and typed text in sight", () => {
+  let seed = 7;
+  const random = (below: number) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return Math.floor((seed / 2147483648) * below);
+  };
+
+  for (let run = 0; run < 100; run++) {
+    make(FUZZED);
+    for (let step = 0; step < 12; step++) {
+      const { doc } = editor.state;
+      const places: number[] = [];
+      doc.descendants((node, pos) => {
+        if (node.isTextblock) for (let i = 0; i <= node.content.size; i++) places.push(pos + 1 + i);
+      });
+      const place = () => places[random(places.length)];
+      const [from, to] = [place(), place()].sort((a, b) => a - b);
+      const kind = random(9);
+      const selects = kind >= 7;
+      if (selects) editor.commands.setTextSelection({ from, to });
+      else caret(random(2) ? from : place());
+
+      const kept: string[] = [];
+      doc.descendants((node, pos) => {
+        if (!node.marks.some((mark) => mark.type.name === "hidden")) return;
+        for (const { 0: token, index } of node.text!.matchAll(TOKENS)) {
+          const start = pos + index;
+          if (!selects || start >= to || start + token.length <= from) kept.push(token);
+        }
+      });
+      const before = editor.state.doc;
+      const tr = closeHistory(editor.state.tr);
+      if (kind === 0 || kind === 1) editor.view.dispatch(tr.insertText("q"));
+      else if (kind === 2) editor.view.dispatch(tr.delete(from, to));
+      else if (kind === 3) editor.view.dispatch(tr.insertText("qq", from, to));
+      else if (kind === 4) editor.view.dispatch(tr.delete(Math.max(from - 1, 1), from));
+      else if (kind < 7) {
+        editor.view.dispatch(tr);
+        press(["Enter", "Backspace", "Delete"][random(3)]);
+      } else if (kind === 7) editor.view.dispatch(tr.insertText("q"));
+      else editor.view.dispatch(tr.deleteSelection());
+
+      const what = `run ${run}, step ${step}, kind ${kind}, ${from}-${to}`;
+      const hidden = hiddenText();
+      const tokens = hidden.match(TOKENS) ?? [];
+      if (selects) kept.forEach((token) => expect(tokens, what).toContain(token));
+      else expect([...tokens].sort(), what).toEqual(kept.sort());
+      const typed = (node: typeof doc) => node.textContent.split("q").length - 1;
+      expect(hidden, what).not.toContain("q");
+      if (kind < 2) expect(typed(editor.state.doc), what).toBe(typed(before) + 1);
+      if (kind === 3 || kind === 7) expect(typed(editor.state.doc), what).toBeGreaterThan(0);
+      // Nothing hidden came to light, or twice.
+      expect((editor.state.doc.textContent.match(TOKENS) ?? []).length, what).toBe(tokens.length);
+      const after = editor.state.doc;
+      if (!after.eq(before)) {
+        editor.commands.undo();
+        expect(editor.state.doc.eq(before), `${what} undone`).toBe(true);
+        editor.commands.redo();
+        expect(editor.state.doc.eq(after), `${what} redone`).toBe(true);
+      }
+      // Cut-up ones aren't followed further.
+      if (hidden.replace(TOKENS, "").trim()) break;
+    }
+    editor.destroy();
+  }
+  make("");
 });
 
 it("survives any deletion with all hidden text, and undoes it exactly", () => {
