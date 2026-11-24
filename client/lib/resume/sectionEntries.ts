@@ -41,9 +41,6 @@ export const cleanFields = (sectionType: string, entries: SectionEntry[]): Secti
   entries: entries.map(cleanEntry),
 });
 
-export const sameFields = (a: SectionFields, b: SectionFields) =>
-  JSON.stringify(cleanFields(a.section_type, a.entries)) === JSON.stringify(cleanFields(b.section_type, b.entries));
-
 /** Nothing has been written in it. */
 export const isEmptyEntry = (entry: SectionEntry) =>
   Object.values({ ...cleanEntry(entry), id: "", hidden: false }).every((value) => !value);

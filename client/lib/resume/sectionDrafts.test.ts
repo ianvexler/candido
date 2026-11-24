@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDrafts, SectionPatch } from "./sectionDrafts";
+import { createDrafts, sameFields, SectionPatch } from "./sectionDrafts";
 import { mergeEdited, setItemsOff } from "./items";
 import { waitForSaves } from "./saveTracker";
 import { emptyEntry } from "./sectionEntries";
@@ -67,6 +67,21 @@ afterEach(async () => {
     await pause();
   }
   vi.useRealTimers();
+});
+
+describe("sameFields", () => {
+  it("ignores spacing, the editor's trailing paragraph and key order", () => {
+    const saved = { section_type: "Projects", entries: [entry("a", { content: "<p>x</p>" })] };
+    const { title, ...rest } = entry("a", { content: "<p>x</p><p></p>", role: " " });
+    expect(sameFields(saved, { section_type: "Projects ", entries: [{ ...rest, title: `${title} ` }] })).toBe(true);
+  });
+
+  it("notices order, hidden and text changes", () => {
+    const base = { section_type: "Projects", entries: [entry("a"), entry("b")] };
+    expect(sameFields(base, { ...base, entries: [base.entries[1], base.entries[0]] })).toBe(false);
+    expect(sameFields(base, { ...base, entries: [entry("a", { hidden: true }), entry("b")] })).toBe(false);
+    expect(sameFields(base, { ...base, entries: [entry("a", { content: "<p>x</p>" }), entry("b")] })).toBe(false);
+  });
 });
 
 describe("saving", () => {
@@ -401,6 +416,139 @@ describe("replace", () => {
     await pause();
     expect(calls[1].patch.entries![0].title).toBe("Replaced");
   });
+});
+
+describe("flush while text is composed", () => {
+  const differing = { entries: [entry("e1", { title: "One", content: P("x", "New") }), entry("e2", { title: "Two" })] };
+  const type = (drafts: ReturnType<typeof setup>["drafts"]) =>
+    drafts.change(1, edit("e1", { content: "<p>New</p>" }), { entryId: "e1", version: 0 });
+
+  it("doesn't send what was saved again and again", async () => {
+    const { drafts, calls } = setup([section()], () => true);
+    type(drafts);
+    const flushed = drafts.flush();
+    calls[0].resolve(differing);
+    await settle();
+    expect(calls).toHaveLength(1);
+    await expect(flushed).resolves.toBe(true);
+    await drafts.flush();
+    expect(calls).toHaveLength(1);
+
+    drafts.change(1, { hidden: true });
+    await pause();
+    expect(calls[1].patch.entries![0].content).toBe("<p>New</p>");
+  });
+
+  it("nor a request it waited for", async () => {
+    const { drafts, calls } = setup([section()], () => true);
+    type(drafts);
+    await pause();
+    drafts.dispose();
+    calls[0].resolve(differing);
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+
+  it("ignores composing once disposed", async () => {
+    const { drafts, calls, shown } = setup([section()], () => true);
+    type(drafts);
+    drafts.dispose();
+    calls[0].resolve(differing);
+    await settle();
+    expect(shown().entries[0].content).toBe(P("x", "New"));
+  });
+});
+
+describe("replace and what isn't saved yet", () => {
+  const titles = (target: Section) => target.entries.map(({ title }) => title);
+  const reverse = (current: SectionFields) => ({ entries: [...current.entries].reverse() });
+  const withNew = section().entries.flatMap((item) => [item, ...(item.id === "e1" ? [entry("lib", { title: "Lib" })] : [])]);
+
+  it("keeps an unsaved order, with new entries after their neighbour", async () => {
+    const { drafts, calls, shown } = setup();
+    drafts.change(1, reverse);
+    drafts.replace(section({ entries: withNew }));
+    expect(titles(shown())).toEqual(["Two", "One", "Lib"]);
+    await pause();
+    expect(titles(calls[0].section)).toEqual(["Two", "One", "Lib"]);
+  });
+
+  it("keeps an order being saved, whether or not the record has it", async () => {
+    for (const entries of [withNew, [...withNew].reverse()]) {
+      const { drafts, shown } = setup();
+      drafts.change(1, reverse);
+      await pause();
+      drafts.replace(section({ entries }));
+      expect(titles(shown()).filter((title) => title !== "Lib")).toEqual(["Two", "One"]);
+    }
+  });
+
+  it("takes the record's order if it changed there", () => {
+    const { drafts, shown } = setup();
+    drafts.replace(section(reverse(section())));
+    expect(titles(shown())).toEqual(["Two", "One"]);
+  });
+
+  it("keeps typing newer than a save that the record contains", async () => {
+    const { drafts, calls, shown } = setup();
+    drafts.change(1, edit("e1", { title: "Sent" }));
+    drafts.change(1, { section_type: "Sent", hidden: true });
+    await pause();
+    drafts.change(1, edit("e1", { title: "Newer" }));
+    drafts.change(1, { section_type: "Newer", hidden: false });
+    drafts.replace(
+      section({ section_type: "Sent", hidden: true, entries: [entry("e1", { ...section().entries[0], title: "Sent" }), section().entries[1]] })
+    );
+    expect(shown()).toMatchObject({ section_type: "Newer", hidden: false });
+    expect(shown().entries[0].title).toBe("Newer");
+    calls[0].resolve();
+    await settle();
+    await pause();
+    expect(calls[1].patch).toMatchObject({ section_type: "Newer", hidden: false, entries: [{ title: "Newer" }, {}] });
+  });
+
+  it("keeps an entry deleted since, if the record only has it from a save in flight", async () => {
+    const { drafts, shown } = setup();
+    drafts.change(1, edit("e1", { title: "Sent" }));
+    await pause();
+    drafts.change(1, (current) => ({ entries: current.entries.slice(1) }));
+    drafts.replace(section({ entries: [entry("e1", { ...section().entries[0], title: "Sent" }), section().entries[1]] }));
+    expect(titles(shown())).toEqual(["Two"]);
+  });
+
+  it("always leaves an entry to write in, the same one if there was one", () => {
+    const { drafts, shown } = setup();
+    drafts.replace(section({ entries: [] }));
+    expect(shown().entries).toMatchObject([{ id: "e1", title: "", content: "" }]);
+
+    drafts.change(1, (current) => ({ entries: [entry("e9", { title: "Mine" }), ...current.entries] }));
+    drafts.change(1, (current) => ({ entries: current.entries.slice(1) }));
+    drafts.change(1, () => ({ entries: [] }));
+    drafts.replace(section({ entries: [entry("e1")] }));
+    expect(shown().entries).toHaveLength(1);
+  });
+});
+
+describe("dispose during a deletion", () => {
+  for (const fails of [true, false]) {
+    it(fails ? "still sends pending changes if it fails" : "sends nothing if it succeeds", async () => {
+      const { drafts, calls } = setup();
+      drafts.change(1, { section_type: "A" });
+      let finish!: () => void;
+      const deletion = new Promise<void>((resolve, reject) => (finish = () => (fails ? reject(new Error()) : resolve())));
+      void drafts.remove(1, deletion).catch(() => undefined);
+      drafts.dispose();
+      await pause();
+      expect(calls).toHaveLength(0);
+
+      finish();
+      await settle();
+      expect(calls).toHaveLength(fails ? 1 : 0);
+      calls[0]?.resolve();
+      await settle();
+      expect(calls).toHaveLength(fails ? 1 : 0);
+    });
+  }
 });
 
 describe("the list", () => {

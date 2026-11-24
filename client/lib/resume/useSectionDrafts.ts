@@ -8,11 +8,12 @@ const showError = (error: unknown) => {
   toast.error(message ?? "Couldn't save this section. Check your connection and try again.");
 };
 
-// The same in every page, so it's only watched once.
-let composing = false;
+// What text is being composed in. It may go away or lose focus without ending that.
+let composingIn: Node | null = null;
 if (typeof window !== "undefined") {
-  window.addEventListener("compositionstart", () => (composing = true), true);
-  window.addEventListener("compositionend", () => (composing = false), true);
+  const stop = () => (composingIn = null);
+  window.addEventListener("compositionstart", (event) => (composingIn = event.target as Node), true);
+  ["compositionend", "focusout", "blur"].forEach((name) => window.addEventListener(name, stop, true));
 }
 
 /**
@@ -32,7 +33,7 @@ export const useSectionDrafts = <T extends SectionDraft & { id: number }>(
       save,
       onChange: (sections, versions) => setState({ sections, versions }),
       onError: showError,
-      busy: () => composing,
+      busy: () => composingIn?.isConnected ?? false,
     })
   );
   useEffect(() => () => drafts.dispose(), [drafts]);
