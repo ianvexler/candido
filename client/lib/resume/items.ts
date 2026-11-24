@@ -29,6 +29,17 @@ export const parseHtml = (html: string): HTMLElement => {
   return container;
 };
 
+/** Parsed, with styles as the browser writes them. The server writes them differently. */
+export const parseStyled = (html: string): HTMLElement => {
+  const container = parseHtml(html);
+  container.querySelectorAll<HTMLElement>("[style]").forEach((node) => {
+    node.setAttribute("style", node.style.cssText);
+  });
+  return container;
+};
+
+export const sameMarkup = (a: string, b: string): boolean => a === b || parseStyled(a).isEqualNode(parseStyled(b));
+
 // Newer browsers escape < and > in attributes; older ones and the server don't.
 const asServerHtml = (html: string) =>
   html.replace(/<[a-z][^>]*>/gi, (tag) => tag.replace(/&lt;/g, "<").replace(/&gt;/g, ">"));
@@ -77,6 +88,18 @@ export const setItemsOff = (html: string, ids: string[], off: boolean): string =
     if (off) node.setAttribute(OFF_ATTRIBUTE, "true");
     else node.removeAttribute(OFF_ATTRIBUTE);
   });
+  return asServerHtml(container.innerHTML);
+};
+
+/** With this item's html in place of the old, keeping its tick. */
+export const replaceItem = (html: string, id: string, itemHtml: string): string => {
+  const container = parseHtml(html);
+  const old = itemsIn(container).find((node) => node.getAttribute(ITEM_ATTRIBUTE) === id);
+  const item = parseHtml(itemHtml).firstElementChild;
+  if (!old || !item) return html;
+
+  if (isOff(old)) item.setAttribute(OFF_ATTRIBUTE, "true");
+  old.replaceWith(item);
   return asServerHtml(container.innerHTML);
 };
 

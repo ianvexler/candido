@@ -627,3 +627,34 @@ it("keeps edits that can't be sent yet when a record changes their entry", () =>
   drafts.replace(section({ entries: [entry("e1", { title: "Theirs" }), entry("e2", { title: "New two" })] }));
   expect(shown().entries.map(({ title }) => title)).toEqual(["Typed", "New two"]);
 });
+
+describe("saved", () => {
+  it("is the record as the server has it", async () => {
+    const { drafts, calls } = setup();
+    drafts.change(1, edit("e2", { title: "Typed" }));
+    expect(drafts.saved(1)!.entries[1].title).toBe("Two");
+    const flushed = drafts.flush();
+    await settle();
+    calls[0].resolve({ entries: [section().entries[0], entry("e2", { title: "Stored" })] });
+    await flushed;
+    expect(drafts.saved(1)!.entries[1].title).toBe("Stored");
+    expect(drafts.saved(9)).toBeUndefined();
+  });
+});
+
+describe("setRecord", () => {
+  it("keeps edits, and isn't undone by a save already on its way", async () => {
+    const { drafts, calls, shown } = setup();
+    drafts.change(1, edit("e2", { title: "Typed" }));
+    await pause();
+    drafts.setRecord(1, { base_items: { a: "new" } });
+    expect(shown()).toMatchObject({ base_items: { a: "new" } });
+    expect(shown().entries[1].title).toBe("Typed");
+    calls[0].resolve({ base_items: {} });
+    await pause();
+    expect(shown().base_items).toEqual({ a: "new" });
+    expect(drafts.saved(1)!.base_items).toEqual({ a: "new" });
+    expect(drafts.saved(1)!.entries[1].title).toBe("Typed");
+    expect(calls).toHaveLength(1);
+  });
+});

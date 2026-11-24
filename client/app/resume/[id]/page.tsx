@@ -44,7 +44,7 @@ const CvPage = ({ id }: { id: string }) => {
   const { sections, versions, load, change, flush } = drafts;
   const library = useSectionLibrary();
   const { refresh: refreshLibrary } = library;
-  const { pending, actions, addSection } = useCvChecklist(curriculumId, drafts, refreshLibrary);
+  const { pending, actions, addSection } = useCvChecklist(curriculumId, drafts, library);
   const review = useCvReview(curriculumId, sections, flush);
   const { setTailoring } = review;
   const [loadError, setLoadError] = useState(false);
@@ -202,6 +202,7 @@ const CvPage = ({ id }: { id: string }) => {
           pending={pending}
           actions={actions}
           columns={twoColumn ? new Map(sections.map((section) => [section.id, sectionColumn(section)])) : null}
+          libraryLoading={library.loading}
           libraryFailed={library.failed}
           onRetryLibrary={refreshLibrary}
         />

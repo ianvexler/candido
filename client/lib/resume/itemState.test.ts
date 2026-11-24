@@ -1,6 +1,6 @@
 import { EntryFields } from "@/lib/types";
 import { describe, expect, it } from "vitest";
-import { fieldsState, itemState } from "./itemState";
+import { actionLabel, actionsFor, differingFields, fieldsState, itemState } from "./itemState";
 
 const html = (text: string) => `<p data-cv-item="a">${text}</p>`;
 
@@ -46,6 +46,7 @@ describe("itemState", () => {
     ['<p>A <span data-cv-hidden="true">b <em>c</em></span> d</p>', "<p>A b <em>c</em> d</p>"],
     ['<p><a rel="x" href="y">A</a></p>', '<p><a href="y" rel="x">A</a></p>'],
     ['<p><a target="_blank" rel="noopener" href="y">A</a></p>', '<p><a href="y">A</a></p>'],
+    ['<p><span style="color: rgb(1, 2, 3)">A</span></p>', '<p><span style="color:rgb(1, 2, 3);">A</span></p>'],
     ["<li>A</li>", "<li><p>A</p></li>"],
     ["<li>\n A <em>b</em><br>c\n <ul> <li>D</li> </ul></li>", "<li><p>A <em>b</em><br>c</p><ul><li><p>D</p></li></ul></li>"],
     ["<blockquote><ol><li>A</li></ol></blockquote>", "<blockquote><ol><li><p>A</p></li></ol></blockquote>"],
@@ -79,4 +80,43 @@ describe("fieldsState", () => {
     expect(fieldsState(fields("A", { current: true }), fields("A"), null)).toBe("differs");
     expect(fieldsState({ ...fields("A"), id: "x", hidden: true } as EntryFields, fields("A"), null)).toBe("same");
   });
+});
+
+describe("actionsFor", () => {
+  it.each([
+    ["same", []],
+    ["library_only", []],
+    ["cv_changed", ["to_library"]],
+    ["cv_only", ["to_library"]],
+    ["library_changed", ["to_cv"]],
+    ["both_changed", ["to_library", "to_cv", "keep"]],
+    ["differs", ["to_library", "to_cv", "keep"]],
+  ] as const)("%s offers %j", (state, actions) => expect(actionsFor(state)).toEqual(actions));
+
+  it("names them", () => {
+    expect(actionLabel("cv_only", "to_library")).toBe("Add to library");
+    expect(actionsFor("differs").map((action) => actionLabel("differs", action))).toEqual([
+      "Update library too",
+      "Use library version",
+      "Keep both as they are",
+    ]);
+  });
+});
+
+describe("differingFields", () => {
+  it("lists what differs, as shown", () =>
+    expect(
+      differingFields(
+        fields("A ", { role: "Dev", start_date: "2024-01-01", end_date: "2024-03-01" }),
+        fields("A", { location: "Leeds", start_date: "2024-02-01", current: true })
+      )
+    ).toEqual([
+      { label: "Role", cv: "Dev", library: "" },
+      { label: "Location", cv: "", library: "Leeds" },
+      { label: "Start", cv: "Jan 2024", library: "Feb 2024" },
+      { label: "End", cv: "Mar 2024", library: "Present" },
+    ]));
+
+  it("takes an end month beside Present as none", () =>
+    expect(differingFields(fields("A", { current: true, end_date: "2024-01-01" }), fields("A", { current: true }))).toEqual([]));
 });
