@@ -1,4 +1,4 @@
-# Passes one item, or an entry's fields when there is no `item_id`, between a
+# Passes one item (the summary is one too), or an entry's fields when there is no `item_id`, between a
 # CV section and its library section, or takes the library's text as the base
 # (`keep`). The `expected_*` values are what the client has, nil for a side it
 # believes is absent; if either is different now, nothing changes.
@@ -54,7 +54,7 @@ class LibraryTransfer
   end
 
   def find_library_entry
-    (@item_id && template&.entry_with_item(@item_id)) || template&.find_entry(@entry_id)
+    (@item_id && !summary? && template&.entry_with_item(@item_id)) || template&.find_entry(@entry_id)
   end
 
   def transfer
@@ -77,6 +77,7 @@ class LibraryTransfer
   def value_in(entry)
     return if entry.nil?
     return fields_of(entry) if @item_id.nil?
+    return entry["description"].presence if summary?
 
     items(entry).find { |item| item[:id] == @item_id }&.fetch(:html)
   end
@@ -85,6 +86,10 @@ class LibraryTransfer
     adopt_ids if template
     if @library_entry.nil?
       add_entry
+    elsif summary?
+      change_entry(template, @library_entry["id"], "description" => @entry["description"])
+      template.save!
+      rebase(@library_entry["id"], @item_id)
     elsif @item_id
       put_item
       template.save!
@@ -109,7 +114,9 @@ class LibraryTransfer
 
   def to_cv
     changes =
-      if @item_id
+      if summary?
+        @library_entry.slice("description")
+      elsif @item_id
         item = CvItems.find(@library_entry["content"], @item_id)
         { "content" => CvItems.upsert(@entry["content"], item, neighbours: []) }
       else
@@ -132,10 +139,12 @@ class LibraryTransfer
     end
 
     rebase(@entry_id)
+    rebase(@entry_id, SectionContent::SUMMARY_ID)
     CvItems.list(content).pluck(:id).compact.each { |id| rebase(@entry_id, id) }
   end
 
   def content_for_copy
+    return "" if summary?
     return CvItems.strip_ticks(CvItems.find(@entry["content"], @item_id)) if @item_id
 
     elsewhere = items(@entry).pluck(:id).compact.select { |id| template&.entry_with_item(id) }
@@ -167,12 +176,16 @@ class LibraryTransfer
     section.rebase!(template, entry_id: library_entry_id, item_id: item_id)
   end
 
+  def summary?
+    @item_id == SectionContent::SUMMARY_ID
+  end
+
   def change_entry(record, id, changes)
     record.entries = record.entries.map { |entry| entry["id"] == id ? entry.merge(changes) : entry }
   end
 
   def fields_of(entry)
-    entry.slice(*SectionContent::FIELD_KEYS)
+    entry.slice(*SectionContent::HEAD_KEYS)
   end
 
   def items(entry)

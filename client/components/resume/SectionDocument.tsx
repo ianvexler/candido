@@ -6,7 +6,7 @@ import { tickItem } from "@/lib/resume/checklist";
 import { emptyEntry, moveEntry } from "@/lib/resume/sectionEntries";
 import type { EntryEditor, EntryVersions, SectionChange } from "@/lib/resume/sectionDrafts";
 import type { TransferTarget } from "@/lib/resume/transfer";
-import { CvSuggestion, SectionEntry, SectionFields } from "@/lib/types";
+import { SUMMARY_ID, CvSuggestion, SectionEntry, SectionFields } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Selection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
@@ -140,7 +140,9 @@ const SectionDocument = ({
     (entryId: string, itemId: string, focusAt: number | null) => {
       const before = editors.current.get(entryId);
       onChange((current) => tickItem(current, entryId, itemId, false));
-      if (focusAt !== null) focusNext({ sectionId, entryId, itemId }, editors, before, focusAt);
+      // Its text isn't in the editor, which stays.
+      if (itemId === SUMMARY_ID) requestAnimationFrame(() => focusElsewhere({ sectionId, entryId, itemId }));
+      else if (focusAt !== null) focusNext({ sectionId, entryId, itemId }, editors, before, focusAt);
     },
     [onChange, sectionId]
   );

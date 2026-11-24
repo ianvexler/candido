@@ -58,7 +58,9 @@ interface Draft<T> {
 const ENTRY_KEYS = Object.keys(emptyEntry()) as (keyof SectionEntry)[];
 
 const sameValue = (key: keyof SectionEntry, a: SectionEntry, b: SectionEntry) =>
-  a[key] === b[key] || (key === "content" && sameMarkup(a.content, b.content));
+  a[key] === b[key] ||
+  (key === "description_off" && !a[key] === !b[key]) ||
+  (key === "content" && sameMarkup(a.content, b.content));
 
 const sameEntry = (a: SectionEntry, b: SectionEntry) => ENTRY_KEYS.every((key) => sameValue(key, a, b));
 

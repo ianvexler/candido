@@ -67,7 +67,7 @@ const toExportEntry = (entry: SectionEntry): ExportEntry => ({
   title: entry.title.trim(),
   subtitle: joinParts([entry.role, organizationLabel(entry)]),
   meta: joinParts([formatDateRange(entry), entry.location]),
-  summary: entry.description?.trim() ?? "",
+  summary: entry.description_off ? "" : (entry.description?.trim() ?? ""),
   html: hasVisibleText(entry.content) ? stripHiddenHtml(entry.content) : "",
 });
 

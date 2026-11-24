@@ -72,23 +72,30 @@ class CurriculumSection < ApplicationRecord
     save!
   end
 
-  # Takes the library's current text as the base of one item, or of an entry's
-  # fields. Without it in the library there is no base.
+  # Takes the library's current text as the base of one item, of an entry's
+  # summary, or of its other fields. Without it in the library there is no base.
   def rebase!(template, entry_id:, item_id: nil)
     entry = template.find_entry(entry_id)
-    if item_id
+    if item_id && item_id != SUMMARY_ID
       html = CvItems.list(entry && entry["content"]).find { |item| item[:id] == item_id }&.fetch(:html)
       self.base_items = base_items.merge(item_id => html).compact
     else
-      self.base_fields = base_fields.merge(entry_id => entry&.slice(*FIELD_KEYS)).compact
+      rebase_fields(entry_id, entry, item_id ? %w[description] : HEAD_KEYS)
     end
     save!
   end
 
   private
 
+  def rebase_fields(entry_id, library_entry, keys)
+    base = base_fields.fetch(entry_id, {}).except(*keys).merge(library_entry ? library_entry.slice(*keys) : {})
+    self.base_fields = base_fields.merge(entry_id => base.presence).compact
+  end
+
   def include_item(template, library_entry, item_id)
-    if (entry = entry_with_item(item_id))
+    if item_id == SUMMARY_ID && (entry = find_entry(library_entry["id"]))
+      include_summary(untick_items_if_hidden(entry), library_entry)
+    elsif (entry = entry_with_item(item_id))
       entry = untick_items_if_hidden(entry)
       change_entry(entry, "content" => CvItems.set_off(entry["content"], [ item_id ], false), "hidden" => false)
     elsif (entry = find_entry(library_entry["id"]))
@@ -98,10 +105,21 @@ class CurriculumSection < ApplicationRecord
     end
   end
 
+  # The CV's own, or the library's if it has none.
+  def include_summary(entry, library_entry)
+    rebase_fields(entry["id"], library_entry, %w[description]) if entry["description"].blank?
+    change_entry(
+      entry,
+      "description" => entry["description"].presence || library_entry["description"],
+      "description_off" => false, "hidden" => false
+    )
+  end
+
   def include_entry(template, library_entry)
     entry = find_entry(library_entry["id"])
     return add_entry(template, library_entry, ticked: true) if entry.nil?
 
+    entry = include_summary(entry, library_entry) if entry["description"].blank? && library_entry["description"].present?
     add_items(entry, library_entry, CvItems.list(library_entry["content"]).pluck(:id).compact - item_ids)
   end
 
@@ -122,7 +140,10 @@ class CurriculumSection < ApplicationRecord
     self.base_fields = base_fields.merge(library_entry["id"] => library_entry.slice(*FIELD_KEYS))
 
     off = ticked && only_item.nil? ? [] : CvItems.list(content).pluck(:id) - [ only_item ]
-    copy = library_entry.deep_dup.merge("content" => CvItems.set_off(content, off, true), "hidden" => !ticked)
+    copy = library_entry.deep_dup.merge(
+      "content" => CvItems.set_off(content, off, true), "hidden" => !ticked,
+      "description_off" => !ticked || (only_item.present? && only_item != SUMMARY_ID)
+    )
     earlier = template.entries.pluck("id").take_while { |id| id != copy["id"] }
     after = entries.rindex { |entry| entry["id"] == earlier.reverse.find { |id| find_entry(id) } }
     self.entries = entries.dup.insert(after ? after + 1 : 0, copy)
@@ -132,7 +153,7 @@ class CurriculumSection < ApplicationRecord
     return entry unless entry["hidden"]
 
     ids = CvItems.list(entry["content"]).pluck(:id)
-    change_entry(entry, "content" => CvItems.set_off(entry["content"], ids, true))
+    change_entry(entry, "content" => CvItems.set_off(entry["content"], ids, true), "description_off" => true)
   end
 
   # Returns the entry as changed.

@@ -4,6 +4,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip
 import type { Editor } from "@tiptap/react";
 import { KeyboardEvent, PointerEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ITEM_ATTRIBUTE } from "@/lib/resume/items";
+import { cn } from "@/lib/utils";
+import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE } from "./styles";
 
 const ITEM_SELECTOR = `[${ITEM_ATTRIBUTE}]`;
 
@@ -106,8 +108,7 @@ const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, children }: LeaveOutAreaPr
   return (
     <div
       ref={areaRef}
-      // Reaches into the paper's margin, so the button has room beside the text.
-      className="relative -mr-7 pr-[44px] sm:-mr-10 sm:pr-[68px]"
+      className={cn("relative", LEAVE_OUT_SPACE)}
       onPointerMove={onPointerMove}
       onPointerLeave={() => setHovered(null)}
       // Before the card closes, so it counts as open.
@@ -127,7 +128,7 @@ const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, children }: LeaveOutAreaPr
                 if (!areaRef.current?.contains(event.relatedTarget)) setCaret(null);
               }}
               style={{ top: place.top }}
-              className="absolute right-0 w-[40px] rounded-md bg-muted px-0.5 py-0.5 text-center text-[12px] leading-tight [overflow-wrap:normal] text-foreground hover:bg-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:w-auto sm:px-1.5 sm:whitespace-nowrap [@media(pointer:coarse)]:min-h-[44px]"
+              className={LEAVE_OUT_BUTTON}
             >
               Leave out
             </button>

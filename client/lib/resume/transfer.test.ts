@@ -1,6 +1,7 @@
 import { CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
 import { describe, expect, it } from "vitest";
 import { emptyEntry } from "./sectionEntries";
+import type { SectionDraft } from "./sectionDrafts";
 import { pullInto, sameText, valueIn } from "./transfer";
 
 const li = (id: string, text: string, off = "") => `<li data-cv-item="${id}"${off}>${text}</li>`;
@@ -25,7 +26,7 @@ describe("valueIn", () => {
 
   it("gives an entry's own fields", () =>
     expect(valueIn(template, { entryId: "a" })).toEqual({
-      title: "A", role: null, organization: null, location: null, start_date: null, end_date: null, current: false, description: null,
+      title: "A", role: null, organization: null, location: null, start_date: null, end_date: null, current: false,
     }));
 
   it("is null for what isn't there", () => {
@@ -88,5 +89,25 @@ describe("pullInto", () => {
     expect(pullInto(latest, before, paragraph, x).entries![0].content).toBe(paragraph.entries[0].content);
     const edited = section(entry("a", `<ul>${li("x", "X", OFF)}${li("y", "Typed")}</ul>`));
     expect(pullInto(edited, before, paragraph, x)).toEqual({});
+  });
+});
+
+describe("an entry's summary", () => {
+  const subject = { entryId: "a", itemId: "$summary" };
+  const having = (description: string | null, title = "A"): SectionDraft =>
+    ({ section_type: "Work", entries: [{ ...emptyEntry(), id: "a", title, description, description_off: true }] }) as SectionDraft;
+
+  it("is compared as plain text, and null when blank", () => {
+    expect(valueIn(having(" x <b> "), subject)).toBe("x <b>");
+    expect(valueIn(having(" "), subject)).toBeNull();
+    expect(sameText(having("<b>x</b>"), having("<i>x</i>"), subject)).toBe(false);
+  });
+
+  it("is pulled alone, with its tick, unless typed over meanwhile", () => {
+    const pulled = having("Library", "Theirs");
+    expect(pullInto(having("Mine", "Typed"), having("Mine"), pulled, subject).entries![0]).toMatchObject({
+      description: "Library", title: "Typed", description_off: true,
+    });
+    expect(pullInto(having("Typed"), having("Mine"), pulled, subject)).toEqual({});
   });
 });

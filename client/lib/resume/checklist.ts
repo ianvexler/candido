@@ -1,6 +1,6 @@
-import { CurriculumSection, CvSuggestion, EntryFieldKeys, SectionEntry, SectionTemplate } from "@/lib/types";
+import { CurriculumSection, CvSuggestion, EntryFieldKeys, SUMMARY_ID, SectionEntry, SectionTemplate } from "@/lib/types";
 import { Item, isSeparator, listItems, parseHtml, setItemsOff } from "./items";
-import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState, shownText } from "./itemState";
+import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState, shownText, summaryState } from "./itemState";
 import { hasVisibleText } from "@/components/resume/documentContent";
 import { isEmptyEntry, moveAt } from "./sectionEntries";
 import type { SectionDraft, SectionPatch } from "./sectionDrafts";
@@ -138,6 +138,37 @@ const heldIn = (copies: CurriculumSection[]): Held => {
   };
 };
 
+const summaryOf = (entry: SectionEntry | undefined) => entry?.description?.trim() || null;
+
+/** An entry's description, as its first item; none if neither side has it. */
+const buildSummary = (
+  section: CurriculumSection | null,
+  entry: SectionEntry | null,
+  libraryEntry: SectionEntry | undefined,
+  entryTicked: boolean
+): ChecklistItem[] => {
+  const ours = summaryOf(entry ?? undefined);
+  const theirs = summaryOf(libraryEntry);
+  const text = ours ?? theirs;
+  if (text === null) return [];
+
+  const state = summaryState(ours, theirs, (entry && section?.base_fields[entry.id]?.description?.trim()) || null);
+  const off = ours === null || Boolean(entry?.description_off);
+  return [
+    {
+      id: SUMMARY_ID,
+      text,
+      shownText: null,
+      inCv: ours !== null,
+      off,
+      ticked: entryTicked && !off,
+      isNew: false,
+      state,
+      libraryText: ours !== null && state !== "same" ? theirs : null,
+    },
+  ];
+};
+
 const buildEntry = (
   section: CurriculumSection | null,
   library: Library,
@@ -178,7 +209,8 @@ const buildEntry = (
       state: "library_only",
       libraryText: null,
     }));
-  const items = withLibraryOnly(own, libraryItems.map(({ id }) => id), extras);
+  const summary = buildSummary(section, inCv ? entry : null, inCv && !withLibrary && !summaryOf(entry) ? undefined : libraryEntry, ticked);
+  const items = [...summary, ...withLibraryOnly(own, libraryItems.map(({ id }) => id), extras)];
 
   const blank = isEmptyEntry(entry);
   const countsItself = items.length === 0 && !blank;
@@ -286,12 +318,18 @@ export const itemOffer = (entry: ChecklistEntry, { id, state }: ChecklistItem): 
 const setOff = (entry: SectionEntry, ids: string[], off: boolean): SectionEntry => ({
   ...entry,
   content: setItemsOff(entry.content, ids, off),
+  ...(ids.includes(SUMMARY_ID) && { description_off: off }),
 });
 
-const allIds = (entry: SectionEntry) => itemsOf(entry.content).map(({ id }) => id);
+const tickable = (entry: SectionEntry): { id: string; off: boolean }[] => [
+  ...(summaryOf(entry) ? [{ id: SUMMARY_ID, off: Boolean(entry.description_off) }] : []),
+  ...itemsOf(entry.content),
+];
+
+const allIds = (entry: SectionEntry) => tickable(entry).map(({ id }) => id);
 
 const allOff = (entry: SectionEntry) => {
-  const items = itemsOf(entry.content);
+  const items = tickable(entry);
   return items.length > 0 && items.every(({ off }) => off);
 };
 
@@ -415,7 +453,10 @@ export const suggestionPlace = (section: SectionDraft, suggestion: Quoting): "vi
   if (!entry) return "stale";
 
   const shown = section.hidden || entry.hidden ? "left_out" : "visible";
-  if (suggestion.field === "description") return quotesIn(suggestion)(entry.description ?? "") ? shown : "stale";
+  if (suggestion.field === "description") {
+    if (!quotesIn(suggestion)(entry.description ?? "")) return "stale";
+    return entry.description_off ? "left_out" : shown;
+  }
 
   const found = quotedItems(entry, suggestion);
   if (found.length === 0) return "stale";
@@ -426,7 +467,7 @@ export const suggestionPlace = (section: SectionDraft, suggestion: Quoting): "vi
 export const tickSuggestion = (section: SectionDraft, suggestion: Quoting): SectionPatch => {
   const entry = entryOf(section, suggestion);
   if (!entry || suggestionPlace(section, suggestion) !== "left_out") return {};
-  if (suggestion.field === "description") return tickEntry(section, entry.id, true);
+  if (suggestion.field === "description") return tickItem(section, entry.id, SUMMARY_ID, true);
 
   const found = quotedItems(entry, suggestion);
   return tickItem(section, entry.id, (found.find(({ off }) => !off) ?? found[0]).id, true);

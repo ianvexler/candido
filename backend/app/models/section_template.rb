@@ -49,7 +49,7 @@ class SectionTemplate < ApplicationRecord
 
     entry = entry_id.nil? ? entry_with_item(item_id) : find_entry(entry_id)
     raise ApiError.new("Entry not found", status: :not_found) if entry.nil?
-    if item_id && CvItems.list(entry["content"]).pluck(:id).exclude?(item_id)
+    if item_id && !item?(entry, item_id)
       raise ApiError.new("Item not found", status: :not_found)
     end
 
@@ -80,7 +80,17 @@ class SectionTemplate < ApplicationRecord
     item_added_at[id] || (now if known.exclude?(id))
   end
 
+  def item?(entry, item_id)
+    return entry["description"].present? if item_id == SUMMARY_ID
+
+    CvItems.list(entry["content"]).pluck(:id).include?(item_id)
+  end
+
   # Ticks belong to CVs.
+  def normalize_entry(...)
+    super.merge("description_off" => false)
+  end
+
   def normalize_content(html, previous, taken)
     content = super
     CvItems.set_off(content, CvItems.list(content).pluck(:id), false)

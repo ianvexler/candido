@@ -9,6 +9,7 @@ export const emptyEntry = (): SectionEntry => ({
   id: newEntryId(),
   title: "",
   description: null,
+  description_off: false,
   content: "",
   hidden: false,
   role: null,
@@ -26,6 +27,7 @@ const cleanEntry = (entry: SectionEntry): SectionEntry => ({
   id: entry.id,
   title: cleanLine(entry.title) ?? "",
   description: entry.description?.trim() || null,
+  description_off: Boolean(entry.description_off && entry.description?.trim()),
   content: normalizeContent(entry.content),
   hidden: entry.hidden,
   role: cleanLine(entry.role),
@@ -43,7 +45,7 @@ export const cleanFields = (sectionType: string, entries: SectionEntry[]): Secti
 
 /** Nothing has been written in it. */
 export const isEmptyEntry = (entry: SectionEntry) =>
-  Object.values({ ...cleanEntry(entry), id: "", hidden: false }).every((value) => !value);
+  Object.values({ ...cleanEntry(entry), id: "", hidden: false, description_off: false }).every((value) => !value);
 
 /** "YYYY-MM-DD" strings compare correctly as text. */
 export const endsBeforeStart = (entry: SectionEntry) =>

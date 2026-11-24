@@ -12,7 +12,6 @@ const fields = (title: string, changes: Partial<EntryFields> = {}): EntryFields 
   start_date: null,
   end_date: null,
   current: false,
-  description: null,
   ...changes,
 });
 
@@ -69,11 +68,11 @@ describe("fieldsState", () => {
     expect(fieldsState(cv && fields(cv), library && fields(library), base && fields(base))).toBe(state));
 
   it("compares fields as the server would store them", () => {
-    const a = fields(" A  b ", { role: "", description: " x ", current: true, end_date: "2024-01-01" });
-    expect(fieldsState(a, fields("A b", { description: "x", current: true }), null)).toBe("same");
+    const a = fields(" A  b ", { role: "", current: true, end_date: "2024-01-01" });
+    expect(fieldsState(a, fields("A b", { current: true }), null)).toBe("same");
   });
 
-  it.each(["role", "organization", "location", "start_date", "end_date", "description"] as const)("compares %s", (key) =>
+  it.each(["role", "organization", "location", "start_date", "end_date"] as const)("compares %s", (key) =>
     expect(fieldsState(fields("A", { [key]: "2024-01-01" }), fields("A"), null)).toBe("differs"));
 
   it("compares current and ignores everything else", () => {
