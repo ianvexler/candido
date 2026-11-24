@@ -72,7 +72,8 @@ export const listItems = (html: string): Item[] =>
 export const setItemsOff = (html: string, ids: string[], off: boolean): string => {
   const container = parseHtml(html);
   itemsIn(container).forEach((node) => {
-    if (!ids.includes(node.getAttribute(ITEM_ATTRIBUTE) ?? "")) return;
+    const id = node.getAttribute(ITEM_ATTRIBUTE);
+    if (!id || !ids.includes(id)) return;
     if (off) node.setAttribute(OFF_ATTRIBUTE, "true");
     else node.removeAttribute(OFF_ATTRIBUTE);
   });
@@ -137,7 +138,8 @@ const insertAfter = (container: Element, item: Element, list: Element | null, af
 /**
  * The edited visible content with the unticked items of `full` back in it. Each
  * goes after its nearest preceding item that is still there, else first, and
- * unticked items keep their order. An item that is also visible stays as it is there.
+ * unticked items keep their order. An item that is also visible stays as it is
+ * there, but that only stands for one item of `full`, a ticked one if there is one.
  */
 export const mergeVisible = (full: string, visible: string): string => {
   const fullContent = parseHtml(full);
@@ -150,7 +152,20 @@ export const mergeVisible = (full: string, visible: string): string => {
   const places = new Map<string, Element>();
   unitsIn(result).forEach((unit) => {
     const id = unit instanceof Element ? unit.getAttribute(ITEM_ATTRIBUTE) : null;
-    if (id && !places.has(id)) places.set(id, unit as Element);
+    if (!id) return;
+    const held = places.get(id);
+    if (!held || (!visibleItems.includes(held) && visibleItems.includes(unit as Element))) places.set(id, unit as Element);
+  });
+
+  const unticked = (unit: ChildNode): unit is Element =>
+    unit instanceof Element && items.includes(unit) && isOff(unit);
+  // The unit of `full` that each visible id stands for.
+  const shown = new Map<string, ChildNode>();
+  unitsIn(fullContent).forEach((unit) => {
+    const id = unit instanceof Element ? unit.getAttribute(ITEM_ATTRIBUTE) : null;
+    if (!id) return;
+    const held = shown.get(id);
+    if (!held || (unticked(held) && !unticked(unit))) shown.set(id, unit);
   });
 
   let after: ChildNode | null = null;
@@ -159,11 +174,11 @@ export const mergeVisible = (full: string, visible: string): string => {
   let between: ChildNode[] = [];
 
   unitsIn(fullContent).forEach((unit) => {
-    const element = unit instanceof Element ? unit : null;
-    const place = places.get(element?.getAttribute(ITEM_ATTRIBUTE) ?? "");
-    const restore = element !== null && items.includes(element) && isOff(element);
+    const id = unit instanceof Element ? (unit.getAttribute(ITEM_ATTRIBUTE) ?? "") : "";
+    const place = places.get(id);
+    const restore = unticked(unit);
 
-    if (place && (!restore || visibleItems.includes(place))) {
+    if (place && (!restore || (shown.get(id) === unit && visibleItems.includes(place)))) {
       after = place;
       between = [];
       return;
@@ -181,8 +196,8 @@ export const mergeVisible = (full: string, visible: string): string => {
     // The visible items may have been reordered since.
     if (lastRestored) index = Math.max(index, units.indexOf(lastRestored));
 
-    const list = isList(element.parentElement) ? element.parentElement : null;
-    const copy = element.cloneNode(true) as Element;
+    const list = isList(unit.parentElement) ? unit.parentElement : null;
+    const copy = unit.cloneNode(true) as Element;
     insertAfter(result, copy, list, units[index] ?? null);
     after = copy;
     lastRestored = copy;
@@ -190,4 +205,18 @@ export const mergeVisible = (full: string, visible: string): string => {
   });
 
   return asServerHtml(result.innerHTML);
+};
+
+/**
+ * mergeVisible for an editor loaded without the items in `hidden`. Ticks stay as
+ * they are in `full`, even if they changed after loading.
+ */
+export const mergeEdited = (full: string, visible: string, hidden: string[]): string => {
+  const off = listItems(full).filter((item) => item.off).map((item) => item.id);
+  const tickedSince = hidden.filter((id) => !off.includes(id));
+  const untickedSince = off.filter((id) => !hidden.includes(id));
+  if (tickedSince.length === 0 && untickedSince.length === 0) return mergeVisible(full, visible);
+
+  const merged = mergeVisible(setItemsOff(full, tickedSince, true), visible);
+  return setItemsOff(setItemsOff(merged, tickedSince, false), untickedSince, true);
 };

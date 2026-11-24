@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip
 import { cn } from "@/lib/utils";
 import { CvSuggestion, SectionEntry } from "@/lib/types";
 import { endsBeforeStart, isEmptyEntry } from "@/lib/resume/sectionEntries";
+import { listItems, mergeEdited, visibleContent } from "@/lib/resume/items";
 import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import Link from "@tiptap/extension-link";
@@ -14,9 +15,10 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
+import CvItem from "./CvItem";
 import HiddenMark from "./HiddenMark";
 import IconAction from "./IconAction";
 import { normalizeContent } from "./documentContent";
@@ -104,17 +106,29 @@ const SectionEntryEditor = ({
     onChange({ role: null, organization: null, location: null, start_date: null, end_date: null, current: false });
   };
 
+  // The editor has ticked items only; the rest are put back into what it reports.
+  const [loaded] = useState(() => ({
+    content: visibleContent(entry.content),
+    hidden: listItems(entry.content).filter((item) => item.off).map((item) => item.id),
+  }));
+  // Updates can come faster than renders.
+  const latestContent = useRef(entry.content);
+  useLayoutEffect(() => {
+    latestContent.current = entry.content;
+  }, [entry.content]);
+
   const editor = useEditor({
     extensions: [
       TextStyleKit,
       StarterKit,
       Link.configure({ openOnClick: false }),
       HiddenMark,
+      CvItem,
       SuggestionHighlight,
       Placeholder.configure({ placeholder: "Write here. Start a line with - for bullets." }),
     ],
     immediatelyRender: false,
-    content: entry.content || "<p></p>",
+    content: loaded.content || "<p></p>",
     editorProps: {
       attributes: {
         "aria-label": "Content",
@@ -124,7 +138,11 @@ const SectionEntryEditor = ({
         ),
       },
     },
-    onUpdate: ({ editor: current }) => onChange({ content: normalizeContent(current.getHTML()) }),
+    onUpdate: ({ editor: current }) => {
+      const content = normalizeContent(mergeEdited(latestContent.current, current.getHTML(), loaded.hidden));
+      latestContent.current = content;
+      onChange({ content });
+    },
   });
 
   // --- Review suggestions -------------------------------------------------

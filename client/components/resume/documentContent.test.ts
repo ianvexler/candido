@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hasVisibleText, stripHiddenHtml } from "./documentContent";
+import { hasVisibleText, normalizeContent, stripHiddenHtml } from "./documentContent";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -33,5 +33,11 @@ describe("stripHiddenHtml", () => {
 describe("hasVisibleText", () => {
   it("is false when all text is hidden", () => {
     expect(hasVisibleText('<p><span data-cv-hidden="true">x</span></p>')).toBe(false);
+  });
+});
+
+describe("normalizeContent", () => {
+  it("strips empty last paragraphs, also one that was an item", () => {
+    expect(normalizeContent('<p data-cv-item="a">A</p><p data-cv-item="b"></p><p></p>')).toBe('<p data-cv-item="a">A</p>');
   });
 });

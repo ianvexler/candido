@@ -4,9 +4,10 @@ const HIDDEN_SELECTOR = '[data-cv-off]:not([data-cv-off="false"]), [data-cv-hidd
 /**
  * The editor appends an empty paragraph after a trailing list. Strip it so that
  * opening a section doesn't count as an edit. The server strips it the same way.
+ * One that was an item before it was emptied still has an id.
  */
 export const normalizeContent = (html: string) =>
-  html.replace(/(?:<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)+$/, "");
+  html.replace(/(?:<p(?: data-cv-item="[^"]*")?>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)+$/, "");
 
 /** Removes unticked items and hidden spans so only exportable text is left. */
 export const stripHiddenHtml = (html: string) => {

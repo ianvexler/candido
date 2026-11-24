@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listItems, mergeVisible, setItemsOff, visibleContent } from "./items";
+import { listItems, mergeEdited, mergeVisible, setItemsOff, visibleContent } from "./items";
 
 const attrs = (id: string, off = false) => `data-cv-item="${id}"${off ? ' data-cv-off="true"' : ""}`;
 const li = (id: string, off = false, inner = `<p>${id}</p>`) => `<li ${attrs(id, off)}>${inner}</li>`;
@@ -56,6 +56,11 @@ describe("setItemsOff", () => {
     const html = p("a") + ul(li("b", true), li("c", true));
     expect(setItemsOff(html, ["b"], false)).toBe(p("a") + ul(li("b"), li("c", true)));
     expect(setItemsOff(html, ["a"], true)).toBe(p("a", true) + ul(li("b", true), li("c", true)));
+  });
+
+  it("ignores empty ids", () => {
+    const html = `<p>a</p><p data-cv-item="">b</p>${p("c", true)}`;
+    expect(setItemsOff(html, [""], true)).toBe(html);
   });
 });
 
@@ -131,5 +136,46 @@ describe("mergeVisible", () => {
   it("uses the visible version once of an item that is also unticked", () =>
     expect(mergeVisible(ul(li("a"), li("b", true), li("c", true)), ul(li("a"), li("b", false, "<p>B2</p>")))).toBe(
       ul(li("a"), li("b", false, "<p>B2</p>"), li("c", true))
+    ));
+
+  it.each([
+    ul(li("a"), li("b"), li("b", true, "<p>other</p>"), li("c")),
+    ul(li("a"), li("b", true, "<p>other</p>"), li("b"), li("c")),
+    ul(li("a"), li("b", true, "<p>other</p>"), li("b", true, "<p>B</p>"), li("c")),
+  ])("drops no unticked item that shares its id with another", (full) => {
+    const visible = ul(li("a"), li("b", false, "<p>edited</p>"), li("c"));
+    const texts = listItems(mergeVisible(full, visible)).map((item) => item.text);
+    expect(texts.filter((text) => text === "other" || text === "B")).toHaveLength(1);
+    expect(texts).toContain("edited");
+    expect(texts).toHaveLength(4);
+  });
+
+  it("drops no unticked item that shares its id with a blank one just filled in", () => {
+    const full = ul(li("b", false, "<p></p>"), li("b", true, "<p>other</p>"));
+    expect(listItems(mergeVisible(full, ul(li("b")))).map((item) => item.text)).toEqual(["b", "other"]);
+  });
+
+  it("places by the item with text when a blank one has the same id", () => {
+    const full = ul(li("a"), li("b"), li("c", true), li("d"));
+    const visible = ul(li("b", false, "<p></p>"), li("a"), li("b"), li("d"));
+    expect(ids(mergeVisible(full, visible))).toEqual(["a", "b", "c", "d"]);
+  });
+});
+
+describe("mergeEdited", () => {
+  const loaded = ul(li("a"), li("b", true), li("c"));
+  const edited = ul(li("a", false, "<p>A2</p>"), li("c"));
+
+  it("is mergeVisible while ticks stay as they were loaded", () =>
+    expect(mergeEdited(loaded, edited, ["b"])).toBe(mergeVisible(loaded, edited)));
+
+  it("keeps an item ticked since, which the editor doesn't have", () =>
+    expect(mergeEdited(ul(li("a"), li("b"), li("c")), edited, ["b"])).toBe(
+      ul(li("a", false, "<p>A2</p>"), li("b"), li("c"))
+    ));
+
+  it("keeps an item unticked since, which the editor still has", () =>
+    expect(mergeEdited(ul(li("a", true), li("b", true), li("c")), edited, ["b"])).toBe(
+      ul(li("a", true, "<p>A2</p>"), li("b", true), li("c"))
     ));
 });

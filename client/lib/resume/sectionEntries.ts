@@ -2,7 +2,7 @@ import { normalizeContent } from "@/components/resume/documentContent";
 import { SectionEntry, SectionFields } from "@/lib/types";
 
 /** Works on plain-HTTP pages too, where crypto.randomUUID doesn't exist. */
-const newEntryId = () =>
+export const newEntryId = () =>
   `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
 
 export const emptyEntry = (): SectionEntry => ({
