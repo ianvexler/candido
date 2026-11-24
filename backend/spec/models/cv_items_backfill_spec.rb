@@ -105,6 +105,19 @@ RSpec.describe CvItemsBackfill do
       expect([ section, hidden ].flat_map { |record| items(record).pluck(:off) }).to eq([ false, false ])
     end
 
+    it "doesn't untick items in a list that is hidden as a whole" do
+      html = '<ul data-cv-hidden="true"><li><p>A</p></li></ul>'
+      section = copy(nil, entry("e", html))
+      run
+      expect(without_item_ids(section.reload.entries[0]["content"])).to eq(html)
+    end
+
+    it "allows for the style of hidden text being dropped" do
+      section = copy(nil, entry("e", '<p><span data-cv-hidden="true" style="color: red">A</span></p>'))
+      expect(run).to include(unticked: 1)
+      expect(items(section).first[:html]).to eq(%(<p data-cv-item="#{ids(section).first}">A</p>))
+    end
+
     it "gives hidden text in the library ids only" do
       html = '<p><span data-cv-hidden="true">A</span></p>'
       template = library(entry("e", html))
@@ -137,6 +150,26 @@ RSpec.describe CvItemsBackfill do
       end
     end
 
+    it "takes it for equal html only, apart from hidden marks, unless up to date" do
+      template = library(entry("e", "<p>A</p><p>B b</p><p>C</p>"), updated_at: later)
+      content = '<p><strong>A</strong></p><p>B <span data-cv-hidden="true">b</span></p><p>C</p>'
+      stale, current = [ earlier, later ].map { |time| copy(template, entry("e", content), synced_at: time) }
+      run
+      a, b, c = items(template)
+      expect([ stale, current ].map { |section| ids(section) }).to all(eq([ a, b, c ].pluck(:id)))
+      expect(stale.reload.base_items).to eq([ b, c ].to_h { |item| item.values_at(:id, :html) })
+      expect(current.reload.base_items).to eq([ a, b, c ].to_h { |item| item.values_at(:id, :html) })
+    end
+
+    it "drops one left under an id that the copy takes only now" do
+      template = library(entry("e", '<p data-cv-item="a">A</p><p data-cv-item="b">B</p>'), updated_at: later)
+      section = copy(template, entry("e", '<p data-cv-item="own">A</p><p data-cv-item="own2"><em>B</em></p>'),
+        synced_at: earlier, base_items: { "a" => "<p>Old</p>", "b" => "<p>Old</p>", "own" => "<p>Old</p>" })
+      run
+      expect(ids(section)).to eq(%w[a b])
+      expect(section.reload.base_items).to eq("a" => '<p data-cv-item="a">A</p>')
+    end
+
     it "keeps those already set" do
       section = copy(library(library_entry), cv_entry, base_items: { "a" => "<p>Old</p>" }, base_fields: { "e" => { "title" => "Old" } })
       run
@@ -165,6 +198,12 @@ RSpec.describe CvItemsBackfill do
       before = [ template, section ].map { |record| record.reload.attributes }
       expect { described_class.run!(user) }.to raise_error(CvItemsBackfill::ContentChanged)
       expect([ template, section ].map { |record| record.reload.attributes }).to eq(before)
+    end
+
+    it "also counts the formatting of what is left out" do
+      section.update_columns(entries: [ entry("e", '<p data-cv-item="x" data-cv-off="true"><strong>B</strong></p>') ])
+      allow(CvItems).to receive(:assign).and_wrap_original { |assign, html, **options| assign.call(html.gsub(/<.?strong>/, ""), **options) }
+      expect { described_class.run!(user) }.to raise_error(CvItemsBackfill::ContentChanged)
     end
 
     it "doesn't stop the task, which prints no content and fails at the end" do

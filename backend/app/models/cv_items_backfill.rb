@@ -49,7 +49,7 @@ class CvItemsBackfill
     entries = with_ids(section.entries)
     renamed = template ? library_ids(entries, template) : {}
     entries = entries.map { |entry| entry.merge("content" => convert_copy(entry["content"], renamed)) }
-    count(:sections, section, entries: entries, **bases(section, entries, template, renamed.keys))
+    count(:sections, section, entries: entries, **bases(section, entries, template, renamed))
   end
 
   def count(kind, record, changes)
@@ -99,34 +99,43 @@ class CvItemsBackfill
 
   def wholly_hidden?(item)
     texts = item.xpath(".//text()").reject { |text| text.content.blank? }
-    texts.any? && texts.all? { |text| text.ancestors.any? { |node| node.element? && node.key?(HIDDEN) } }
+    texts.any? && texts.all? { |text| hidden_in?(item, text) }
+  end
+
+  def hidden_in?(item, text)
+    node = text.parent
+    node = node.parent until node == item || node.key?(HIDDEN)
+    node.key?(HIDDEN)
   end
 
   # Ticking it again then shows its text.
   def untick(item)
-    [ item, *item.css("[#{HIDDEN}]") ].each do |node|
-      node.name == "span" ? node.replace(node.children) : node.remove_attribute(HIDDEN)
-    end
+    [ item, *item.css("[#{HIDDEN}]") ].each { |node| unmark(node) }
     item[CvItems::OFF] = "true"
     @counts[:unticked] += 1
   end
 
+  def unmark(node)
+    node.name == "span" ? node.replace(node.children) : node.remove_attribute(HIDDEN)
+  end
+
   # The library's text, where this copy was made from it or still matches it.
-  def bases(section, entries, template, replaced_ids)
+  # Bases under ids that were `renamed` belonged to other text.
+  def bases(section, entries, template, renamed)
     return {} if template.nil?
 
     up_to_date = section.synced_at.present? && section.synced_at >= template.updated_at
     library_items = items_by_id(template.entries)
     items = items_by_id(entries).filter_map do |id, item|
       library_item = library_items[id]
-      [ id, library_item[:html] ] if library_item && (up_to_date || item[:text] == library_item[:text])
+      [ id, library_item[:html] ] if library_item && (up_to_date || plain(item[:html]) == plain(library_item[:html]))
     end
     fields = entries.filter_map do |entry|
       library_entry = template.find_entry(entry["id"])
       [ entry["id"], fields_of(library_entry) ] if library_entry && (up_to_date || same_fields?(entry, library_entry))
     end
     {
-      base_items: items.to_h.merge(section.base_items.except(*replaced_ids)),
+      base_items: items.to_h.merge(section.base_items.except(*renamed.to_a.flatten)),
       base_fields: fields.to_h.merge(section.base_fields)
     }
   end
@@ -143,7 +152,7 @@ class CvItemsBackfill
     entries.map { |entry| SectionContent::FIELD_KEYS.map { |key| entry[key].presence } }.uniq.one?
   end
 
-  # What the user's CVs and library show now, and all of their text.
+  # What the user's CVs and library show now, and all of their content.
   def snapshot
     curriculums = Curriculum.where(id: @curriculum_ids).includes(:curriculum_sections).order(:id)
     templates = SectionTemplate.where(id: @templates.keys).order(:id)
@@ -160,8 +169,22 @@ class CvItemsBackfill
 
   def shown(entries)
     entries.map do |entry|
-      [ entry.except("content"), visible_html(entry["content"]), Nokogiri::HTML5.fragment(entry["content"]).text ]
+      [ entry.except("content"), visible_html(entry["content"]), plain(entry["content"]) ]
     end
+  end
+
+  # Without ids, ticks and hidden marks.
+  def plain(html)
+    fragment = Nokogiri::HTML5.fragment(html)
+    fragment.css("[#{HIDDEN}]").each { |node| unmark(node) }
+    without_item_attributes(fragment).to_html
+  end
+
+  def without_item_attributes(fragment)
+    [ CvItems::ID, CvItems::OFF ].each do |name|
+      fragment.css("[#{name}]").each { |node| node.remove_attribute(name) }
+    end
+    fragment
   end
 
   # As the client exports it; see stripHiddenHtml.
@@ -170,9 +193,6 @@ class CvItemsBackfill
     fragment.css(LEFT_OUT).each(&:remove)
     fragment.css(*CvItems::BLOCKS, "li").each { |node| node.remove if node.text.blank? }
     fragment.css(*CvItems::LISTS).each { |list| list.remove if list.at_css("li").nil? }
-    fragment.css("[#{CvItems::ID}]").each { |node| node.remove_attribute(CvItems::ID) }
-    # A tick that says "false" doesn't leave anything out.
-    fragment.css("[#{CvItems::OFF}]").each { |node| node.remove_attribute(CvItems::OFF) }
-    fragment.text.blank? ? "" : fragment.to_html
+    fragment.text.blank? ? "" : without_item_attributes(fragment).to_html
   end
 end
