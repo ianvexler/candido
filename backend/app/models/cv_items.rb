@@ -50,6 +50,17 @@ module CvItems
     fragment.to_html
   end
 
+  # Gives items without an id that of the first item of `others` with the same text.
+  def adopt_ids(html, others)
+    fragment = parse(html)
+    ids = others.select { |item| item[:id] }.group_by { |item| item[:text] }
+    items_in(fragment).each do |node|
+      match = ids[text_of(node)]&.shift unless valid_id?(node[ID])
+      node[ID] = match[:id] if match
+    end
+    fragment.to_html
+  end
+
   def set_off(html, ids, off)
     fragment = parse(html)
     items_in(fragment).each { |node| mark(node, off) if ids.include?(node[ID]) }

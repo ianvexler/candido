@@ -88,6 +88,53 @@ RSpec.describe "Library transfers" do
       expect(section.base_items).not_to have_key("m")
     end
 
+    describe "with library items that have no ids yet" do
+      before do
+        library.update_columns(entries: [
+          { "id" => "one", "title" => "One", "content" => "<p>A</p><p>Same</p><p>Same</p><p>Theirs</p>" },
+          { "id" => "two", "title" => "Two", "content" => "<p>B</p>" }
+        ])
+        edit(section, "one" => {
+          "content" => '<p data-cv-item="a"><strong>A</strong></p><p data-cv-item="s1">Same</p><p data-cv-item="s2">Same</p>'
+        })
+        section.update!(entries: section.entries + [ { id: "own", content: '<p data-cv-item="o">O</p>' } ])
+      end
+
+      it "takes the one with the same text, and gives the others theirs" do
+        transfer("to_library", "one", "a")
+
+        expect(response).to have_http_status(:ok)
+        expect(content_of(library, "one")).to match(
+          %r{\A<p data-cv-item="a"><strong>A</strong></p><p data-cv-item="s1">Same</p><p data-cv-item="s2">Same</p><p data-cv-item="[^"]+">Theirs</p>\z}
+        )
+        expect(item_ids(library, "two")).to eq([ "b" ])
+        expect(section.reload.base_items["a"]).to eq('<p data-cv-item="a"><strong>A</strong></p>')
+        expect(library.item_added_at.keys & %w[a s1 s2 b]).to be_empty
+
+        transfer("to_library", "one", "s2")
+        expect(CvItems.list(content_of(library, "one")).pluck(:text)).to eq(%w[A Same Same Theirs])
+      end
+
+      it "does so when copying an entry too" do
+        transfer("to_library", "own")
+
+        expect(response).to have_http_status(:ok)
+        expect(item_ids(library, "one").first(3)).to eq(%w[a s1 s2])
+        expect(content_of(library, "own")).to eq('<p data-cv-item="o">O</p>')
+      end
+
+      it "leaves an id another library item has" do
+        library.update_columns(entries: [
+          { "id" => "one", "content" => "<p>A</p>" }, { "id" => "two", "content" => '<p data-cv-item="a">A</p>' }
+        ])
+
+        transfer("to_library", "one", "a", expected_library: '<p data-cv-item="a">A</p>')
+
+        expect(content_of(library, "two")).to eq('<p data-cv-item="a"><strong>A</strong></p>')
+        expect(item_ids(library, "one")).not_to include("a")
+      end
+    end
+
     describe "with an item the library has in another entry" do
       before do
         edit(section, "one" => { "content" => "" })
