@@ -140,9 +140,10 @@ const SectionDocument = ({
     (entryId: string, itemId: string, focusAt: number | null) => {
       const before = editors.current.get(entryId);
       onChange((current) => tickItem(current, entryId, itemId, false));
+      if (focusAt === null) return;
       // Its text isn't in the editor, which stays.
       if (itemId === SUMMARY_ID) requestAnimationFrame(() => focusElsewhere({ sectionId, entryId, itemId }));
-      else if (focusAt !== null) focusNext({ sectionId, entryId, itemId }, editors, before, focusAt);
+      else focusNext({ sectionId, entryId, itemId }, editors, before, focusAt);
     },
     [onChange, sectionId]
   );

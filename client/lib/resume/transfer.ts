@@ -22,7 +22,8 @@ export const valueIn = (
   const entries = section?.entries ?? [];
   const entry = entries.find(({ id }) => id === entryId);
   if (itemId === undefined) return entry ? fieldsOf(entry) : null;
-  if (itemId === SUMMARY_ID) return entry?.description?.trim() || null;
+  // As stored, for the server to compare.
+  if (itemId === SUMMARY_ID) return entry?.description?.trim() ? entry.description : null;
 
   const searched = anywhere ? entries : entry ? [entry] : [];
   const items = searched.flatMap(({ content }) => listItems(content));

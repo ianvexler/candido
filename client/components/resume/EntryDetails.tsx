@@ -27,6 +27,8 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
   // Kept as typed: a half-typed month isn't a date yet.
   const [startMonth, setStartMonth] = useState(toMonthInput(entry.start_date));
   const [endMonth, setEndMonth] = useState(toMonthInput(entry.end_date));
+  // What the browser's own picker has half of, which its value doesn't tell.
+  const [halfPicked, setHalfPicked] = useState({ start: false, end: false });
   const { open, setOpen, focusProps } = useOpenWhileFocused();
   const rowRef = useRef<HTMLDivElement>(null);
   const focusField = useRef<DetailField | null>(null);
@@ -39,6 +41,8 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
   useEffect(() => {
     if (!openRequested) return;
     onOpened();
+    const role = rowRef.current?.querySelector<HTMLInputElement>('[data-field="role"]');
+    if (role) return role.focus();
     focusField.current = "role";
     setOpen(true);
   }, [openRequested, onOpened, setOpen]);
@@ -51,11 +55,14 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
 
   const endBeforeStart = endsBeforeStart(entry);
   const filled = hasDetails(entry);
-  if (!open && !filled && !offered) return null;
+  const isUnfinished = (month: string, picked: boolean) => picked || (month !== "" && fromMonthInput(month) === null);
+  const unfinished =
+    isUnfinished(startMonth, halfPicked.start) || (!entry.current && isUnfinished(endMonth, halfPicked.end));
+  if (!open && !filled && !offered && !unfinished) return null;
 
   const row = "mt-1 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 text-sm";
 
-  if (!open && filled && !endBeforeStart) {
+  if (!open && filled && !endBeforeStart && !unfinished) {
     const role = entry.role?.trim();
     const dates = formatDateRange(entry);
     const location = entry.location?.trim();
@@ -123,6 +130,7 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
             setStartMonth(event.target.value);
             onChange({ start_date: fromMonthInput(event.target.value) });
           }}
+          onBlur={({ target }) => setHalfPicked((now) => ({ ...now, start: target.validity.badInput }))}
           aria-label="Start month"
           className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5")}
         />
@@ -138,6 +146,7 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
               setEndMonth(event.target.value);
               onChange({ end_date: fromMonthInput(event.target.value) });
             }}
+            onBlur={({ target }) => setHalfPicked((now) => ({ ...now, end: target.validity.badInput }))}
             aria-label="End month"
             aria-invalid={endBeforeStart || undefined}
             className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5", endBeforeStart && "text-destructive")}
@@ -150,7 +159,11 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
               aria-pressed={entry.current}
               // Safari doesn't focus a pressed button, which would close the fields.
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onChange({ current: !entry.current })}
+              onClick={(event) => {
+                // The end month, which may have the focus, goes.
+                event.currentTarget.focus();
+                onChange({ current: !entry.current });
+              }}
               className={cn(
                 "rounded-full border px-2 py-0.5 text-xs transition-colors",
                 entry.current
@@ -172,6 +185,11 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
           className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
         />
       </div>
+      {!open && unfinished && (
+        <p role="alert" className="w-full text-xs text-destructive">
+          A month isn&apos;t complete, so it isn&apos;t saved. Write it like 2022-03.
+        </p>
+      )}
       {endBeforeStart && (
         <p role="alert" className="w-full text-xs text-destructive">
           The end month is before the start month, so this isn&apos;t saved yet.

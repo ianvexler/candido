@@ -191,6 +191,7 @@ const SectionEntryEditor = ({
 
   const cardId = openSuggestionId(activeSuggestionId, localOpenId, (id) => {
     const s = pending.find((p) => p.id === id);
+    if (s && summaryOff && fieldOf(s) === "description") return false;
     return s !== undefined && !isStale(s);
   });
   const cardSuggestion = cardId === null ? null : pending.find((s) => s.id === cardId)!;
@@ -379,7 +380,11 @@ const SectionEntryEditor = ({
                 type="button"
                 aria-label="Leave out the summary"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onLeaveOut(entry.id, SUMMARY_ID, null)}
+                onClick={(event) => {
+                  const focused = event.currentTarget.parentElement?.contains(document.activeElement);
+                  summary.setOpen(false);
+                  onLeaveOut(entry.id, SUMMARY_ID, focused ? 0 : null);
+                }}
                 className={cn(
                   LEAVE_OUT_BUTTON,
                   "pointer-events-none top-0 opacity-0 group-focus-within/summary:pointer-events-auto group-focus-within/summary:opacity-100 group-hover/summary:pointer-events-auto group-hover/summary:opacity-100"

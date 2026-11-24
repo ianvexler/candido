@@ -609,6 +609,12 @@ describe("an entry's summary", () => {
     expect(built.entries[0].fieldsState).toBe("same");
   });
 
+  it("isn't offered from the library where another copy has the entry", () => {
+    const without = own({ description: null });
+    const copies = [cv([without], { id: 2, section_template_id: 10 }), cv([without], { id: 1, section_template_id: 10 })];
+    expect(build(copies, [library([own()])]).flatMap(({ entries }) => ids(entries[0].items))).toEqual(["x", "x"]);
+  });
+
   it("is added to the library with its entry, if that lacks it", () => {
     const { entries } = first([cv([own()])]);
     expect(itemOffer(entries[0], entries[0].items[0])).toBeNull();

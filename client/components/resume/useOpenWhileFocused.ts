@@ -8,12 +8,12 @@ import { FocusEvent, useCallback, useEffect, useRef, useState } from "react";
 export const useOpenWhileFocused = () => {
   const [open, setOpen] = useState(false);
   const pressed = useRef(false);
-  const focused = useRef(false);
+  const element = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const close = () => {
-      if (!focused.current) setOpen(false);
+      if (!element.current?.contains(document.activeElement)) setOpen(false);
     };
     const onDown = () => {
       pressed.current = true;
@@ -34,15 +34,14 @@ export const useOpenWhileFocused = () => {
     };
   }, [open]);
 
-  const onFocus = useCallback(() => {
-    focused.current = true;
+  const onFocus = useCallback((event: FocusEvent<HTMLElement>) => {
+    element.current = event.currentTarget;
     setOpen(true);
   }, []);
   const onBlur = useCallback((event: FocusEvent<HTMLElement>) => {
     if (event.currentTarget.contains(event.relatedTarget)) return;
     // Switching windows blurs too, and the focus comes back.
     if (!document.hasFocus()) return;
-    focused.current = false;
     if (!pressed.current) setOpen(false);
   }, []);
 
