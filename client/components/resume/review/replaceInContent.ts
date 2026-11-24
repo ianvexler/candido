@@ -11,7 +11,8 @@ import { replaceQuote, SuggestionHighlight } from "./SuggestionHighlight";
 /** What an entry's editor reads and writes. */
 export const contentExtensions = [
   TextStyleKit,
-  StarterKit,
+  // Without the blank line it keeps after a list: Enter twice leaves a list.
+  StarterKit.configure({ trailingNode: false }),
   Link.configure({ openOnClick: false }),
   HiddenMark,
   CvItem,
