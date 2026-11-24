@@ -91,6 +91,25 @@ export const setItemsOff = (html: string, ids: string[], off: boolean): string =
   return asServerHtml(container.innerHTML);
 };
 
+const HIDDEN_TEXT = "[data-cv-hidden]";
+
+/** The ids of the ticked items that have hidden text; "" for one without an id. */
+export const itemsHidingText = (html: string): string[] =>
+  html.includes("data-cv-hidden")
+    ? itemsIn(parseHtml(html))
+        .filter((node) => !isOff(node) && node.querySelector(HIDDEN_TEXT))
+        .map((node) => node.getAttribute(ITEM_ATTRIBUTE) ?? "")
+    : [];
+
+/** With the hidden text of these ticked items no longer hidden. */
+export const showHiddenText = (html: string, ids: string[]): string => {
+  const container = parseHtml(html);
+  itemsIn(container)
+    .filter((node) => !isOff(node) && ids.includes(node.getAttribute(ITEM_ATTRIBUTE) ?? ""))
+    .forEach((node) => node.querySelectorAll(HIDDEN_TEXT).forEach((span) => span.replaceWith(...span.childNodes)));
+  return asServerHtml(container.innerHTML);
+};
+
 /** With this item's html in place of the old, keeping its tick. */
 export const replaceItem = (html: string, id: string, itemHtml: string): string => {
   const container = parseHtml(html);

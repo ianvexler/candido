@@ -1,6 +1,6 @@
 "use client";
 
-import { ExportEntry } from "@/lib/resume/exportDocument";
+import { ExportEntry, ExportSection } from "@/lib/resume/exportDocument";
 import { createContext, ReactNode } from "react";
 
 /** A piece of one-line text on the page. */
@@ -18,16 +18,19 @@ export type TextBinding = {
   /** Keeps an empty field on the page. Otherwise it has no element, as in print. */
   open?: boolean;
   placeholder?: string;
+  /** Never reported blank: left blank, it goes back to what it was when entered. */
+  required?: boolean;
   /** Enter moves on; without this it only leaves the field. */
   onEnter?: () => void;
 };
 
 /**
- * What makes a template editable. Each returns null for what stays as printed;
+ * What makes a template editable. Sections only follow a change of the context or
+ * of their own ExportSection. Each returns null for what stays as printed;
  * replacements must lay out as what they replace (see EntryLine and ContactLines).
  */
 export type PageEditing = {
-  text: (slot: TextSlot) => TextBinding | null;
+  text: (slot: TextSlot, of: ExportSection | ExportEntry | null) => TextBinding | null;
   /** Replaces the role, dates and place line. */
   line: (entry: ExportEntry) => ReactNode | null;
   /** Replaces what is inside the entry's .rc-body. */

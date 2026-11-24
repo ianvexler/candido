@@ -275,3 +275,45 @@ describe("PageText without plain-text editing", () => {
     expect(transfer("drop", { "text/plain": "a" }).defaultPrevented).toBe(true);
   });
 });
+
+describe("text that can't be blank", () => {
+  it("goes back to what it was when entered", () => {
+    show("Experience", { required: true });
+    focus();
+    input("E");
+    show("E", { required: true });
+    input("");
+    expect(onChange).toHaveBeenLastCalledWith("Experience");
+    show("Experience", { required: true });
+    expect(element().textContent).toBe("");
+    blur();
+    expect(element().textContent).toBe("Experience");
+    expect(onChange.mock.calls.every(([text]) => text.trim())).toBe(true);
+  });
+
+  it("goes back without an answer from its owner", () => {
+    show("Experience", { required: true });
+    focus();
+    input("");
+    blur();
+    expect(element().textContent).toBe("Experience");
+  });
+});
+
+describe("taken away", () => {
+  it("reports what was being composed", () => {
+    show("One");
+    focus();
+    fire(new CompositionEvent("compositionstart", { bubbles: true }));
+    input("One にほ");
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => root.render(null));
+    expect(onChange.mock.calls).toEqual([["One にほ"]]);
+  });
+
+  it("reports nothing new otherwise", () => {
+    show("One");
+    act(() => root.render(null));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

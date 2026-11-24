@@ -89,3 +89,17 @@
 .resume-classic .page-editor.ProseMirror-focused .page-caret {
   box-shadow: 0 2px 0 #ffc159;
 }
+
+/* The sheets behind the page are its paper and tint. The page is placed on them
+   by its own breaks, and by the scrolling that goes with those. */
+.paged-cv {
+  overflow-anchor: none;
+}
+
+.paged-cv .resume-sidebar[data-paper] {
+  min-height: 0;
+}
+
+.paged-cv .resume-sidebar .rs-side {
+  background: none;
+}

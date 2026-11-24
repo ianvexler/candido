@@ -71,6 +71,8 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
   const known = useRef("");
   /** The value when a report was made, until the owner answers with another. */
   const unanswered = useRef<string | null>(null);
+  /** The text when it was entered, for one that can't be left blank. */
+  const entered = useRef("");
 
   // Stays while focused, so clearing the text doesn't take the field away.
   const visible = Boolean(open || focused || value.trim());
@@ -89,7 +91,8 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
     if (!element) return;
     markEmpty(element);
     if (composing.current) return;
-    const text = readText(element);
+    const typed = readText(element);
+    const text = latest.current.required && !typed.trim() ? entered.current : typed;
     if (text === known.current) return;
     known.current = text;
     unanswered.current = latest.current.value;
@@ -109,6 +112,15 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
     unanswered.current = null;
     takeValue();
   }, [value, visible]);
+
+  // Taken away while composing, as by a tick: no event ends that.
+  useLayoutEffect(
+    () => () => {
+      composing.current = false;
+      report();
+    },
+    []
+  );
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -171,6 +183,13 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
     }
   };
 
+  const handleFocus = () => {
+    setFocused(true);
+    // Not when coming back from another window with the field cleared.
+    const text = ref.current && readText(ref.current);
+    if (text?.trim()) entered.current = text;
+  };
+
   const handleCompositionEnd = () => {
     composing.current = false;
     report();
@@ -195,7 +214,7 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
       aria-label={label}
       aria-placeholder={placeholder}
       data-placeholder={placeholder}
-      onFocus={() => setFocused(true)}
+      onFocus={handleFocus}
       onBlur={handleBlur}
       onInput={report}
       onKeyDown={handleKeyDown}

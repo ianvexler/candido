@@ -3,7 +3,7 @@ import { PageText } from "@/components/resume/page/PageText";
 import { DesignSettings, designStyle } from "@/lib/resume/design";
 import { ExportEntry, ExportSection, ResumeDocument } from "@/lib/resume/exportDocument";
 import { PaperSize, ResumeHeader } from "@/lib/types";
-import { useContext } from "react";
+import { memo, useContext } from "react";
 import { FONT_FAMILIES } from "./fonts";
 
 /** What every template receives. */
@@ -33,9 +33,10 @@ export const templateRootProps = (design: DesignSettings, paper: PaperSize) => (
 const slotText = (
   editing: PageEditing | null,
   slot: TextSlot,
+  of: ExportSection | ExportEntry | null,
   { as: As, className, text, block }: { as: "h1" | "h2" | "h3" | "p"; className: string; text: string; block?: string }
 ) => {
-  const binding = editing?.text(slot);
+  const binding = editing?.text(slot, of);
   if (binding) return <PageText as={As} className={className} binding={binding} block={block} />;
   return (
     text && (
@@ -79,8 +80,8 @@ export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeH
   const editing = useContext(PageEditingContext);
   return (
     <header className="rc-header" data-stacked={stacked || undefined} data-block={editing ? "header" : undefined}>
-      {slotText(editing, { kind: "name" }, { as: "h1", className: "rc-name", text: header.name })}
-      {slotText(editing, { kind: "headline" }, { as: "p", className: "rc-headline", text: header.headline })}
+      {slotText(editing, { kind: "name" }, null, { as: "h1", className: "rc-name", text: header.name })}
+      {slotText(editing, { kind: "headline" }, null, { as: "p", className: "rc-headline", text: header.headline })}
       {editing?.contact() ?? <ContactLines header={header} stacked={stacked} />}
     </header>
   );
@@ -102,13 +103,14 @@ const EntryBody = ({ entry }: { entry: ExportEntry }) => {
 };
 
 /** One section: its heading, then each entry's title, role and dates, summary and content. */
-export const ResumeSectionBlock = ({ section }: { section: ExportSection }) => {
+export const ResumeSectionBlock = memo(({ section }: { section: ExportSection }) => {
   const editing = useContext(PageEditingContext);
   const sectionId = section.id;
   // The heading sits in the first entry's head, so print keeps the two together.
   const heading = slotText(
     editing,
     { kind: "heading", sectionId },
+    section,
     { as: "h2", className: "rc-heading", text: section.heading, block: section.entries.length === 0 ? "heading" : undefined }
   );
 
@@ -121,9 +123,9 @@ export const ResumeSectionBlock = ({ section }: { section: ExportSection }) => {
           <div key={entryId} className="rc-entry" data-entry-id={editing ? entryId : undefined}>
             <div className="rc-section-head" data-block={editing ? "head" : undefined}>
               {index === 0 && heading}
-              {slotText(editing, { kind: "title", sectionId, entryId }, { as: "h3", className: "rc-title", text: entry.title })}
+              {slotText(editing, { kind: "title", sectionId, entryId }, entry, { as: "h3", className: "rc-title", text: entry.title })}
               {editing?.line(entry) ?? <EntryLine entry={entry} />}
-              {slotText(editing, { kind: "summary", sectionId, entryId }, { as: "p", className: "rc-summary", text: entry.summary })}
+              {slotText(editing, { kind: "summary", sectionId, entryId }, entry, { as: "p", className: "rc-summary", text: entry.summary })}
             </div>
             <EntryBody entry={entry} />
           </div>
@@ -131,4 +133,5 @@ export const ResumeSectionBlock = ({ section }: { section: ExportSection }) => {
       })}
     </section>
   );
-};
+});
+ResumeSectionBlock.displayName = "ResumeSectionBlock";

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listItems, mergeEdited, mergeVisible, setItemsOff, visibleContent } from "./items";
+import { itemsHidingText, listItems, mergeEdited, mergeVisible, setItemsOff, showHiddenText, visibleContent } from "./items";
 
 const attrs = (id: string, off = false) => `data-cv-item="${id}"${off ? ' data-cv-off="true"' : ""}`;
 const li = (id: string, off = false, inner = `<p>${id}</p>`) => `<li ${attrs(id, off)}>${inner}</li>`;
@@ -178,4 +178,25 @@ describe("mergeEdited", () => {
     expect(mergeEdited(ul(li("a", true), li("b", true), li("c")), edited, ["b"])).toBe(
       ul(li("a", true, "<p>A2</p>"), li("b", true), li("c"))
     ));
+});
+
+describe("hidden text", () => {
+  const content =
+    '<p data-cv-item="a">One <span data-cv-hidden="true">two</span> <strong><span data-cv-hidden="true">three</span></strong></p>' +
+    '<ul><li data-cv-item="b" data-cv-off="true"><p><span data-cv-hidden="true">Out</span></p></li><li data-cv-item="c"><p>Plain</p></li>' +
+    '<li data-cv-item="d"><p><span data-cv-hidden="true">All</span></p></li></ul>';
+
+  it("is found in ticked items", () => {
+    expect(itemsHidingText(content)).toEqual(["a", "d"]);
+    expect(itemsHidingText("<p>Plain</p>")).toEqual([]);
+  });
+
+  it("is shown in the items asked for, with the rest as it was", () => {
+    expect(showHiddenText(content, ["a", "b"])).toBe(
+      content.replace(
+        'One <span data-cv-hidden="true">two</span> <strong><span data-cv-hidden="true">three</span></strong>',
+        "One two <strong>three</strong>"
+      )
+    );
+  });
 });

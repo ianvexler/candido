@@ -37,6 +37,9 @@ export type ResumeDocument = {
 
 type InputSection = SectionFields & { id: number; hidden?: boolean; placement?: SectionPlacement | null };
 
+/** What stays even with nothing in it, as it is being edited. What is left out never does. */
+export type KeptPlace = { sectionId: number; entryId: string | null };
+
 // Short lists that read well in a narrow column.
 const SIDEBAR_TYPES = /skill|language|certif|interest|hobb|tool|award|reference|contact/i;
 
@@ -74,10 +77,13 @@ const toExportEntry = (entry: SectionEntry): ExportEntry => ({
 const hasEntryContent = (entry: ExportEntry) =>
   Boolean(entry.title || entry.subtitle || entry.meta || entry.summary || entry.html);
 
-const toExportSection = (section: InputSection): ExportSection => ({
+const toExportSection = (section: InputSection, keep: KeptPlace[]): ExportSection => ({
   id: section.id,
   heading: section.section_type.trim(),
-  entries: section.entries.filter((entry) => !entry.hidden).map(toExportEntry).filter(hasEntryContent),
+  entries: section.entries
+    .filter((entry) => !entry.hidden)
+    .map(toExportEntry)
+    .filter((entry) => hasEntryContent(entry) || keep.some((kept) => kept.sectionId === section.id && kept.entryId === entry.id)),
   column: sectionColumn(section),
 });
 
@@ -91,15 +97,20 @@ export const buildResumeDocument = ({
   title,
   header,
   sections,
+  keep = [],
 }: {
   title: string;
   /** Already resolved: profile with this resume's overrides. */
   header: ResumeHeader;
   sections: InputSection[];
+  keep?: KeptPlace[];
 }): ResumeDocument => ({
   title: title.trim(),
   header: cleanHeader(header),
-  sections: sections.filter((section) => !isLeftOut(section)).map(toExportSection).filter(hasContent),
+  sections: sections
+    .filter((section) => !isLeftOut(section))
+    .map((section) => toExportSection(section, keep))
+    .filter((section) => hasContent(section) || keep.some((kept) => kept.sectionId === section.id)),
 });
 
 /** Nothing worth printing: a header alone isn't a resume. */
