@@ -9,22 +9,18 @@ import { endsBeforeStart, isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { listItems, mergeEdited, visibleContent } from "@/lib/resume/items";
 import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
-import Link from "@tiptap/extension-link";
-import { TextStyleKit } from "@tiptap/extension-text-style";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
-import StarterKit from "@tiptap/starter-kit";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, Trash2Icon } from "lucide-react";
 import { memo, RefObject, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
-import CvItem from "./CvItem";
-import HiddenMark from "./HiddenMark";
 import IconAction from "./IconAction";
 import LeaveOutArea from "./LeaveOutArea";
 import { normalizeContent } from "./documentContent";
 import SuggestionCard, { SuggestionAction } from "./review/SuggestionCard";
-import { SuggestionHighlight, replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
+import { contentExtensions, replaceInContent } from "./review/replaceInContent";
+import { replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
 import { ghostInput } from "./styles";
 import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
 
@@ -59,8 +55,11 @@ interface SectionEntryEditorProps extends SuggestionProps {
   sectionType: string;
   /** From useSectionDrafts. The editor is remounted when it changes. */
   version: number;
-  /** A function gets the latest entry, which may be newer than `entry`. */
-  onEntryChange: (id: string, changes: EntryChange, version: number) => void;
+  /**
+   * A function gets the latest entry, which may be newer than `entry`. Without
+   * a version the change isn't the editor's, and is put into it.
+   */
+  onEntryChange: (id: string, changes: EntryChange, version?: number) => void;
   /** The editor on screen for each entry, as it may have been remounted since. */
   editors: RefObject<Map<string, Editor>>;
   canMoveUp?: boolean;
@@ -69,6 +68,7 @@ interface SectionEntryEditorProps extends SuggestionProps {
   /** False for a section's only entry: delete the section instead. */
   canDelete: boolean;
   onDelete: (id: string) => void;
+  describeDeletion: (id: string) => string;
   /** In a CV: offers leaving items out; see LeaveOutArea. */
   onLeaveOut?: (entryId: string, itemId: string, focusAt: number | null) => void;
 }
@@ -88,6 +88,7 @@ const SectionEntryEditor = ({
   onMove,
   canDelete,
   onDelete,
+  describeDeletion,
   onLeaveOut,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
@@ -101,6 +102,7 @@ const SectionEntryEditor = ({
   const [endMonth, setEndMonth] = useState(toMonthInput(entry.end_date));
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteNote, setDeleteNote] = useState("");
   const description = entry.description ?? "";
   const endBeforeStart = endsBeforeStart(entry);
   const showDetails = detailsOpen || hasDetails(entry) || suggestsDetails(sectionType);
@@ -109,6 +111,12 @@ const SectionEntryEditor = ({
     (field: "title" | "role" | "organization" | "location" | "description") =>
     (event: { target: { value: string } }) =>
       onChange({ [field]: event.target.value });
+
+  const askDelete = () => {
+    if (isEmptyEntry(entry)) return onDelete(entry.id);
+    setDeleteNote(describeDeletion(entry.id));
+    setDeleteOpen(true);
+  };
 
   const clearDetails = () => {
     setStartMonth("");
@@ -124,12 +132,7 @@ const SectionEntryEditor = ({
   }));
   const editor = useEditor({
     extensions: [
-      TextStyleKit,
-      StarterKit,
-      Link.configure({ openOnClick: false }),
-      HiddenMark,
-      CvItem,
-      SuggestionHighlight,
+      ...contentExtensions,
       Placeholder.configure({ placeholder: "Write here. Start a line with - for bullets." }),
     ],
     immediatelyRender: false,
@@ -239,17 +242,30 @@ const SectionEntryEditor = ({
       return;
     }
     if (changesText) {
+      let changed = false;
       if (fieldOf(s) === "description") {
         // The summary may have been edited while the decision was saving.
         onChange((entryNow) => {
           const latest = entryNow.description ?? "";
           const match = findQuote(latest, s.quote);
-          return match ? { description: latest.slice(0, match.from) + text + latest.slice(match.to) } : {};
+          if (!match) return {};
+          changed = true;
+          return { description: latest.slice(0, match.from) + text + latest.slice(match.to) };
         });
       } else {
         const shown = editors.current.get(entry.id);
-        if (shown) replaceQuote(shown, s.quote, text);
+        changed = shown !== undefined && replaceQuote(shown, s.quote, text);
+        // It may have been unticked while the decision was saving.
+        if (!changed) {
+          onEntryChange(entry.id, (entryNow) => {
+            const replaced = replaceInContent(entryNow.content, s.quote, text);
+            if (replaced === null) return {};
+            changed = true;
+            return { content: replaced };
+          });
+        }
       }
+      if (!changed) toast.error("This text changed meanwhile, so it wasn't replaced.");
     }
     closeCard();
   };
@@ -296,7 +312,7 @@ const SectionEntryEditor = ({
             {canDelete && (
               <IconAction
                 label="Delete entry"
-                onClick={() => (isEmptyEntry(entry) ? onDelete(entry.id) : setDeleteOpen(true))}
+                onClick={askDelete}
               >
                 <Trash2Icon />
               </IconAction>
@@ -444,11 +460,7 @@ const SectionEntryEditor = ({
           onClose={() => setDeleteOpen(false)}
           onConfirm={async () => onDelete(entry.id)}
           title="Delete this entry?"
-          description={
-            onLeaveOut
-              ? "Only this CV's copy is deleted. To keep it here but not show it, untick it instead."
-              : "This removes it from the library section. CVs that already use it keep their copy."
-          }
+          description={deleteNote}
           confirmLabel="Delete"
           variant="destructive"
         />

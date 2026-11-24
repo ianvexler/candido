@@ -3,6 +3,7 @@
 import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
 import type { TickState } from "@/lib/resume/checklist";
 import type { ItemState } from "@/lib/resume/itemState";
+import type { TransferTarget } from "@/lib/resume/transfer";
 import { cn } from "@/lib/utils";
 import { GripVerticalIcon } from "lucide-react";
 import { memo, ReactNode, useLayoutEffect, useRef } from "react";
@@ -31,6 +32,8 @@ interface ChecklistRowProps {
   change?: ReactNode;
   menu?: ReactNode;
 }
+
+export const rowIdOf = ({ sectionId, entryId, itemId = "" }: TransferTarget) => [sectionId, entryId, itemId].join("/");
 
 /** The tick box of the row with this id. */
 export const rowBox = (rowId: string) =>
@@ -137,6 +140,7 @@ export const ChecklistItemRow = memo(
     ticked,
     offer,
     libraryText,
+    shownText,
     transferring,
     onTransferItem,
     ...row
@@ -148,12 +152,13 @@ export const ChecklistItemRow = memo(
     /** See itemOffer. */
     offer: ItemState | null;
     libraryText: string | null;
+    shownText: string | null;
     transferring: boolean;
     onTransferItem: (itemId: string, direction: TransferDirection) => void;
   }) => {
     const { add, change } = changeControls(offer, {
       label: row.label,
-      changed: { cv: row.label, library: libraryText ?? "" },
+      changed: { cv: row.label, library: libraryText ?? "", shown: shownText },
       busy: transferring,
       onChoose: (direction) => onTransferItem(itemId, direction),
     });

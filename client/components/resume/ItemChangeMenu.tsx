@@ -3,14 +3,14 @@
 import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
-import { actionLabel, actionsFor, changeLabel, FieldDifference, ItemState } from "@/lib/resume/itemState";
+import { actionLabel, actionsFor, changeLabel, FieldDifference, ItemState, warnsOfHidden } from "@/lib/resume/itemState";
 import { cn } from "@/lib/utils";
 import { LibraryIcon } from "lucide-react";
 import { Popover } from "radix-ui";
 import { ComponentProps, ReactNode, useState } from "react";
 
-/** An item's text on each side, or the fields that differ. */
-export type ChangedText = { cv: string; library: string } | FieldDifference[];
+/** An item's text on each side, and what the CV shows of it if some is hidden; or the fields that differ. */
+export type ChangedText = { cv: string; library: string; shown: string | null } | FieldDifference[];
 
 interface ItemChangeMenuProps {
   label: string;
@@ -40,6 +40,10 @@ const ChangedButton = ({ label, state, className, ...props }: ChangedButtonProps
   </Button>
 );
 
+const ItemText = ({ text }: { text: string }) => (
+  <p className={cn("mt-0.5 break-words", !text && "text-muted-foreground")}>{text || "All of it is hidden"}</p>
+);
+
 const Side = ({ title, side, changed }: { title: string; side: "cv" | "library"; changed: ChangedText }) => (
   <div>
     <h3 className="text-xs font-semibold text-muted-foreground">{title}</h3>
@@ -53,7 +57,7 @@ const Side = ({ title, side, changed }: { title: string; side: "cv" | "library";
         ))}
       </dl>
     ) : (
-      <p className="mt-0.5 break-words">{changed[side]}</p>
+      <ItemText text={side === "cv" ? (changed.shown ?? changed.cv) : changed.library} />
     )}
   </div>
 );
@@ -61,7 +65,8 @@ const Side = ({ title, side, changed }: { title: string; side: "cv" | "library";
 /** Both texts, and what to do about them. */
 const Chooser = ({ label, state, changed, busy, onChoose }: ItemChangeMenuProps) => {
   const [open, setOpen] = useState(false);
-  const looksSame = !Array.isArray(changed) && changed.cv === changed.library;
+  const warns = !Array.isArray(changed) && warnsOfHidden(state, changed.shown);
+  const looksSame = !Array.isArray(changed) && changed.shown === null && changed.cv === changed.library;
 
   return (
     <Popover.Root open={open} onOpenChange={(next) => setOpen(next && !busy)}>
@@ -80,6 +85,7 @@ const Chooser = ({ label, state, changed, busy, onChoose }: ItemChangeMenuProps)
             <Side title="This CV" side="cv" changed={changed} />
             <Side title="Library" side="library" changed={changed} />
             {looksSame && <p className="text-muted-foreground">Only the formatting or links differ.</p>}
+            {warns && <p>Text you hid in this item will show again.</p>}
           </div>
           <div className="mt-3 flex shrink-0 flex-col gap-1.5">
             {actionsFor(state).map((action) => (
@@ -106,9 +112,10 @@ const Chooser = ({ label, state, changed, busy, onChoose }: ItemChangeMenuProps)
 
 /** For a row whose text isn't the library's: what can be done about it. */
 const ItemChangeMenu = (props: ItemChangeMenuProps) => {
-  const { label, state, busy, onChoose } = props;
+  const { label, state, changed, busy, onChoose } = props;
   const actions = actionsFor(state);
-  if (actions.length > 1) return <Chooser {...props} />;
+  const warns = !Array.isArray(changed) && warnsOfHidden(state, changed.shown);
+  if (actions.length > 1 || warns) return <Chooser {...props} />;
 
   return (
     <DropdownMenu>

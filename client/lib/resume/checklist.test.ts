@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CurriculumSection, CvSuggestion, SectionEntry, SectionTemplate } from "@/lib/types";
+import { CurriculumSection, CvSuggestion, ResumeHeader, ResumeHeaderTextFields, SectionEntry, SectionTemplate } from "@/lib/types";
 import {
   buildChecklist,
   entryOffer,
@@ -12,9 +12,12 @@ import {
   tickSection,
   tickSuggestion,
 } from "./checklist";
+import { buildResumeDocument } from "./exportDocument";
 import { listItems } from "./items";
 import { emptyEntry } from "./sectionEntries";
 import type { SectionDraft } from "./sectionDrafts";
+
+const emptyHeader = { links: [], ...Object.fromEntries(ResumeHeaderTextFields.map((field) => [field, ""])) } as unknown as ResumeHeader;
 
 const MADE = "2026-11-01T00:00:00.000Z";
 const BEFORE = "2026-10-01T00:00:00.000Z";
@@ -164,6 +167,11 @@ describe("buildChecklist rows", () => {
     expect(ids(section.entries[1].items)).toBe("wxym");
     expect(section.entries[1].items.map(({ inCv }) => inCv)).toEqual([false, true, false, true]);
     expect(counts(section)).toEqual([4, 9, "partial", true]);
+  });
+
+  it("has what an item with hidden text shows", () => {
+    const section = first([cv([entry("a", ul(li("x", false, 'A <span data-cv-hidden="true">B</span>'), li("y")))])]);
+    expect(section.entries[0].items.map(({ shownText }) => shownText)).toEqual(["A", null]);
   });
 
   it("looks items up across the whole library section", () => {
@@ -327,6 +335,43 @@ describe("tickItem", () => {
     const off = apply(section, tickItem(section, "b", "z", false));
     expect(ticks(off)).toBe("A(x-) B(-)");
     expect(off.entries[1].hidden).toBe(false);
+  });
+
+  describe("with the last item of an entry without fields", () => {
+    const bare = (id: string, content: string, changes = {}) => entry(id, content, { title: "", ...changes });
+    const exported = (changed: CurriculumSection) =>
+      buildResumeDocument({ title: "", header: emptyHeader, sections: [changed] }).sections;
+
+    it("leaves the entry out", () => {
+      const before = cv([bare("a", ul(li("x"), li("y"))), section.entries[1]]);
+      const one = apply(before, tickItem(before, "a", "x", false));
+      expect(ticks(one)).toBe("A(-y) B(z)");
+      expect(ticks(apply(one, tickItem(one, "a", "y", false)))).toBe("a(--) B(z)");
+    });
+
+    it("exports nothing when nothing written is left, and shows only the item ticked again", () => {
+      const before = cv([bare("a", ul(li("x"), li("y", true))), bare("n", ""), entry("h", ul(li("w")), { hidden: true })]);
+      expect(exported(before)).toHaveLength(1);
+      const off = apply(before, tickItem(before, "a", "x", false));
+      expect(exported(off)).toEqual([]);
+      expect(buildChecklist([off], [], MADE)[0].state).toBe("off");
+
+      const on = apply(off, tickItem(off, "a", "y", true));
+      expect(on.entries.map(({ hidden }) => hidden).slice(0, 1)).toEqual([false]);
+      expect(ticks(on)).toBe("A(-y) n() h(w)");
+      expect(exported(on)).toHaveLength(1);
+      expect(ticks(apply(off, tickEntry(off, "a", true)))).toBe("A(xy) n() h(w)");
+    });
+
+    it("doesn't hide the section while another entry shows", () => {
+      const before = cv([bare("a", ul(li("x"))), bare("b", ul(li("z", true)))]);
+      expect(apply(before, tickItem(before, "a", "x", false)).hidden).toBe(false);
+    });
+
+    it("leaves one with a field", () => {
+      const before = cv([bare("a", ul(li("x")), { start_date: "2020-01-01" })]);
+      expect(ticks(apply(before, tickItem(before, "a", "x", false)))).toBe("A(-)");
+    });
   });
 
   it("leaves what is ticked alone", () =>

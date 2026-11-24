@@ -1,7 +1,7 @@
 import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
 import { formatMonth } from "@/components/resume/sectionDetails";
 import { EntryFieldKeys, EntryFields } from "@/lib/types";
-import { ITEM_ATTRIBUTE, OFF_ATTRIBUTE, isSeparator, parseStyled } from "./items";
+import { ITEM_ATTRIBUTE, OFF_ATTRIBUTE, isSeparator, parseHtml, parseStyled, textOf } from "./items";
 import { cleanLine } from "./sectionEntries";
 
 /** How a CV's text stands against the library's. "differs": it isn't known which side changed. */
@@ -126,6 +126,19 @@ const ACTIONS: Record<ItemState, TransferDirection[]> = {
 
 /** What can be done about a state. */
 export const actionsFor = (state: ItemState): TransferDirection[] => ACTIONS[state];
+
+/** What the CV shows of an item, or null if none of its text is hidden. */
+export const shownText = (html: string): string | null => {
+  const container = parseHtml(html);
+  const hidden = [...container.querySelectorAll("[data-cv-hidden]")].filter((node) => textOf(node) !== "");
+  if (hidden.length === 0) return null;
+  hidden.forEach((node) => node.remove());
+  return textOf(container);
+};
+
+/** Whether taking the library's text, which is offered, would bring hidden text back. */
+export const warnsOfHidden = (state: ItemState, shown: string | null) =>
+  shown !== null && actionsFor(state).includes("to_cv");
 
 const ACTION_LABELS: Record<TransferDirection, string> = {
   to_library: "Update library too",

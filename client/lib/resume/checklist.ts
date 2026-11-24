@@ -1,6 +1,7 @@
 import { CurriculumSection, CvSuggestion, EntryFieldKeys, SectionEntry, SectionTemplate } from "@/lib/types";
 import { Item, isSeparator, listItems, parseHtml, setItemsOff } from "./items";
-import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState } from "./itemState";
+import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState, shownText } from "./itemState";
+import { hasVisibleText } from "@/components/resume/documentContent";
 import { isEmptyEntry, moveAt } from "./sectionEntries";
 import type { SectionDraft, SectionPatch } from "./sectionDrafts";
 import { findQuote } from "./suggestions";
@@ -21,6 +22,8 @@ type Counts = {
 export type ChecklistItem = {
   id: string;
   text: string;
+  /** What the CV shows of it, if some is hidden. */
+  shownText: string | null;
   /** False for library content that the CV has no copy of. */
   inCv: boolean;
   /** Its own tick; see `ticked`. */
@@ -78,6 +81,7 @@ const cached = <A extends (string | null)[], T>(compute: (...args: A) => T) => {
 
 const itemsOf = cached((html: string): readonly Item[] => listItems(html));
 const stateOf = cached(itemState);
+const shownOf = cached(shownText);
 
 /** `ours`, with what only the library has after its nearest earlier neighbour, or first. */
 const withLibraryOnly = <T extends { id: string }>(ours: T[], libraryIds: string[], extras: T[]): T[] => {
@@ -151,6 +155,7 @@ const buildEntry = (
     return {
       id: item.id,
       text: item.text,
+      shownText: shownOf(item.html),
       inCv: true,
       off: item.off,
       ticked: ticked && !item.off,
@@ -165,6 +170,7 @@ const buildEntry = (
     .map(({ id, text }): ChecklistItem => ({
       id,
       text,
+      shownText: null,
       inCv: false,
       off: true,
       ticked: false,
@@ -300,6 +306,10 @@ const hideEntry = (entry: SectionEntry): SectionEntry => ({ ...entry, hidden: tr
 const hasFields = (entry: SectionEntry) =>
   EntryFieldKeys.some((key) => (typeof entry[key] === "string" ? entry[key].trim() : entry[key]));
 
+/** Left out if only its items would show and none are ticked: it would leave a bare heading. */
+const leaveOutBare = (entry: SectionEntry): SectionEntry =>
+  !hasFields(entry) && allOff(entry) && !hasVisibleText(entry.content) ? hideEntry(entry) : entry;
+
 /** Has something ticked: items, or itself if it can do without. */
 const hasTicks = (entry: SectionEntry) => !entry.hidden && !isEmptyEntry(entry) && (hasFields(entry) || !allOff(entry));
 
@@ -334,7 +344,11 @@ export const tickItem = (section: SectionDraft, entryId: string, itemId: string,
   const target = section.entries.find(({ id }) => id === entryId);
   if (!itemId || !target || !allIds(target).includes(itemId)) return {};
   if (!on) {
-    return { entries: section.entries.map((entry) => (entry === target ? setOff(entry, [itemId], true) : entry)) };
+    const left = leaveOutBare(setOff(target, [itemId], true));
+    const entries = section.entries.map((entry) => (entry === target ? left : entry));
+    const shows = entries.some((entry) => !entry.hidden && !isEmptyEntry(entry));
+    // Blank entries would still show the section's heading.
+    return left.hidden && !shows ? { hidden: true, entries } : { entries };
   }
   return showOnly(section, entryId, (entry) => {
     const others = section.hidden || entry.hidden ? allIds(entry).filter((id) => id !== itemId) : [];
