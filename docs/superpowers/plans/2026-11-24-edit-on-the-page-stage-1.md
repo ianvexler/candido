@@ -25,7 +25,8 @@
 ## Decisions on points the spec leaves open
 
 - **Breaks** are rules in a generated style sheet keyed by section and item or entry id, not editor decorations: nothing in the editor changes, so the caret and undo can't be affected. A block without an id never starts a page; the one before it does.
-- **Partly hidden text** (`data-cv-hidden`) takes no space on the page, as in print. A mark outside the sheet offers **Show hidden text**, which unhides it. Deleting a selection that spans hidden text deletes it too; undo restores it.
+- **The space is padding, not margin** (proof): margins collapse and land up to 27px off; padding lands within 0.02px. A quote, whose border would stretch, gets margin and a measured correction.
+- **Partly hidden text** (`data-cv-hidden`) takes no space on the page, as in print. A mark outside the sheet offers **Show hidden text**, which unhides it. Deleting a selection that spans hidden text deletes it too; undo restores it. With nothing selected, Backspace, Delete and word deletes must not take it: the browser does (proof), so an extension puts it back (see `spike/edit-on-the-page`, `hiddenGuard.ts`; its stray `<br>` after a word delete is to be fixed).
 - **Empty fields** aren't offered on the page in stage 1; the cards do that. Entry tools come in stage 2.
 - **Tailored copies** keep the review in its panel; suggestions stay highlighted and their card opens as it does now. Placement beside the sheet is stage 3.
 
@@ -45,12 +46,14 @@ Throwaway. Nothing from it is merged; its findings are.
 
 **Files:** a scratch route on a branch `spike/edit-on-the-page`.
 
-- [ ] **Step 1:** Render the real templates with real TipTap editors (the `contentExtensions`) in every `.rc-body`, plain-text editables elsewhere, and breaks from a style sheet.
-- [ ] **Step 2: Measure in Chrome**, for both templates, A4 and Letter, all four fonts, small and large sizes, 1 to 4 pages. Pass: every block within 0.5px of the print page; count and page starts equal to the PDF (read with PDFKit).
-- [ ] **Step 3: Type, delete, undo, select and paste across a break**, and beside hidden text set to `display: none`. Pass: the caret stays with its text and no text is lost.
-- [ ] **Step 4: Measure typing** with 40 sections and 400 items. Pass: under 50ms per key.
+- [x] **Step 1:** Render the real templates with real TipTap editors (the `contentExtensions`) in every `.rc-body`, plain-text editables elsewhere, and breaks from a style sheet.
+- [x] **Step 2: Measure in Chrome**, for both templates, A4 and Letter, all four fonts, small and large sizes, 1 to 4 pages. Pass: every block within 0.5px of the print page; count and page starts equal to the PDF (read with PDFKit).
+- [x] **Step 3: Type, delete, undo, select and paste across a break**, and beside hidden text set to `display: none`. Pass: the caret stays with its text and no text is lost.
+- [x] **Step 4: Measure typing** with 40 sections and 400 items. Pass: under 50ms per key.
 - [ ] **Step 5: Firefox and Safari.** Give the user a link and a list of three CVs to print in each, and compare their counts with the page's. Pass: equal, or differences explained; unconfirmed browsers say "about".
 - [ ] **Step 6: Report.** If 2 to 4 fail with no fix, stop and take the spec's fallback to the user.
+
+**Result (2026-11-24), Chrome:** 48 of 48 cases had 0.00px difference, equal counts and equal page starts. Page tops land within 0.02px. 30 lines typed across a break kept the caret; undo and redo were exact; copied text carried no layout. Typing with 400 items: median 10ms, worst 25ms; paging 4ms. Firefox and Safari: waiting on the user (`.superpowers/mockups/print-check-*.html`); until then only Chrome counts as exact.
 
 ### Task 2: Paging
 
@@ -102,7 +105,7 @@ it("has one page when empty", () => expect(paginate([], 100)).toEqual({ breaks: 
 ### Task 4: Entry content on the page
 
 **Files:**
-- Create `client/components/resume/useEntryEditor.ts`, `page/PageEntryBody.tsx`, `page/page.css`
+- Create `client/components/resume/useEntryEditor.ts`, `page/PageEntryBody.tsx`, `page/page.css`, `page/HiddenGuard.ts`, `page/HiddenGuard.test.ts`
 - Modify `SectionEntryEditor.tsx` (use the hook, no change in behaviour)
 
 **Interfaces:**
@@ -111,7 +114,7 @@ it("has one page when empty", () => expect(paginate([], 100)).toEqual({ breaks: 
 - `PageEntryBody({ entry, version, onEntryChange, editors, near })`: shows static visible HTML until `near` or pressed, then the editor, with the caret where it was pressed.
 
 - [ ] **Step 1: Extract the hooks**; the whole client suite still passes unchanged.
-- [ ] **Step 2: Write failing tests** for `PageEntryBody`'s static HTML equalling the export's `html` for hidden runs, unticked items and empty content.
+- [ ] **Step 2: Write failing tests** for `HiddenGuard` (a deletion with nothing selected keeps hidden text in place, one with it selected takes it, undo is exact, typing beside it isn't hidden, no stray break) and for `PageEntryBody`'s static HTML equalling the export's `html` for hidden runs, unticked items and empty content.
 - [ ] **Step 3: Implement.** `page.css` sets the editable rules from Global Constraints and hides `data-cv-hidden` runs.
 - [ ] **Step 4: Browser check:** press in the middle of a word in an editor not loaded yet: the caret is there. Backspace beside hidden text doesn't remove it. **Commit** `feat: edit entry content on the page`.
 
