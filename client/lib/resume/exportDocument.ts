@@ -59,7 +59,7 @@ const cleanHeader = (header: ResumeHeader): ResumeHeader => {
 };
 
 /** The organisation isn't repeated when it is also the entry's title. */
-const organizationLabel = ({ title, organization }: SectionEntry) =>
+export const organizationLabel = ({ title, organization }: SectionEntry) =>
   organization?.trim().toLowerCase() === title.trim().toLowerCase() ? "" : organization;
 
 const toExportEntry = (entry: SectionEntry): ExportEntry => ({

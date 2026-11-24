@@ -2,19 +2,20 @@
 
 import "@/components/richEditor/styles.scss";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
 import { CvSuggestion, SectionEntry } from "@/lib/types";
-import { endsBeforeStart, isEmptyEntry } from "@/lib/resume/sectionEntries";
+import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { listItems, mergeEdited, visibleContent } from "@/lib/resume/items";
 import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
-import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, Trash2Icon } from "lucide-react";
-import { memo, RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { memo, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
+import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
 import LeaveOutArea from "./LeaveOutArea";
 import { normalizeContent } from "./documentContent";
@@ -22,7 +23,8 @@ import SuggestionCard, { SuggestionAction } from "./review/SuggestionCard";
 import { contentExtensions, replaceInContent } from "./review/replaceInContent";
 import { replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
 import { ghostInput } from "./styles";
-import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
+import { hasDetails, suggestsDetails } from "./sectionDetails";
+import { useOpenWhileFocused } from "./useOpenWhileFocused";
 
 const NO_SUGGESTIONS: CvSuggestion[] = [];
 
@@ -97,20 +99,30 @@ const SectionEntryEditor = ({
   onSuggestionResolve,
 }: SectionEntryEditorProps) => {
   const onChange = (changes: EntryChange) => onEntryChange(entry.id, changes, version);
-  // Kept as typed: a half-typed month isn't a date yet.
-  const [startMonth, setStartMonth] = useState(toMonthInput(entry.start_date));
-  const [endMonth, setEndMonth] = useState(toMonthInput(entry.end_date));
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // A new entry offers its fields; later, empty ones are hidden until asked for.
+  const [startedBlank] = useState(() => isEmptyEntry(entry));
+  const title = useOpenWhileFocused();
+  const summary = useOpenWhileFocused();
+  const titleRef = useRef<HTMLInputElement>(null);
+  const [openDetails, setOpenDetails] = useState(false);
+  const onDetailsOpened = useCallback(() => setOpenDetails(false), []);
+  // Remounts the details, which keep half-typed months.
+  const [detailsVersion, setDetailsVersion] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
   const description = entry.description ?? "";
-  const endBeforeStart = endsBeforeStart(entry);
-  const showDetails = detailsOpen || hasDetails(entry) || suggestsDetails(sectionType);
+  const showTitle = Boolean(entry.title) || startedBlank || title.open;
+  const showSummary = Boolean(description) || summary.open;
 
   const edit =
-    (field: "title" | "role" | "organization" | "location" | "description") =>
+    (field: "title" | "description") =>
     (event: { target: { value: string } }) =>
       onChange({ [field]: event.target.value });
+
+  const openAndFocus = (setOpen: (open: boolean) => void, field: RefObject<HTMLElement | null>) => {
+    flushSync(() => setOpen(true));
+    field.current?.focus();
+  };
 
   const askDelete = () => {
     if (isEmptyEntry(entry)) return onDelete(entry.id);
@@ -119,9 +131,7 @@ const SectionEntryEditor = ({
   };
 
   const clearDetails = () => {
-    setStartMonth("");
-    setEndMonth("");
-    setDetailsOpen(false);
+    setDetailsVersion((count) => count + 1);
     onChange({ role: null, organization: null, location: null, start_date: null, end_date: null, current: false });
   };
 
@@ -141,7 +151,7 @@ const SectionEntryEditor = ({
       attributes: {
         "aria-label": "Content",
         class: cn(
-          "cv-document-editor outline-none min-h-16 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
+          "cv-document-editor outline-none min-h-6 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
           highlightClasses
         ),
       },
@@ -277,19 +287,35 @@ const SectionEntryEditor = ({
   return (
     <>
       <div data-entry-id={entry.id} className="group/entry relative">
-        <div className="flex items-start justify-between gap-2">
-          <input
-            value={entry.title}
-            onChange={edit("title")}
-            placeholder="Title"
-            aria-label="Title"
+        <div className={cn("flex items-start justify-between gap-2", !showTitle && "h-0")}>
+          {showTitle && (
+            <input
+              ref={titleRef}
+              value={entry.title}
+              onChange={edit("title")}
+              {...title.focusProps}
+              placeholder="Title"
+              aria-label="Title"
+              className={cn(ghostInput, "block flex-1 py-0.5 text-xl font-semibold")}
+            />
+          )}
+          <div
             className={cn(
-              ghostInput,
-              "block flex-1 py-0.5 text-xl font-semibold",
-              "placeholder:opacity-0 group-hover/entry:placeholder:opacity-100 group-focus-within/entry:placeholder:opacity-100"
+              "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100",
+              // Without a title line, in the space above.
+              !showTitle && "absolute -top-8 right-0"
             )}
-          />
-          <div className="-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100">
+          >
+            {!showTitle && (
+              <IconAction label="Add title" onClick={() => openAndFocus(title.setOpen, titleRef)}>
+                <HeadingIcon />
+              </IconAction>
+            )}
+            {!showSummary && (
+              <IconAction label="Add a one-line summary" onClick={() => openAndFocus(summary.setOpen, descriptionRef)}>
+                <TextIcon />
+              </IconAction>
+            )}
             {canMoveUp && (
               <IconAction label="Move entry up" onClick={() => onMove(entry.id, -1)}>
                 <ArrowUpIcon />
@@ -300,15 +326,16 @@ const SectionEntryEditor = ({
                 <ArrowDownIcon />
               </IconAction>
             )}
-            {showDetails && !suggestsDetails(sectionType) ? (
+            {!hasDetails(entry) && (
+              <IconAction label="Add role and dates" onClick={() => setOpenDetails(true)}>
+                <CalendarPlusIcon />
+              </IconAction>
+            )}
+            {hasDetails(entry) && !suggestsDetails(sectionType) && (
               <IconAction label="Remove role and dates" onClick={clearDetails}>
                 <CalendarMinusIcon />
               </IconAction>
-            ) : !showDetails ? (
-              <IconAction label="Add role and dates" onClick={() => setDetailsOpen(true)}>
-                <CalendarPlusIcon />
-              </IconAction>
-            ) : null}
+            )}
             {canDelete && (
               <IconAction
                 label="Delete entry"
@@ -320,109 +347,32 @@ const SectionEntryEditor = ({
           </div>
         </div>
 
-        {showDetails && (
-          <div
-            className={cn(
-              "mt-1 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 text-sm",
-              // Nothing filled in: only offer it when the entry is being looked at or edited.
-              !hasDetails(entry) && "opacity-0 group-hover/entry:opacity-100 group-focus-within/entry:opacity-100"
-            )}
-          >
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-              <input
-                value={entry.role ?? ""}
-                onChange={edit("role")}
-                placeholder="Role or degree"
-                aria-label="Role or degree"
-                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5 font-medium")}
-              />
-              <span aria-hidden className="text-muted-foreground/60">at</span>
-              <input
-                value={entry.organization ?? ""}
-                onChange={edit("organization")}
-                placeholder="Organisation"
-                aria-label="Organisation or school"
-                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
-              />
-            </div>
-            <div className="flex flex-wrap items-baseline gap-x-1.5 text-muted-foreground">
-              <input
-                type="month"
-                value={startMonth}
-                onChange={(event) => {
-                  setStartMonth(event.target.value);
-                  onChange({ start_date: fromMonthInput(event.target.value) });
-                }}
-                aria-label="Start month"
-                className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5")}
-              />
-              <span aria-hidden>–</span>
-              {entry.current ? (
-                <span className="px-1 py-0.5 text-foreground">Present</span>
-              ) : (
-                <input
-                  type="month"
-                  value={endMonth}
-                  min={startMonth || undefined}
-                  onChange={(event) => {
-                    setEndMonth(event.target.value);
-                    onChange({ end_date: fromMonthInput(event.target.value) });
-                  }}
-                  aria-label="End month"
-                  aria-invalid={endBeforeStart || undefined}
-                  className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5", endBeforeStart && "text-destructive")}
-                />
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-pressed={entry.current}
-                    onClick={() => onChange({ current: !entry.current })}
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-xs transition-colors",
-                      entry.current
-                        ? "border-transparent bg-muted text-foreground"
-                        : "border-dashed border-border text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Current
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{entry.current ? "Set an end date instead" : "Still here? Show the end date as Present"}</TooltipContent>
-              </Tooltip>
-              <input
-                value={entry.location ?? ""}
-                onChange={edit("location")}
-                placeholder="Location"
-                aria-label="Location"
-                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
-              />
-            </div>
-            {endBeforeStart && (
-              <p role="alert" className="w-full text-xs text-destructive">
-                The end month is before the start month, so this isn&apos;t saved yet.
-              </p>
-            )}
-          </div>
-        )}
-
-        <textarea
-          ref={descriptionRef}
-          value={description}
-          onChange={edit("description")}
-          placeholder="Add a one-line summary"
-          aria-label="Summary"
-          rows={1}
-          className={cn(
-            ghostInput,
-            "field-sizing-content mt-1 block w-full resize-none py-0.5 text-sm text-muted-foreground",
-            // Only suggest a summary when the section is being looked at or edited.
-            "placeholder:opacity-0 group-hover/entry:placeholder:opacity-100 group-focus-within/entry:placeholder:opacity-100"
-          )}
+        <EntryDetails
+          key={detailsVersion}
+          entry={entry}
+          onChange={onChange}
+          offered={startedBlank && suggestsDetails(sectionType)}
+          openRequested={openDetails}
+          onOpened={onDetailsOpened}
         />
 
-        <div className="relative mt-4">
+        {showSummary && (
+          <textarea
+            ref={descriptionRef}
+            value={description}
+            onChange={edit("description")}
+            {...summary.focusProps}
+            placeholder="Add a one-line summary"
+            aria-label="Summary"
+            rows={1}
+            className={cn(
+              ghostInput,
+              "field-sizing-content mt-1 block w-full resize-none py-0.5 text-sm text-muted-foreground"
+            )}
+          />
+        )}
+
+        <div className="relative mt-3">
           {editor && <FormatBubble editor={editor} />}
           {editor && onLeaveOut ? (
             <LeaveOutArea
