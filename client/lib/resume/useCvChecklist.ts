@@ -7,7 +7,7 @@ import { CurriculumSection } from "@/lib/types";
 import { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { moveSection, tickEntry, tickItem, tickSection } from "./checklist";
-import { createCvRequests, RequestStopped } from "./cvRequests";
+import { createCvRequests, KEPT_YOURS, RequestStopped } from "./cvRequests";
 import { sectionColumn } from "./exportDocument";
 import { apiErrorMessage } from "./reviewPanel";
 import { moveEntry } from "./sectionEntries";
@@ -126,7 +126,8 @@ export const useCvChecklist = (
         if (done && direction === "to_library") toast.success("Library updated");
       } catch (error) {
         if (error instanceof RequestStopped) {
-          toast.error(error.message);
+          if (error.message === KEPT_YOURS) toast(error.message);
+          else toast.error(error.message);
         } else {
           console.error(error);
           toast.error(apiErrorMessage(error, "Couldn't do this. Check your connection and try again."));

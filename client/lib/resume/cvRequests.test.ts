@@ -4,6 +4,7 @@ import {
   createCvRequests,
   CHANGED_ELSEWHERE,
   INVALID_DATES,
+  KEPT_YOURS,
   MAX_INCLUDES,
   TRANSFER_INVALID_DATES,
   TRANSFER_UNSAVED,
@@ -325,8 +326,18 @@ describe("transfer", () => {
       edit(1, { entries: [written("Typed")] });
       return true;
     });
-    await requests.transfer(ofItem, "to_cv");
+    await expect(requests.transfer(ofItem, "to_cv")).rejects.toThrow(KEPT_YOURS);
     expect(sendTransfer).not.toHaveBeenCalled();
+  });
+
+  it("says so when the text was typed over during the request", async () => {
+    const { requests, edit, change, sendTransfer } = start();
+    change.mockImplementation((_id, pull) => pull(section(1, { entries: [written("Typed")] })));
+    sendTransfer.mockImplementationOnce(async () => {
+      edit(1, { entries: [written("Typed")] });
+      return result("Library");
+    });
+    await expect(requests.transfer(ofItem, "to_cv")).rejects.toThrow(KEPT_YOURS);
   });
 
   it("goes again when it was refused and edited here meanwhile", async () => {

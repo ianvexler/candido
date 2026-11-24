@@ -1,6 +1,6 @@
 import { EntryFields } from "@/lib/types";
 import { describe, expect, it } from "vitest";
-import { actionLabel, actionsFor, differingFields, fieldsState, itemState } from "./itemState";
+import { actionLabel, actionsFor, changeLabel, differingFields, fieldsState, itemState } from "./itemState";
 
 const html = (text: string) => `<p data-cv-item="a">${text}</p>`;
 
@@ -101,6 +101,18 @@ describe("actionsFor", () => {
       "Keep both as they are",
     ]);
   });
+});
+
+describe("changeLabel", () => {
+  it.each([
+    ["cv_changed", "Edited"],
+    ["library_changed", "Changed"],
+    ["both_changed", "Changed"],
+    ["differs", "Changed"],
+    ["same", null],
+    ["cv_only", null],
+    ["library_only", null],
+  ] as const)("%s shows %s", (state, label) => expect(changeLabel(state)).toBe(label));
 });
 
 describe("differingFields", () => {

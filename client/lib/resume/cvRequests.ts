@@ -21,6 +21,7 @@ export const TRANSFER_UNSAVED = "Your latest edit isn't saved, so nothing was ch
 export const TRANSFER_INVALID_DATES =
   "Fix the end month that is before its start month in this section first. Then try again.";
 export const CHANGED_ELSEWHERE = "This changed elsewhere. Check it and try again.";
+export const KEPT_YOURS = "You edited this while it was updating, so your text was kept.";
 const TRANSFER_KEPT_CHANGING = "This section kept changing. Check it and try again.";
 
 /** A request that stopped, with why, to show. */
@@ -104,8 +105,7 @@ export const createCvRequests = ({
       const known = saved(sectionId);
       if (!before || !known) return;
       if (before.entries.some(endsBeforeStart)) throw new RequestStopped(TRANSFER_INVALID_DATES);
-      // What was typed since stays.
-      if (direction === "to_cv" && !sameText(asked, before, target)) return;
+      if (direction === "to_cv" && !sameText(asked, before, target)) throw new RequestStopped(KEPT_YOURS);
       const cv = valueIn(known, target);
       if (cv === null) return;
 
@@ -128,7 +128,15 @@ export const createCvRequests = ({
         // The section sent back may be older than what was saved meanwhile.
         const { base_items, base_fields, section_template_id } = section;
         setRecord(sectionId, { base_items, base_fields, section_template_id });
-        if (direction === "to_cv") change(sectionId, (latest) => pullInto(latest, before, section, target));
+        let kept = false;
+        if (direction === "to_cv") {
+          change(sectionId, (latest) => {
+            const patch = pullInto(latest, before, section, target);
+            kept = !patch.entries;
+            return patch;
+          });
+        }
+        if (kept) throw new RequestStopped(KEPT_YOURS);
       }
       if (conflict) throw new RequestStopped(CHANGED_ELSEWHERE);
       return true;
