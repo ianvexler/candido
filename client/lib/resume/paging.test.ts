@@ -51,12 +51,18 @@ describe("paginate", () => {
 
   it("has one page when empty", () => expect(paginate([], 100)).toEqual({ breaks: [], pages: 1, used: 0 }));
 
-  it("ends with a chain of heads longer than a page", () => {
-    const blocks = [head("h1", 0, 60), head("h2", 60, 120), head("h3", 120, 180), b("x", 180, 240)];
-    const result = paginate(blocks, 100);
-    expect(result.pages).toBeGreaterThanOrEqual(2);
-    expect(result.pages).toBeLessThanOrEqual(4);
-  });
+  it("ends with a chain of heads longer than a page", () =>
+    expect(
+      paginate([head("h1", 0, 60), head("h2", 60, 120), head("h3", 120, 180), b("x", 180, 240)], 100),
+    ).toEqual({
+      breaks: [
+        { key: "h2", top: 60, page: 1 },
+        { key: "h3", top: 120, page: 2 },
+        { key: "x", top: 180, page: 3 },
+      ],
+      pages: 4,
+      used: 60,
+    }));
 
   it("breaks at the block itself when a head can't keep its block and starts the page", () =>
     expect(paginate([head("h", 0, 60), b("b", 60, 130)], 100)).toMatchObject({
@@ -65,15 +71,61 @@ describe("paginate", () => {
       breaks: [{ key: "b", top: 60, page: 1 }],
     }));
 
-  it("breaks at the nearest keyed block before one without a key", () =>
-    expect(paginate([b("a", 0, 30), b("c", 30, 60), b(null, 60, 110)], 100)).toMatchObject({
+  it("starts the page at a block without a key and rules the first keyed block after it", () =>
+    expect(paginate([b("a", 0, 60), b(null, 60, 110), b("k", 110, 150)], 100)).toEqual({
+      breaks: [{ key: "k", top: 110, page: 1 }],
       pages: 2,
-      used: 80,
-      breaks: [{ key: "c", top: 30, page: 1 }],
+      used: 90,
     }));
 
-  it("counts the page but emits no rule when nothing earlier can start it", () =>
-    expect(paginate([b("a", 0, 60), b(null, 60, 110)], 100)).toMatchObject({ pages: 2, used: 50, breaks: [] }));
+  it("counts the page but emits no rule when no keyed block follows", () =>
+    expect(paginate([b("a", 0, 60), b(null, 60, 110)], 100)).toEqual({ breaks: [], pages: 2, used: 50 }));
+
+  it("takes a head without a key along, ruling the first keyed block of the chain", () =>
+    expect(paginate([b("a", 0, 60), head(null, 60, 80), b("k", 80, 130)], 100)).toEqual({
+      breaks: [{ key: "k", top: 80, page: 1 }],
+      pages: 2,
+      used: 70,
+    }));
+
+  it("keeps an over-tall block with the heads before it on their page", () => {
+    expect(paginate([b("a", 0, 60), head("h", 60, 80), b("t", 80, 330)], 100)).toMatchObject({
+      pages: 4,
+      breaks: [{ key: "h", top: 60, page: 1 }],
+    });
+    expect(paginate([head("h", 0, 20), b("t", 20, 270)], 100)).toEqual({ breaks: [], pages: 3, used: 70 });
+  });
+
+  it("counts lead space when cutting an over-tall block", () =>
+    expect(paginate([b("t", 30, 280)], 100)).toMatchObject({ pages: 3, used: 80, breaks: [] }));
+
+  it("cuts a first block that doesn't fit under its lead space instead of leaving an empty page", () =>
+    expect(paginate([b("a", 30, 110)], 100)).toMatchObject({ pages: 2, used: 10, breaks: [] }));
+});
+
+describe("paginate, fuzzed", () => {
+  it("never leaves an empty page, and keeps breaks and use in range", () => {
+    let seed = 7;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let n = 0; n < 3000; n++) {
+      const ph = 100;
+      let y = rand() < 0.3 ? rand() * 40 : 0;
+      const blocks: Block[] = [];
+      const count = 1 + Math.floor(rand() * 12);
+      for (let i = 0; i < count; i++) {
+        const h = 1 + rand() * (rand() < 0.15 ? 300 : 70);
+        blocks.push({ key: rand() < 0.2 ? null : `k${i}`, top: y, bottom: y + h, keepWithNext: rand() < 0.3 });
+        y += h + (rand() < 0.5 ? rand() * 20 : 0);
+      }
+      const r = paginate(blocks, ph);
+      const pages = r.breaks.map((x) => x.page);
+      expect(pages).toEqual([...pages].sort((a, c) => a - c));
+      expect(new Set(pages).size).toBe(pages.length);
+      expect(r.used).toBeGreaterThan(0);
+      expect(r.used).toBeLessThanOrEqual(ph + 0.5);
+      expect(r.pages).toBeGreaterThanOrEqual((pages.at(-1) ?? 0) + 1);
+    }
+  });
 });
 
 describe("combineColumns", () => {

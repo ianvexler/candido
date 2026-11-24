@@ -12,44 +12,52 @@ const TOLERANCE = 0.5;
 export function paginate(blocks: Block[], pageHeight: number): Paging & { breaks: PageBreak[] } {
   const breaks: PageBreak[] = [];
   let page = 0;
-  let pageStart = 0;
+  let pageStart = 0; // page 0 starts at the content top, so lead space above the first block counts
   let first = 0; // index of the block that starts the current page
-
-  // Starts the next page at `at`, which may be earlier than the block being placed.
-  const startPageAt = (at: number) => {
-    page++;
-    pageStart = blocks[at].top;
-    first = at;
-    if (blocks[at].key !== null) breaks.push({ key: blocks[at].key as string, top: blocks[at].top, page });
-  };
+  let needRule = false; // a page was started and no keyed block has carried its rule yet
 
   let i = 0;
   while (i < blocks.length) {
     const block = blocks[i];
-    const tall = block.bottom - block.top > pageHeight + TOLERANCE;
     const fits = block.bottom - pageStart <= pageHeight + TOLERANCE;
+    const tall = block.bottom - block.top > pageHeight + TOLERANCE;
 
-    if (i > first && (tall || !fits)) {
+    if (!fits && i > first) {
       // Heads directly before the block go with it, unless they start the page already.
       let at = i;
       while (at - 1 >= first && blocks[at - 1].keepWithNext) at--;
-      if (at === first) at = i;
-      if (blocks[at].key === null) {
-        // Nothing to hang a rule on: start the page at the nearest keyed block above, if any.
-        let earlier = at - 1;
-        while (earlier > first && blocks[earlier].key === null) earlier--;
-        if (earlier > first) at = earlier;
+      if (at > first) {
+        // The page starts at the block even without a key (as in print); the rule goes on the
+        // first keyed block that lands on it.
+        page++;
+        pageStart = blocks[at].top;
+        first = at;
+        needRule = true;
+        i = at; // place everything from there again on the new page
+        continue;
       }
-      startPageAt(at);
-      i = at; // place everything from there again on the new page
-      continue;
+      // Only heads precede it. An over-tall block stays with them and is cut below;
+      // anything else starts the page itself.
+      if (!tall) {
+        page++;
+        pageStart = block.top;
+        first = i;
+        needRule = true;
+        continue;
+      }
     }
 
-    if (tall) {
-      // Spans pages; what follows continues on its last page.
-      const extra = Math.ceil((block.bottom - block.top - TOLERANCE) / pageHeight) - 1;
+    if (needRule && block.key !== null) {
+      breaks.push({ key: block.key, top: block.top, page });
+      needRule = false;
+    }
+    if (!fits) {
+      // Doesn't fit even starting a page (or is first): it spans pages and what follows
+      // continues on its last page.
+      const extra = Math.ceil((block.bottom - pageStart - TOLERANCE) / pageHeight) - 1;
       page += extra;
-      pageStart = block.top + extra * pageHeight;
+      pageStart += extra * pageHeight;
+      needRule = false;
     }
     i++;
   }
@@ -75,7 +83,7 @@ const WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "
 export function fitMessage(paging: Paging, metrics: PageMetrics, lineHeight: number, exact: boolean): string {
   const lines = (n: number) => `${n} ${n === 1 ? "line" : "lines"}`;
   if (paging.pages <= 1) {
-    const spare = Math.max(0, Math.floor((metrics.pageHeight - paging.used) / lineHeight));
+    const spare = Math.max(0, Math.floor((metrics.pageHeight - paging.used + TOLERANCE) / lineHeight));
     const lead = exact ? "Fits one page" : "About one page";
     if (spare === 0) return exact ? `${lead} exactly` : lead;
     return `${lead}, ${lines(spare)} spare`;
@@ -83,5 +91,5 @@ export function fitMessage(paging: Paging, metrics: PageMetrics, lineHeight: num
   const count = `${exact ? "" : "About "}${paging.pages} pages`;
   if (paging.used >= metrics.pageHeight / 2) return count;
   const target = paging.pages - 1;
-  return `${count}. Cut about ${lines(Math.ceil(paging.used / lineHeight))} to fit ${WORDS[target - 1] ?? target}.`;
+  return `${count}. Cut about ${lines(Math.max(1, Math.ceil((paging.used - TOLERANCE) / lineHeight)))} to fit ${WORDS[target - 1] ?? target}.`;
 }
