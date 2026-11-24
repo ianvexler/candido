@@ -49,15 +49,17 @@ export const isEmptyEntry = (entry: SectionEntry) =>
 export const endsBeforeStart = (entry: SectionEntry) =>
   !entry.current && Boolean(entry.start_date && entry.end_date) && entry.end_date! < entry.start_date!;
 
-/** Swaps the entry with its neighbour above (-1) or below (1). */
-export const moveEntry = (entries: SectionEntry[], id: string, by: -1 | 1): SectionEntry[] => {
-  const from = entries.findIndex((entry) => entry.id === id);
+/** Swaps the one at `from` with its neighbour above (-1) or below (1). */
+export const moveAt = <T>(list: T[], from: number, by: -1 | 1): T[] => {
   const to = from + by;
-  if (from < 0 || to < 0 || to >= entries.length) return entries;
-  const next = [...entries];
+  if (from < 0 || to < 0 || to >= list.length) return list;
+  const next = [...list];
   [next[from], next[to]] = [next[to], next[from]];
   return next;
 };
+
+export const moveEntry = (entries: SectionEntry[], id: string, by: -1 | 1): SectionEntry[] =>
+  moveAt(entries, entries.findIndex((entry) => entry.id === id), by);
 
 /** "ARC 360, Texmo Industries", or "" when no entry has a title. */
 export const entryTitles = ({ entries }: Pick<SectionFields, "entries">) =>
