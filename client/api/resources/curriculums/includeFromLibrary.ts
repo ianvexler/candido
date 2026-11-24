@@ -9,7 +9,7 @@ export type IncludePayload = {
   item_id?: string;
 };
 
-/** Ticks library content, copying in what the CV lacks. Changes the section's first copy, by id. */
+/** Ticks library content, copying in what the CV lacks. Changes the section's first copy in the CV. */
 export const includeFromLibrary = async (
   curriculumId: number,
   payload: IncludePayload

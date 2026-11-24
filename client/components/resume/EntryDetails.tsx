@@ -10,7 +10,7 @@ import { formatDateRange, fromMonthInput, hasDetails, toMonthInput } from "./sec
 import { ghostInput } from "./styles";
 import { useOpenWhileFocused } from "./useOpenWhileFocused";
 
-export type DetailField = "role" | "organization" | "dates" | "location";
+type DetailField = "role" | "organization" | "dates" | "location";
 
 interface EntryDetailsProps {
   entry: SectionEntry;
@@ -162,6 +162,7 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
               onClick={(event) => {
                 // The end month, which may have the focus, goes.
                 event.currentTarget.focus();
+                setHalfPicked((now) => ({ ...now, end: false }));
                 onChange({ current: !entry.current });
               }}
               className={cn(
@@ -192,7 +193,7 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
       )}
       {endBeforeStart && (
         <p role="alert" className="w-full text-xs text-destructive">
-          The end month is before the start month, so this isn&apos;t saved yet.
+          The end month is before the start month, so the dates aren&apos;t saved yet.
         </p>
       )}
     </div>

@@ -114,7 +114,7 @@ class Curriculum < ApplicationRecord
   end
 
   # Ticks a library section, or one entry or item of it, copying in what this
-  # CV lacks. With several copies of the section, the first one changes.
+  # CV lacks. With several copies of the section, the first in the CV changes.
   def include_from_library!(template, entry_id: nil, item_id: nil)
     transaction do
       copies = curriculum_sections.where(section_template_id: template.id)
@@ -123,7 +123,7 @@ class Curriculum < ApplicationRecord
       with_lock do
         template.reload
         entry = template.resolve_entry!(entry_id, item_id)
-        copy = copies.order(:id).first
+        copy = copies.first
         next copy.include_from_library!(template, entry: entry, item_id: item_id) if copy
 
         copy_template!(template, entry: entry, item_id: item_id)

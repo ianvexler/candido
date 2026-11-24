@@ -58,9 +58,9 @@ interface CvRequestsOptions {
 
 const byId = (sections: CurriculumSection[], id: number) => sections.find((section) => section.id === id);
 
-/** The copy that an include changes. */
+/** The copy that an include changes: the first in the CV. */
 const copyOf = (sections: CurriculumSection[], templateId: number): CurriculumSection | undefined =>
-  sections.filter((section) => section.section_template_id === templateId).sort((a, b) => a.id - b.id)[0];
+  sections.find((section) => section.section_template_id === templateId);
 
 /** Runs the requests that change which sections a CV has, or their order, one at a time. */
 export const createCvRequests = ({
