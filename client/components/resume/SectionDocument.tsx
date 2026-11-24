@@ -14,8 +14,10 @@ import { PlusIcon, Trash2Icon } from "lucide-react";
 import { ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { rowBox, rowIdOf } from "./ChecklistRow";
 import IconAction from "./IconAction";
-import SectionEntryEditor, { EntryChange, SuggestionProps } from "./SectionEntryEditor";
+import SectionEntryEditor from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
+import type { EntryChange } from "./useEntryEditor";
+import type { SuggestionProps } from "./useEntrySuggestions";
 
 const NO_VERSIONS: EntryVersions = {};
 const NO_SUGGESTIONS: CvSuggestion[] = [];
