@@ -82,6 +82,7 @@ class LibraryTransfer
   end
 
   def to_library
+    adopt_ids if template
     if @library_entry.nil?
       add_entry
     elsif @item_id
@@ -93,6 +94,17 @@ class LibraryTransfer
       template.save!
       rebase(@entry_id)
     end
+  end
+
+  # Items the library hasn't given ids yet take those of the CV's items with the
+  # same text. Otherwise saving would give them others, and they'd be added again.
+  def adopt_ids
+    taken = template.entries.flat_map { |entry| items(entry).pluck(:id) }.compact
+    template.entries = template.entries.map do |entry|
+      ours = items(section.find_entry(entry["id"]) || {}).reject { |item| taken.include?(item[:id]) }
+      entry.merge("content" => CvItems.adopt_ids(entry["content"], ours))
+    end
+    @library_entry = find_library_entry
   end
 
   def to_cv
