@@ -63,7 +63,7 @@ const collapsedSpaces = (block: PMNode, pos: number, hasCaret: boolean): Decorat
   // While it's being typed in, only those that hidden text makes double.
   let acrossHidden = false;
   block.forEach((node, offset) => {
-    if (node.isText && isHidden(node)) {
+    if (isHidden(node)) {
       acrossHidden = true;
       return;
     }

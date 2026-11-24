@@ -111,6 +111,77 @@ describe("a deletion with nothing selected", () => {
   });
 });
 
+describe("hidden text that is moved, or kept beside other that isn't", () => {
+  it.each([
+    ["a list above", `<ul><li><p>one</p></li></ul><p>a${H("secret")}b</p>`, "a"],
+    ["a nested list above", `<ul><li><p>one</p><ul><li><p>in</p></li></ul></li></ul><p>a${H("secret")}b</p>`, "a"],
+    ["a list above, at the start", `<ul><li><p>one</p></li></ul><p>${H("secret")}b</p>`, "b"],
+    ["two runs", `<ul><li><p>one</p></li></ul><p>a${H("X")}b${H("X")}c</p>`, "a"],
+  ])("isn't copied by joining %s", (_, content, text) => {
+    make(content);
+    caret(at(text));
+    const before = editor.state.doc.textContent;
+    press("Backspace");
+    expect(editor.state.doc.textContent).toBe(before);
+    press("Backspace");
+    expect(editor.state.doc.textContent).toBe(before);
+  });
+
+  const replaced = (content: string, from: string, to: string, withText: string, kept: string) => {
+    make(content);
+    caret(at(from));
+    const nodes = [editor.schema.text(withText), editor.schema.text(kept, [editor.schema.marks.hidden.create()])];
+    editor.view.dispatch(editor.state.tr.replaceWith(at(from), at(to), nodes));
+    return html();
+  };
+
+  it("keeps the one that a replacement dropped", () => {
+    expect(replaced(`<p>a${H("H1")}b${H("H2")}c</p>`, "a", "c", "z", "H2")).toBe(`<p>z${H("H1H2")}c</p>`);
+  });
+
+  it("keeps both of two that are the same", () => {
+    expect(replaced(`<p>a${H("X")}b${H("X")}c</p>`, "a", "c", "z", "X")).toBe(`<p>z${H("XX")}c</p>`);
+  });
+
+  it("isn't mistaken for part of another", () => {
+    expect(replaced(`<p>a${H("cat")}b${H("a")}d</p>`, "a", "d", "z", "cat")).toBe(`<p>z${H("cata")}d</p>`);
+  });
+
+  it("keeps what is beside a selection", () => {
+    make(`<p>foo${H("secret")}bar${H("end")}</p>`);
+    editor.commands.setTextSelection({ from: at("foo") + 1, to: at("foo") + 3 });
+    remove(at("foo") + 1, at("bar") + 1);
+    expect(html()).toBe(`<p>f${H("secret")}ar${H("end")}</p>`);
+  });
+
+  it("lets a line break be put over a selection", () => {
+    make(`<p>foo${H("secret")}</p>`);
+    editor.commands.setTextSelection({ from: at("foo"), to: at("foo") + 2 });
+    editor.commands.setHardBreak();
+    expect(html()).toBe(`<p><br>o${H("secret")}</p>`);
+  });
+});
+
+describe("formatting", () => {
+  it("doesn't reveal hidden text as code", () => {
+    make(`<p>foo${H("secret")}bar</p>`);
+    editor.commands.selectAll();
+    editor.commands.toggleCode();
+    editor.commands.setCodeBlock();
+    expect(html()).toBe(`<p>foo${H("secret")}bar</p>`);
+  });
+
+  it("undoes hiding together with typing", () => {
+    make("<p>foo bar</p>");
+    editor.commands.insertContentAt(8, "x");
+    editor.commands.setTextSelection({ from: 5, to: 8 });
+    editor.commands.setHidden();
+    expect(html()).toBe(`<p>foo ${H("bar")}x</p>`);
+    while (editor.can().undo()) editor.commands.undo();
+    expect(html()).toBe("<p>foo bar</p>");
+  });
+});
+
 describe("text replaced with nothing selected", () => {
   it("goes before hidden text that was after the caret", () => {
     make(`<p>foo${H("secret")}bar</p>`);

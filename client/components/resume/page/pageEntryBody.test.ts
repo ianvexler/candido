@@ -135,6 +135,32 @@ describe("editing", () => {
   });
 });
 
+it("isn't unloaded, if emptied, by a switch to another window", () => {
+  show("<p>Text</p>", { near: true });
+  act(() => editor()!.view.dom.focus());
+  const loaded = editor();
+  show("", { near: true });
+  // The document keeps its focused element.
+  act(() => void editor()!.view.dom.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+  expect(editor()).toBe(loaded);
+});
+
+describe("code", () => {
+  const CODE = '<pre><code class="language-js">a  b\n c</code></pre>';
+
+  it("shows and keeps what is there", () => {
+    show(CODE, { near: true });
+    expect(editor()!.getHTML()).toBe(CODE);
+  });
+
+  it("isn't offered", () => {
+    show("<p>Text</p>", { near: true });
+    expect(editor()!.commands.setCodeBlock).toBeUndefined();
+    act(() => void editor()!.view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, altKey: true, bubbles: true })));
+    expect(editor()!.getHTML()).toContain("<p");
+  });
+});
+
 describe("laid out as it prints", () => {
   const classOf = (selector: string) => [...host.querySelectorAll(selector)].map((node) => node.textContent);
 
@@ -158,6 +184,11 @@ describe("laid out as it prints", () => {
     show('<p>Led <span data-cv-hidden="true">x</span> work</p><p><span data-cv-hidden="true">y</span> start</p>', { near: true });
     expect(classOf(".page-collapsed")).toEqual([" ", " "]);
     expect(editor()!.getText()).toBe("Led x work\n\ny start");
+  });
+
+  it("doesn't collapse a space after a hidden line break", () => {
+    show('<p>foo<span data-cv-hidden="true"><br></span> bar</p>', { near: true });
+    expect(classOf(".page-collapsed")).toEqual([]);
   });
 
   it("collapses typed spaces once the caret is elsewhere", () => {

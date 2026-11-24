@@ -11,12 +11,22 @@ import { memo, RefObject, useEffect, useLayoutEffect, useRef, useState } from "r
 import { flushSync } from "react-dom";
 import { printedHtml } from "../documentContent";
 import { BlockToolbar, FormatBubble } from "../EditorControls";
+import { contentExtensionsWith } from "../review/replaceInContent";
 import { OnEntryChange, useEntryEditor } from "../useEntryEditor";
 import { highlightClasses, SuggestionProps, useEntrySuggestions } from "../useEntrySuggestions";
 import HiddenGuard from "./HiddenGuard";
 import PrintedBlocks from "./PrintedBlocks";
+import PrivateCopy from "./PrivateCopy";
+import ShownCode from "./ShownCode";
 
-const PAGE_EXTENSIONS = [HiddenGuard, PrintedBlocks];
+const PAGE_EXTENSIONS = [
+  // Pressing a link edits its text. New code isn't offered: making it would show hidden text.
+  ...contentExtensionsWith({ link: { openOnClick: false }, codeBlock: false }),
+  ShownCode,
+  HiddenGuard,
+  PrivateCopy,
+  PrintedBlocks,
+];
 
 interface PageEntryBodyProps extends SuggestionProps {
   entry: SectionEntry;
@@ -182,8 +192,11 @@ const PageEntryBody = ({ near, open = false, ...body }: PageEntryBodyProps) => {
         setLoaded(true);
       }}
       onBlur={(event) => {
+        const body = event.currentTarget;
+        // Another window took the focus: this is still what is being written in.
+        const stays = body.contains(event.relatedTarget) || body.contains(document.activeElement);
         // The static content's, as its editor takes its place.
-        if (!event.currentTarget.contains(event.relatedTarget) && !takeFocusRef.current) setFocusWithin(false);
+        if (!stays && !takeFocusRef.current) setFocusWithin(false);
       }}
     >
       {loaded ? (

@@ -24,13 +24,11 @@ interface EntryEditorOptions {
   editors: RefObject<Map<string, Editor>>;
   placeholder: string;
   className: string;
-  /** Besides those that content needs. Read once. */
+  /** What it reads and writes, and more. Read once. */
   extensions?: Extensions;
   /** Has the editor on the first render, where that never happens on the server. */
   immediatelyRender?: boolean;
 }
-
-const NO_EXTENSIONS: Extensions = [];
 
 /** The text editor of an entry's content. Uncontrolled: it loads the content once. */
 export const useEntryEditor = ({
@@ -40,14 +38,14 @@ export const useEntryEditor = ({
   editors,
   placeholder,
   className,
-  extensions = NO_EXTENSIONS,
+  extensions = contentExtensions,
   immediatelyRender = false,
 }: EntryEditorOptions): Editor | null => {
   // It has ticked items only; the rest are put back into what it reports.
   const [loaded] = useState(() => ({
     content: visibleContent(entry.content),
     hidden: listItems(entry.content).filter((item) => item.off).map((item) => item.id),
-    extensions: [...contentExtensions, ...extensions, Placeholder.configure({ placeholder })],
+    extensions: [...extensions, Placeholder.configure({ placeholder })],
   }));
   // The same objects each time: TipTap takes new ones as a change of settings.
   const editorProps = useMemo(() => ({ attributes: { "aria-label": "Content", class: className } }), [className]);

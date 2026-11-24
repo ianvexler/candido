@@ -1,23 +1,23 @@
 import { listItems, mergeVisible, setItemsOff, visibleContent } from "@/lib/resume/items";
-import Link from "@tiptap/extension-link";
 import { TextStyleKit } from "@tiptap/extension-text-style";
-import { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { Editor, type Extensions } from "@tiptap/core";
+import StarterKit, { type StarterKitOptions } from "@tiptap/starter-kit";
 import CvItem from "../CvItem";
 import { normalizeContent } from "../documentContent";
 import HiddenMark from "../HiddenMark";
 import { replaceQuote, SuggestionHighlight } from "./SuggestionHighlight";
 
-/** What an entry's editor reads and writes. */
-export const contentExtensions = [
+export const contentExtensionsWith = (options: Partial<StarterKitOptions>): Extensions => [
   TextStyleKit,
   // Without the blank line it keeps after a list: Enter twice leaves a list.
-  StarterKit.configure({ trailingNode: false }),
-  Link.configure({ openOnClick: false }),
+  StarterKit.configure({ ...options, trailingNode: false }),
   HiddenMark,
   CvItem,
   SuggestionHighlight,
 ];
+
+/** What an entry's editor reads and writes. */
+export const contentExtensions = contentExtensionsWith({});
 
 const replaceIn = (html: string, quote: string, text: string): string | null => {
   const editor = new Editor({ extensions: contentExtensions, content: html });
