@@ -59,7 +59,7 @@ const cleanHeader = (header: ResumeHeader): ResumeHeader => {
 };
 
 /** The organisation isn't repeated when it is also the entry's title. */
-const organizationLabel = ({ title, organization }: SectionEntry) =>
+export const organizationLabel = ({ title, organization }: SectionEntry) =>
   organization?.trim().toLowerCase() === title.trim().toLowerCase() ? "" : organization;
 
 const toExportEntry = (entry: SectionEntry): ExportEntry => ({
@@ -67,7 +67,7 @@ const toExportEntry = (entry: SectionEntry): ExportEntry => ({
   title: entry.title.trim(),
   subtitle: joinParts([entry.role, organizationLabel(entry)]),
   meta: joinParts([formatDateRange(entry), entry.location]),
-  summary: entry.description?.trim() ?? "",
+  summary: entry.description_off ? "" : (entry.description?.trim() ?? ""),
   html: hasVisibleText(entry.content) ? stripHiddenHtml(entry.content) : "",
 });
 
@@ -82,7 +82,7 @@ const toExportSection = (section: InputSection): ExportSection => ({
 });
 
 /** Hidden itself, or every entry is. */
-const isLeftOut = (section: InputSection) =>
+export const isLeftOut = (section: Pick<InputSection, "hidden" | "entries">) =>
   section.hidden || (section.entries.length > 0 && section.entries.every((entry) => entry.hidden));
 
 const hasContent = (section: ExportSection) => Boolean(section.heading || section.entries.length > 0);

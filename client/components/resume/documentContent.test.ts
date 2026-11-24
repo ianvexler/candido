@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { hasVisibleText, stripHiddenHtml } from "./documentContent";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { hasVisibleText, normalizeContent, stripHiddenHtml } from "./documentContent";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("stripHiddenHtml", () => {
   it("removes hidden text and keeps the rest", () => {
@@ -15,10 +17,27 @@ describe("stripHiddenHtml", () => {
 
     expect(html).toBe("<p>Kept</p>");
   });
+
+  it("keeps an item marked as ticked", () => {
+    expect(stripHiddenHtml('<p data-cv-off="false">Kept</p>')).toContain("Kept");
+  });
+
+  it("refuses unticked items without a DOM", () => {
+    vi.stubGlobal("window", undefined);
+
+    expect(() => stripHiddenHtml('<p data-cv-off="true">x</p>')).toThrow();
+    expect(stripHiddenHtml("<p>Kept</p>")).toBe("<p>Kept</p>");
+  });
 });
 
 describe("hasVisibleText", () => {
   it("is false when all text is hidden", () => {
     expect(hasVisibleText('<p><span data-cv-hidden="true">x</span></p>')).toBe(false);
+  });
+});
+
+describe("normalizeContent", () => {
+  it("strips empty last paragraphs, also one that was an item", () => {
+    expect(normalizeContent('<p data-cv-item="a">A</p><p data-cv-item="b"></p><p></p>')).toBe('<p data-cv-item="a">A</p>');
   });
 });

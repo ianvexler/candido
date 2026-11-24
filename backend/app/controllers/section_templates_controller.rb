@@ -9,7 +9,7 @@ class SectionTemplatesController < ApplicationController
   }.freeze
 
   def index
-    templates = current_user.section_templates.order(:created_at, :id)
+    templates = current_user.section_templates.in_library_order
     render json: { section_templates: serialize(templates, with: SectionTemplateBlueprint) }
   end
 

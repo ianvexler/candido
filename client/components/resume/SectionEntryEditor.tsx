@@ -2,28 +2,29 @@
 
 import "@/components/richEditor/styles.scss";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/utils";
-import { CvSuggestion, SectionEntry } from "@/lib/types";
-import { endsBeforeStart, isEmptyEntry } from "@/lib/resume/sectionEntries";
+import { SUMMARY_ID, CvSuggestion, SectionEntry } from "@/lib/types";
+import { isEmptyEntry } from "@/lib/resume/sectionEntries";
+import { listItems, mergeEdited, visibleContent } from "@/lib/resume/items";
 import { findQuote, openSuggestionId } from "@/lib/resume/suggestions";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
-import Link from "@tiptap/extension-link";
-import { TextStyleKit } from "@tiptap/extension-text-style";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions";
-import StarterKit from "@tiptap/starter-kit";
-import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { memo, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import toast from "react-hot-toast";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
-import HiddenMark from "./HiddenMark";
+import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
+import LeaveOutArea from "./LeaveOutArea";
 import { normalizeContent } from "./documentContent";
 import SuggestionCard, { SuggestionAction } from "./review/SuggestionCard";
-import { SuggestionHighlight, replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
-import { ghostInput } from "./styles";
-import { fromMonthInput, hasDetails, suggestsDetails, toMonthInput } from "./sectionDetails";
+import { contentExtensions, replaceInContent } from "./review/replaceInContent";
+import { replaceQuote, suggestionRanges } from "./review/SuggestionHighlight";
+import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
+import { hasDetails, suggestsDetails } from "./sectionDetails";
+import { useOpenWhileFocused } from "./useOpenWhileFocused";
 
 const NO_SUGGESTIONS: CvSuggestion[] = [];
 
@@ -47,21 +48,31 @@ export interface SuggestionProps {
   onSuggestionClose?: () => void;
   /** Records the decision; the text changes here only once this resolves. A rejection is shown as a toast. */
   onSuggestionResolve?: (s: CvSuggestion, action: SuggestionAction, text?: string) => Promise<void>;
-  /** Pending suggestions whose quote is no longer in the text. Called when the set changes. */
-  onStaleChange?: (staleIds: number[]) => void;
 }
+
+export type EntryChange = Partial<SectionEntry> | ((latest: SectionEntry) => Partial<SectionEntry>);
 
 interface SectionEntryEditorProps extends SuggestionProps {
   entry: SectionEntry;
   sectionType: string;
-  onChange: (changes: Partial<SectionEntry>) => void;
-  /** Absent when the entry can't move that way. */
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  /** Absent for a section's only entry: delete the section instead. */
-  onDelete?: () => void;
-  /** Offers leaving the entry out, as a resume does. */
-  canHide?: boolean;
+  /** From useSectionDrafts. The editor is remounted when it changes. */
+  version: number;
+  /**
+   * A function gets the latest entry, which may be newer than `entry`. Without
+   * a version the change isn't the editor's, and is put into it.
+   */
+  onEntryChange: (id: string, changes: EntryChange, version?: number) => void;
+  /** The editor on screen for each entry, as it may have been remounted since. */
+  editors: RefObject<Map<string, Editor>>;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMove: (id: string, by: -1 | 1) => void;
+  /** False for a section's only entry: delete the section instead. */
+  canDelete: boolean;
+  onDelete: (id: string) => void;
+  describeDeletion: (id: string) => string;
+  /** In a CV: offers leaving items out; see LeaveOutArea. */
+  onLeaveOut?: (entryId: string, itemId: string, focusAt: number | null) => void;
 }
 
 /**
@@ -71,61 +82,94 @@ interface SectionEntryEditorProps extends SuggestionProps {
 const SectionEntryEditor = ({
   entry,
   sectionType,
-  onChange,
-  onMoveUp,
-  onMoveDown,
+  version,
+  onEntryChange,
+  editors,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMove,
+  canDelete,
   onDelete,
-  canHide = false,
+  describeDeletion,
+  onLeaveOut,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
   onSuggestionResolve,
-  onStaleChange,
 }: SectionEntryEditorProps) => {
-  // Kept as typed: a half-typed month isn't a date yet.
-  const [startMonth, setStartMonth] = useState(toMonthInput(entry.start_date));
-  const [endMonth, setEndMonth] = useState(toMonthInput(entry.end_date));
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const onChange = (changes: EntryChange) => onEntryChange(entry.id, changes, version);
+  // A new entry offers its fields; later, empty ones are hidden until asked for.
+  const [startedBlank] = useState(() => isEmptyEntry(entry));
+  const title = useOpenWhileFocused();
+  const summary = useOpenWhileFocused();
+  const titleRef = useRef<HTMLInputElement>(null);
+  const [openDetails, setOpenDetails] = useState(false);
+  const onDetailsOpened = useCallback(() => setOpenDetails(false), []);
+  // Remounts the details, which keep half-typed months.
+  const [detailsVersion, setDetailsVersion] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteNote, setDeleteNote] = useState("");
   const description = entry.description ?? "";
-  const endBeforeStart = endsBeforeStart(entry);
-  const showDetails = detailsOpen || hasDetails(entry) || suggestsDetails(sectionType);
+  const showTitle = Boolean(entry.title) || startedBlank || title.open;
+  const summaryOff = onLeaveOut !== undefined && Boolean(entry.description_off && description.trim());
+  const showSummary = !summaryOff && (Boolean(description) || summary.open);
 
   const edit =
-    (field: "title" | "role" | "organization" | "location" | "description") =>
+    (field: "title" | "description") =>
     (event: { target: { value: string } }) =>
       onChange({ [field]: event.target.value });
 
+  const openAndFocus = (setOpen: (open: boolean) => void, field: RefObject<HTMLElement | null>) => {
+    flushSync(() => setOpen(true));
+    field.current?.focus();
+  };
+
+  const askDelete = () => {
+    if (isEmptyEntry(entry)) return onDelete(entry.id);
+    setDeleteNote(describeDeletion(entry.id));
+    setDeleteOpen(true);
+  };
+
   const clearDetails = () => {
-    setStartMonth("");
-    setEndMonth("");
-    setDetailsOpen(false);
+    setDetailsVersion((count) => count + 1);
     onChange({ role: null, organization: null, location: null, start_date: null, end_date: null, current: false });
   };
 
+  // The editor has ticked items only; the rest are put back into what it reports.
+  const [loaded] = useState(() => ({
+    content: visibleContent(entry.content),
+    hidden: listItems(entry.content).filter((item) => item.off).map((item) => item.id),
+  }));
   const editor = useEditor({
     extensions: [
-      TextStyleKit,
-      StarterKit,
-      Link.configure({ openOnClick: false }),
-      HiddenMark,
-      SuggestionHighlight,
+      ...contentExtensions,
       Placeholder.configure({ placeholder: "Write here. Start a line with - for bullets." }),
     ],
     immediatelyRender: false,
-    content: entry.content || "<p></p>",
+    content: loaded.content || "<p></p>",
     editorProps: {
       attributes: {
         "aria-label": "Content",
         class: cn(
-          "cv-document-editor outline-none min-h-16 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
+          "cv-document-editor outline-none min-h-6 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
           highlightClasses
         ),
       },
     },
-    onUpdate: ({ editor: current }) => onChange({ content: normalizeContent(current.getHTML()) }),
+    onUpdate: ({ editor: current }) => {
+      const visible = current.getHTML();
+      onChange((latest) => ({ content: normalizeContent(mergeEdited(latest.content, visible, loaded.hidden)) }));
+    },
   });
+  useEffect(() => {
+    if (!editor) return;
+    const shown = editors.current;
+    shown.set(entry.id, editor);
+    return () => {
+      if (shown.get(entry.id) === editor) shown.delete(entry.id);
+    };
+  }, [editor, editors, entry.id]);
 
   // --- Review suggestions -------------------------------------------------
   const pending = useMemo(() => suggestions.filter((s) => s.status === "pending"), [suggestions]);
@@ -147,6 +191,7 @@ const SectionEntryEditor = ({
 
   const cardId = openSuggestionId(activeSuggestionId, localOpenId, (id) => {
     const s = pending.find((p) => p.id === id);
+    if (s && summaryOff && fieldOf(s) === "description") return false;
     return s !== undefined && !isStale(s);
   });
   const cardSuggestion = cardId === null ? null : pending.find((s) => s.id === cardId)!;
@@ -160,21 +205,6 @@ const SectionEntryEditor = ({
     // contentItemsKey stands in for contentItems.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, contentItemsKey, cardId]);
-
-  // Reports stale ids when they change. Runs after edits and when the
-  // suggestions or summary change; with no suggestions it does nothing.
-  const reportedStale = useRef("");
-  useEffect(() => {
-    if (!onStaleChange || !editor) return;
-    if (pending.length === 0 && reportedStale.current === "") return;
-    const ids = pending.filter(isStale).map((s) => s.id);
-    const key = ids.join(",");
-    if (key === reportedStale.current) return;
-    reportedStale.current = key;
-    onStaleChange(ids);
-    // isStale reads editor and description, both listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onStaleChange, editor, pending, description, entry.content]);
 
   const cardAnchor = useMemo(() => {
     if (!cardSuggestion || !editor) return null;
@@ -224,181 +254,161 @@ const SectionEntryEditor = ({
       return;
     }
     if (changesText) {
+      let changed = false;
       if (fieldOf(s) === "description") {
-        // Read from the field: the summary may have been edited while the decision was saving.
-        const latest = descriptionRef.current?.value ?? description;
-        const match = findQuote(latest, s.quote);
-        if (match) onChange({ description: latest.slice(0, match.from) + text + latest.slice(match.to) });
-      } else if (editor) {
-        replaceQuote(editor, s.quote, text);
+        // The summary may have been edited while the decision was saving.
+        onChange((entryNow) => {
+          const latest = entryNow.description ?? "";
+          const match = findQuote(latest, s.quote);
+          if (!match) return {};
+          changed = true;
+          return { description: latest.slice(0, match.from) + text + latest.slice(match.to) };
+        });
+      } else {
+        const shown = editors.current.get(entry.id);
+        changed = shown !== undefined && replaceQuote(shown, s.quote, text);
+        // It may have been unticked while the decision was saving.
+        if (!changed) {
+          onEntryChange(entry.id, (entryNow) => {
+            const replaced = replaceInContent(entryNow.content, s.quote, text);
+            if (replaced === null) return {};
+            changed = true;
+            return { content: replaced };
+          });
+        }
       }
+      if (!changed) toast.error("This text changed meanwhile, so it wasn't replaced.");
     }
     closeCard();
   };
 
+  const content = (
+    <EditorContent editor={editor} className="cv-document-body" onClick={pending.length > 0 ? onEditorClick : undefined} />
+  );
+
   return (
     <>
-      <div data-entry-id={entry.id} className={cn("group/entry relative transition-opacity", entry.hidden && "opacity-55")}>
-        {entry.hidden && (
-          <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            <EyeOffIcon className="size-3" />
-            Left out of this CV
-          </span>
-        )}
-        <div className="flex items-start justify-between gap-2">
-          <input
-            value={entry.title}
-            onChange={edit("title")}
-            placeholder="Title"
-            aria-label="Title"
+      <div data-entry-id={entry.id} className="group/entry relative">
+        <div className={cn("flex items-start justify-between gap-2", !showTitle && "h-0")}>
+          {showTitle && (
+            <input
+              ref={titleRef}
+              value={entry.title}
+              onChange={edit("title")}
+              {...title.focusProps}
+              placeholder="Title"
+              aria-label="Title"
+              className={cn(ghostInput, "block flex-1 py-0.5 text-xl font-semibold")}
+            />
+          )}
+          <div
             className={cn(
-              ghostInput,
-              "block flex-1 py-0.5 text-xl font-semibold",
-              "placeholder:opacity-0 group-hover/entry:placeholder:opacity-100 group-focus-within/entry:placeholder:opacity-100"
+              "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100",
+              // Without a title line, in the space above.
+              !showTitle && "absolute -top-8 right-0"
             )}
-          />
-          <div className="-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100">
-            {onMoveUp && (
-              <IconAction label="Move entry up" onClick={onMoveUp}>
+          >
+            {!showTitle && (
+              <IconAction label="Add title" onClick={() => openAndFocus(title.setOpen, titleRef)}>
+                <HeadingIcon />
+              </IconAction>
+            )}
+            {!showSummary && !summaryOff && (
+              <IconAction label="Add a one-line summary" onClick={() => openAndFocus(summary.setOpen, descriptionRef)}>
+                <TextIcon />
+              </IconAction>
+            )}
+            {canMoveUp && (
+              <IconAction label="Move entry up" onClick={() => onMove(entry.id, -1)}>
                 <ArrowUpIcon />
               </IconAction>
             )}
-            {onMoveDown && (
-              <IconAction label="Move entry down" onClick={onMoveDown}>
+            {canMoveDown && (
+              <IconAction label="Move entry down" onClick={() => onMove(entry.id, 1)}>
                 <ArrowDownIcon />
               </IconAction>
             )}
-            {showDetails && !suggestsDetails(sectionType) ? (
+            {!hasDetails(entry) && (
+              <IconAction label="Add role and dates" onClick={() => setOpenDetails(true)}>
+                <CalendarPlusIcon />
+              </IconAction>
+            )}
+            {hasDetails(entry) && !suggestsDetails(sectionType) && (
               <IconAction label="Remove role and dates" onClick={clearDetails}>
                 <CalendarMinusIcon />
               </IconAction>
-            ) : !showDetails ? (
-              <IconAction label="Add role and dates" onClick={() => setDetailsOpen(true)}>
-                <CalendarPlusIcon />
-              </IconAction>
-            ) : null}
-            {canHide && (
-              <IconAction
-                label={entry.hidden ? "Show entry in this CV" : "Leave entry out of this CV"}
-                active={entry.hidden}
-                onClick={() => onChange({ hidden: !entry.hidden })}
-              >
-                {entry.hidden ? <EyeOffIcon /> : <EyeIcon />}
-              </IconAction>
             )}
-            {onDelete && (
-              <IconAction label="Delete entry" onClick={() => (isEmptyEntry(entry) ? onDelete() : setDeleteOpen(true))}>
+            {canDelete && (
+              <IconAction
+                label="Delete entry"
+                onClick={askDelete}
+              >
                 <Trash2Icon />
               </IconAction>
             )}
           </div>
         </div>
 
-        {showDetails && (
+        <EntryDetails
+          key={detailsVersion}
+          entry={entry}
+          onChange={onChange}
+          offered={startedBlank && suggestsDetails(sectionType)}
+          openRequested={openDetails}
+          onOpened={onDetailsOpened}
+        />
+
+        {showSummary && (
           <div
-            className={cn(
-              "mt-1 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 text-sm",
-              // Nothing filled in: only offer it when the entry is being looked at or edited.
-              !hasDetails(entry) && "opacity-0 group-hover/entry:opacity-100 group-focus-within/entry:opacity-100"
-            )}
+            className={cn("group/summary relative mt-1", onLeaveOut && LEAVE_OUT_SPACE)}
+            {...summary.focusProps}
           >
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-              <input
-                value={entry.role ?? ""}
-                onChange={edit("role")}
-                placeholder="Role or degree"
-                aria-label="Role or degree"
-                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5 font-medium")}
-              />
-              <span aria-hidden className="text-muted-foreground/60">at</span>
-              <input
-                value={entry.organization ?? ""}
-                onChange={edit("organization")}
-                placeholder="Organisation"
-                aria-label="Organisation or school"
-                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
-              />
-            </div>
-            <div className="flex flex-wrap items-baseline gap-x-1.5 text-muted-foreground">
-              <input
-                type="month"
-                value={startMonth}
-                onChange={(event) => {
-                  setStartMonth(event.target.value);
-                  onChange({ start_date: fromMonthInput(event.target.value) });
-                }}
-                aria-label="Start month"
-                className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5")}
-              />
-              <span aria-hidden>–</span>
-              {entry.current ? (
-                <span className="px-1 py-0.5 text-foreground">Present</span>
-              ) : (
-                <input
-                  type="month"
-                  value={endMonth}
-                  min={startMonth || undefined}
-                  onChange={(event) => {
-                    setEndMonth(event.target.value);
-                    onChange({ end_date: fromMonthInput(event.target.value) });
-                  }}
-                  aria-label="End month"
-                  aria-invalid={endBeforeStart || undefined}
-                  className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5", endBeforeStart && "text-destructive")}
-                />
+            <textarea
+              ref={descriptionRef}
+              value={description}
+              onChange={edit("description")}
+              placeholder="Add a one-line summary"
+              aria-label="Summary"
+              rows={1}
+              className={cn(
+                ghostInput,
+                "field-sizing-content block w-full resize-none py-0.5 text-sm text-muted-foreground"
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-pressed={entry.current}
-                    onClick={() => onChange({ current: !entry.current })}
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-xs transition-colors",
-                      entry.current
-                        ? "border-transparent bg-muted text-foreground"
-                        : "border-dashed border-border text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Current
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{entry.current ? "Set an end date instead" : "Still here? Show the end date as Present"}</TooltipContent>
-              </Tooltip>
-              <input
-                value={entry.location ?? ""}
-                onChange={edit("location")}
-                placeholder="Location"
-                aria-label="Location"
-                className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
-              />
-            </div>
-            {endBeforeStart && (
-              <p role="alert" className="w-full text-xs text-destructive">
-                The end month is before the start month, so this isn&apos;t saved yet.
-              </p>
+            />
+            {onLeaveOut && description.trim() && (
+              <button
+                type="button"
+                aria-label="Leave out the summary"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={(event) => {
+                  const focused = event.currentTarget.parentElement?.contains(document.activeElement);
+                  summary.setOpen(false);
+                  onLeaveOut(entry.id, SUMMARY_ID, focused ? 0 : null);
+                }}
+                className={cn(
+                  LEAVE_OUT_BUTTON,
+                  "pointer-events-none top-0 opacity-0 group-focus-within/summary:pointer-events-auto group-focus-within/summary:opacity-100 group-hover/summary:pointer-events-auto group-hover/summary:opacity-100"
+                )}
+              >
+                Leave out
+              </button>
             )}
           </div>
         )}
 
-        <textarea
-          ref={descriptionRef}
-          value={description}
-          onChange={edit("description")}
-          placeholder="Add a one-line summary"
-          aria-label="Summary"
-          rows={1}
-          className={cn(
-            ghostInput,
-            "field-sizing-content mt-1 block w-full resize-none py-0.5 text-sm text-muted-foreground",
-            // Only suggest a summary when the section is being looked at or edited.
-            "placeholder:opacity-0 group-hover/entry:placeholder:opacity-100 group-focus-within/entry:placeholder:opacity-100"
-          )}
-        />
-
-        <div className="relative mt-4">
+        <div className="relative mt-3">
           {editor && <FormatBubble editor={editor} />}
-          <EditorContent editor={editor} className="cv-document-body" onClick={pending.length > 0 ? onEditorClick : undefined} />
+          {editor && onLeaveOut ? (
+            <LeaveOutArea
+              editor={editor}
+              cardOpen={cardSuggestion !== null}
+              onLeaveOut={(itemId, focusAt) => onLeaveOut(entry.id, itemId, focusAt)}
+            >
+              {content}
+            </LeaveOutArea>
+          ) : (
+            content
+          )}
           {editor && (
             <BlockToolbar
               editor={editor}
@@ -418,17 +428,13 @@ const SectionEntryEditor = ({
         />
       )}
 
-      {onDelete && (
+      {canDelete && (
         <ConfirmationModal
           isOpen={deleteOpen}
           onClose={() => setDeleteOpen(false)}
-          onConfirm={async () => onDelete()}
+          onConfirm={async () => onDelete(entry.id)}
           title="Delete this entry?"
-          description={
-            canHide
-              ? "Only this CV's copy is deleted. To keep it here but not show it, leave it out instead."
-              : "This removes it from the library section. CVs that already use it keep their copy."
-          }
+          description={deleteNote}
           confirmLabel="Delete"
           variant="destructive"
         />
@@ -437,4 +443,4 @@ const SectionEntryEditor = ({
   );
 };
 
-export default SectionEntryEditor;
+export default memo(SectionEntryEditor);

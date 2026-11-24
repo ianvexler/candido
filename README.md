@@ -78,6 +78,16 @@ Live deploys client + Rails via `docker-compose.prod.yml` and **Deploy to Produc
 
 The Next.js API origin is baked in at image build (`NEXT_PUBLIC_API_URL`). Keep that secret equal to the public API URL the browser already uses. The client calls `{NEXT_PUBLIC_API_URL}/api/v1`.
 
+### CV checklist release
+
+Existing CVs and library sections need item ids. Back up the database, then deploy, which adds the columns. Run this on the server immediately after, as soon as the new version is live: until then, editing a CV or library section gives its items ids that may not match.
+
+```bash
+docker-compose -f docker-compose.prod.yml --env-file backend/.env exec -T backend ./bin/rails cv_items:backfill
+```
+
+It checks that every CV still shows the same, and leaves a user's data as it was if one doesn't. It prints counts and user ids only, exits 1 if any user failed, and is safe to repeat. Fix the cause for any user that failed and run it again. Also run it again a day later, for pages that were left open from before the release, or opened between the deploy and the first run.
+
 ## Applying this cutover
 
 This is not a no-op deploy. Client and API must go out together, and Postgres is renamed in place on boot.

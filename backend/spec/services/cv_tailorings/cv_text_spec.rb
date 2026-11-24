@@ -15,6 +15,12 @@ RSpec.describe CvTailorings::CvText do
     expect(sections.first[:blocks]).to eq([ "Led", "team", "Built APIs" ])
   end
 
+  it "leaves out unticked items" do
+    add_section(content: '<p>Led</p><ul><li data-cv-item="a" data-cv-off="true"><p>Secret</p></li><li data-cv-item="b"><p>Built APIs</p></li></ul>')
+
+    expect(described_class.call(curriculum.reload).first[:blocks]).to eq([ "Led", "Built APIs" ])
+  end
+
   it "splits a block at hidden text so no quote can span it" do
     add_section(content: "<p>Led <span data-cv-hidden>a team of 5 and</span> shipped X</p>")
 
@@ -65,5 +71,12 @@ RSpec.describe CvTailorings::CvText do
     expect(text).to include("[section 1] experience · Acme")
     expect(text).to include("Summary: Backend")
     expect(text).to include("- Hello")
+  end
+
+  it "leaves out an unticked summary" do
+    curriculum = create(:curriculum)
+    curriculum.curriculum_sections.create!(section_type: "Experience", entries: [ { description: "Secret", description_off: true, content: "<p>A</p>" } ])
+
+    expect(described_class.call(curriculum.reload).sole).to include(description: "", blocks: [ "A" ])
   end
 end

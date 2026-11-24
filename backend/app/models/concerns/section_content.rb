@@ -4,7 +4,8 @@
 #
 # An entry's `content` is the editor's HTML. Hidden text is wrapped in
 # <span data-cv-hidden> and stays in the stored HTML; preview and export drop
-# it. An entry may also carry a role, organization, location and month range.
+# it. Each block is an item that can be left out of a CV; see CvItems. An entry
+# may also carry a role, organization, location and month range.
 # The same entry has the same id in the library and in every copy.
 module SectionContent
   extend ActiveSupport::Concern
@@ -12,16 +13,21 @@ module SectionContent
   ALLOWED_TAGS = %w[
     p br strong b em i s u code a ul ol li h1 h2 h3 h4 h5 h6 blockquote hr span
   ].freeze
-  ALLOWED_ATTRIBUTES = %w[href target rel style data-cv-hidden].freeze
+  ALLOWED_ATTRIBUTES = %w[href target rel style data-cv-hidden data-cv-item data-cv-off].freeze
   # The editor keeps an empty paragraph after a trailing list; it is not content.
-  TRAILING_EMPTY_PARAGRAPHS = %r{(?:<p>(?:\s|&nbsp;|<br\s*/?>)*</p>)+\z}
+  TRAILING_EMPTY_PARAGRAPHS = %r{(?:<p(?: data-cv-(?:item|off)="[^"]*")*>(?:\s|&nbsp;|<br\s*/?>)*</p>)+\z}
 
   MAX_ENTRIES = 60
   MAX_LINE = 200
   LINE_FIELDS = %w[role organization location].freeze
-  ENTRY_FIELDS = %i[
-    id title role organization location start_date end_date current description content hidden
-  ].freeze
+  # An entry's own fields, which a CV and the library compare as one unit, and
+  # its summary (`description`), which counts as one of its items: CVs can leave
+  # it out (`description_off`).
+  HEAD_KEYS = %w[title role organization location start_date end_date current].freeze
+  FIELD_KEYS = [ *HEAD_KEYS, "description" ].freeze
+  # Names the summary where an item id is expected. Not a valid item id.
+  SUMMARY_ID = "$summary".freeze
+  ENTRY_FIELDS = [ :id, *FIELD_KEYS.map(&:to_sym), :description_off, :content, :hidden ].freeze
   ENTRY_ID = /\A[\w-]{1,64}\z/
   # From when a section was a single entry; a later migration drops them.
   OLD_COLUMNS = %w[title description content role organization location start_date end_date current].freeze
@@ -52,22 +58,35 @@ module SectionContent
     entries.reject { |entry| entry["hidden"] }
   end
 
+  def find_entry(id)
+    entries.find { |entry| entry["id"] == id }
+  end
+
+  def entry_with_item(item_id)
+    entries.find { |entry| CvItems.list(entry["content"]).pluck(:id).include?(item_id) }
+  end
+
   private
 
   def normalize_entries
     list = Array(entries).grep(Hash)
     list = [ {} ] if list.empty?
+    previous = Array(entries_was).grep(Hash).index_by { |entry| entry["id"] }
     seen = Set.new
+    item_ids = Set.new
     self.entries = list.map do |raw|
-      entry = normalize_entry(raw.stringify_keys)
+      raw = raw.stringify_keys
+      entry = normalize_entry(raw, previous.delete(raw["id"].to_s) || {}, item_ids)
       entry["id"] = SecureRandom.uuid unless entry["id"].match?(ENTRY_ID) && seen.exclude?(entry["id"])
       seen << entry["id"]
+      item_ids.merge(CvItems.list(entry["content"]).pluck(:id))
       entry
     end
   end
 
-  def normalize_entry(raw)
+  def normalize_entry(raw, previous, taken_item_ids)
     current = boolean(raw["current"])
+    description = raw["description"].to_s.strip.presence
     {
       "id" => raw["id"].to_s,
       "title" => raw["title"].to_s.squish,
@@ -75,10 +94,16 @@ module SectionContent
       "start_date" => month(raw["start_date"]),
       "end_date" => current ? nil : month(raw["end_date"]),
       "current" => current,
-      "description" => raw["description"].to_s.strip.presence,
-      "content" => self.class.sanitize_content(raw["content"]),
+      "description" => description,
+      # Pages from before it existed don't send it.
+      "description_off" => description.present? && boolean(raw.fetch("description_off") { previous["description_off"] }),
+      "content" => normalize_content(raw["content"], previous["content"], taken_item_ids),
       "hidden" => boolean(raw["hidden"])
     }
+  end
+
+  def normalize_content(html, previous, taken)
+    CvItems.assign(self.class.sanitize_content(html), previous: previous, taken: taken)
   end
 
   def boolean(value)

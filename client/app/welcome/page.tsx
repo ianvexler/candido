@@ -99,7 +99,7 @@ const WelcomePage = () => {
   const startFromScratch = async () => {
     setStarting(true);
     try {
-      const { curriculum } = await createCurriculum({ title: "My CV", section_template_ids: [] });
+      const { curriculum } = await createCurriculum({ title: "My CV", whole_library: true });
       router.push(`/resume/${curriculum.id}`);
     } catch (error) {
       console.error(error);

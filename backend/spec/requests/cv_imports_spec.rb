@@ -157,7 +157,7 @@ RSpec.describe "CV imports" do
       expect([ experience, skills ].map(&:section_type)).to eq([ "Experience", "Skills" ])
       expect(experience.entries.size).to eq(1)
       expect(experience.entries.first).to include(
-        "title" => "Acme", "start_date" => "2022-03-01", "content" => "<ul><li><p>Shipped</p></li></ul>"
+        "title" => "Acme", "start_date" => "2022-03-01", "content" => a_string_including("<p>Shipped</p></li></ul>")
       )
       expect(response.parsed_body["section_templates"].size).to eq(2)
       expect(cv_import.reload.applied_at).to be_present
@@ -176,6 +176,7 @@ RSpec.describe "CV imports" do
       expect(response.parsed_body["curriculum_id"]).to eq(curriculum.id)
       expect(curriculum.title).to eq("My CV")
       expect(curriculum.curriculum_sections.map(&:section_type)).to eq([ "Experience", "Skills" ])
+      expect(curriculum.curriculum_sections.first.base_items.values).to contain_exactly(a_string_including("Shipped"))
     end
 
     it "names a second CV apart from the first" do

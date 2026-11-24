@@ -14,16 +14,30 @@ interface SuggestionRowProps {
   label: string;
   /** Pending, but its quote is no longer in the text. */
   stale?: boolean;
+  /** Its text is in the CV but not ticked. */
+  leftOut?: boolean;
   active?: boolean;
   dismissing?: boolean;
   onSelect: () => void;
+  /** Ticks left out text; offered when selected. */
+  onInclude?: () => void;
   onDismiss: () => void;
 }
 
 const isNote = (s: CvSuggestion) => s.kind === "note" || s.replacement === null;
 
 /** One pending suggestion in the review panel. Selecting it opens its card in the section. */
-const SuggestionRow = ({ suggestion, label, stale, active, dismissing, onSelect, onDismiss }: SuggestionRowProps) => {
+const SuggestionRow = ({
+  suggestion,
+  label,
+  stale,
+  leftOut,
+  active,
+  dismissing,
+  onSelect,
+  onInclude,
+  onDismiss,
+}: SuggestionRowProps) => {
   const note = isNote(suggestion);
 
   const copyReplacement = async () => {
@@ -40,7 +54,7 @@ const SuggestionRow = ({ suggestion, label, stale, active, dismissing, onSelect,
       className={cn(
         "rounded-md border border-border transition-colors",
         active ? "border-amber-300 bg-amber-50/60" : "hover:bg-muted/50",
-        stale && "bg-muted/30"
+        (stale || leftOut) && "bg-muted/30"
       )}
     >
       <button
@@ -60,12 +74,31 @@ const SuggestionRow = ({ suggestion, label, stale, active, dismissing, onSelect,
             {note ? "Note" : "Rewrite"}
           </span>
         </span>
-        <span className={cn("mt-0.5 line-clamp-1 text-sm", stale && "text-muted-foreground")} title={suggestion.reason}>
+        <span className={cn("mt-0.5 line-clamp-1 text-sm", (stale || leftOut) && "text-muted-foreground")} title={suggestion.reason}>
           {suggestion.reason}
         </span>
       </button>
 
-      {(stale || note) && (
+      {leftOut && active && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2">
+          <span className="mr-auto text-xs text-muted-foreground">Its text is left out of this CV.</span>
+          <Button type="button" variant="outline" size="xs" onClick={onInclude}>
+            Include it
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground hover:text-foreground"
+            disabled={dismissing}
+            onClick={onDismiss}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
+
+      {(stale || (note && !leftOut)) && (
         <div className="flex items-center gap-1 px-3 pb-2">
           {stale && (
             <span className="mr-auto rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-900">
