@@ -1,0 +1,375 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CurriculumSection, CvSuggestion, SectionEntry, SectionTemplate } from "@/lib/types";
+import {
+  buildChecklist,
+  filterChecklist,
+  moveSection,
+  suggestionPlace,
+  tickEntry,
+  tickItem,
+  tickSection,
+} from "./checklist";
+import { listItems } from "./items";
+import { emptyEntry } from "./sectionEntries";
+import type { SectionDraft } from "./sectionDrafts";
+
+const MADE = "2026-11-01T00:00:00.000Z";
+const BEFORE = "2026-10-01T00:00:00.000Z";
+const AFTER = "2026-11-02T00:00:00.000Z";
+
+const li = (id: string, off = false, text = `Text ${id}`) =>
+  `<li data-cv-item="${id}"${off ? ' data-cv-off="true"' : ""}><p>${text}</p></li>`;
+const ul = (...items: string[]) => `<ul>${items.join("")}</ul>`;
+
+const entry = (id: string, content = "", changes: Partial<SectionEntry> = {}): SectionEntry => ({
+  ...emptyEntry(),
+  id,
+  title: `Entry ${id}`,
+  content,
+  ...changes,
+});
+
+const cv = (entries: SectionEntry[], changes: Partial<CurriculumSection> = {}) =>
+  ({
+    id: 1,
+    section_type: "Experience",
+    section_template_id: null,
+    hidden: false,
+    placement: null,
+    base_items: {},
+    base_fields: {},
+    entries,
+    ...changes,
+  }) as CurriculumSection;
+
+const library = (entries: SectionEntry[], changes: Partial<SectionTemplate> = {}) =>
+  ({ id: 10, section_type: "Experience", item_added_at: {}, entries, ...changes }) as SectionTemplate;
+
+const build = (sections: CurriculumSection[], templates: SectionTemplate[] = []) =>
+  buildChecklist(sections, templates, MADE);
+const first = (sections: CurriculumSection[], templates: SectionTemplate[] = []) => build(sections, templates)[0];
+
+const ids = (list: { id: string }[]) => list.map(({ id }) => id).join("");
+/** Entries with their ticks, capital when ticked: "A(x-)" has item x ticked and one not. */
+const ticks = (section: SectionDraft) =>
+  section.entries
+    .map(({ id, hidden, content }) => {
+      const items = listItems(content).map((item) => (item.off ? "-" : item.id));
+      return `${section.hidden || hidden ? id : id.toUpperCase()}(${items.join("")})`;
+    })
+    .join(" ");
+const apply = (section: CurriculumSection, patch: object) => ({ ...section, ...patch }) as CurriculumSection;
+
+const counts = ({ included, total, state, ticked }: { included: number; total: number; state: string; ticked: boolean }) =>
+  [included, total, state, ticked];
+
+describe("buildChecklist counts", () => {
+  it("counts ticked items", () => {
+    const section = first([cv([entry("a", ul(li("x"), li("y", true))), entry("b", ul(li("z")))])]);
+    expect(counts(section)).toEqual([2, 3, "partial", true]);
+    expect(section.entries.map(counts)).toEqual([[1, 2, "partial", true], [1, 1, "on", true]]);
+    expect(section.entries[0].items.map(({ off, ticked }) => [off, ticked])).toEqual([[false, true], [true, false]]);
+  });
+
+  it("counts everything in a hidden entry as left out, keeping its ticks", () => {
+    const section = first([cv([entry("a", ul(li("x")), { hidden: true }), entry("b", ul(li("z")))])]);
+    expect(counts(section)).toEqual([1, 2, "partial", true]);
+    expect(counts(section.entries[0])).toEqual([0, 1, "off", false]);
+    expect(section.entries[0].items[0]).toMatchObject({ off: false, ticked: false });
+  });
+
+  it("counts nothing in a hidden section", () => {
+    const section = first([cv([entry("a", ul(li("x")))], { hidden: true })]);
+    expect(counts(section)).toEqual([0, 1, "off", false]);
+    expect(section.entries[0]).toMatchObject({ hidden: false, ticked: false, state: "off" });
+    expect(section.entries[0].items[0].ticked).toBe(false);
+  });
+
+  it("counts 0 with the only entry hidden", () =>
+    expect(counts(first([cv([entry("a", ul(li("x")), { hidden: true })])]))).toEqual([0, 1, "off", false]));
+
+  it("counts an entry without items as one", () => {
+    const section = first([cv([entry("a"), entry("b", "<p></p>", { hidden: true })])]);
+    expect(counts(section)).toEqual([1, 2, "partial", true]);
+    expect(section.entries.map(counts)).toEqual([[1, 1, "on", true], [0, 1, "off", false]]);
+  });
+
+  it("keeps an entry with every item off partly ticked", () => {
+    const section = first([cv([entry("a", ul(li("x", true)))])]);
+    expect(counts(section.entries[0])).toEqual([0, 1, "partial", true]);
+    expect(counts(section)).toEqual([0, 1, "partial", true]);
+  });
+
+  it("is fully on when everything is", () =>
+    expect(counts(first([cv([entry("a", ul(li("x"))), entry("b")])]))).toEqual([2, 2, "on", true]));
+});
+
+describe("buildChecklist rows", () => {
+  it("lists CV-only sections, and library sections in no CV section once, last", () => {
+    const list = build(
+      [cv([entry("a")], { id: 1 }), cv([entry("b")], { id: 2, section_template_id: 10 })],
+      [library([entry("c", ul(li("x")))], { id: 11, section_type: "Awards" }), library([entry("b")])]
+    );
+    expect(list.map(({ sectionId, templateId, name }) => [sectionId, templateId, name])).toEqual([
+      [1, null, "Experience"],
+      [2, 10, "Experience"],
+      [null, 11, "Awards"],
+    ]);
+    expect(new Set(list.map(({ key }) => key)).size).toBe(3);
+    expect(counts(list[2])).toEqual([0, 1, "off", false]);
+    expect(list[2].entries[0]).toMatchObject({ inCv: false, ticked: false, fieldsState: "library_only" });
+    expect(list[2].entries[0].items[0]).toMatchObject({ inCv: false, ticked: false, state: "library_only" });
+  });
+
+  it("lists library content after its nearest earlier neighbour", () => {
+    const section = first(
+      [cv([entry("a", ul(li("x"), li("m"))), entry("n"), entry("d")], { section_template_id: 10 })],
+      [library([entry("z"), entry("a", ul(li("w"), li("x"), li("y"))), entry("b"), entry("c"), entry("d")])]
+    );
+    expect(ids(section.entries)).toBe("zabcnd");
+    expect(ids(section.entries[1].items)).toBe("wxym");
+    expect(section.entries[1].items.map(({ inCv }) => inCv)).toEqual([false, true, false, true]);
+    expect(counts(section)).toEqual([4, 9, "partial", true]);
+  });
+
+  it("looks items up across the whole library section", () => {
+    const section = first(
+      [cv([entry("a", ul(li("x"), li("y"))), entry("b")], { section_template_id: 10 })],
+      [library([entry("a", ul(li("x"))), entry("b"), entry("c", ul(li("y"), li("z")))])]
+    );
+    expect(section.entries.map(({ items }) => ids(items))).toEqual(["xy", "", "z"]);
+    expect(section.entries[0].items[1]).toMatchObject({ inCv: true, state: "same" });
+  });
+
+  it("lists library-only content under the first copy only", () => {
+    const list = build(
+      [cv([entry("a")], { id: 5, section_template_id: 10 }), cv([entry("a")], { id: 2, section_template_id: 10 })],
+      [library([entry("a", ul(li("x"))), entry("b")])]
+    );
+    expect(list.map(({ sectionId, entries }) => [sectionId, ids(entries), ids(entries[0].items)])).toEqual([
+      [5, "ab", "x"],
+      [2, "a", ""],
+    ]);
+  });
+
+  it("gives what isn't in the library as cv_only", () => {
+    const section = first([cv([entry("a", ul(li("x")))], { section_template_id: 10 })], [library([])]);
+    expect(section.entries[0]).toMatchObject({ inCv: true, fieldsState: "cv_only" });
+    expect(section.entries[0].items[0]).toMatchObject({ inCv: true, state: "cv_only" });
+    expect(first([cv([entry("a")], { section_template_id: 99 })]).entries[0].fieldsState).toBe("cv_only");
+  });
+
+  it("compares items and fields with the library and their base", () => {
+    const section = cv([entry("a", ul(li("x", true, "New"), li("y")), { role: "Lead" })], {
+      section_template_id: 10,
+      base_items: { x: li("x"), y: li("y") },
+      base_fields: { a: entry("a") },
+    });
+    const built = first([section], [library([entry("a", ul(li("x"), li("y", false, "Other")))])]);
+    expect(built.entries[0].fieldsState).toBe("cv_changed");
+    expect(built.entries[0].items.map(({ state }) => state)).toEqual(["cv_changed", "library_changed"]);
+  });
+
+  it("never lists blank items", () =>
+    expect(ids(first([cv([entry("a", ul(li("x", false, " "), li("y")) + '<p data-cv-item="z"></p>')])]).entries[0].items)).toBe("y"));
+
+  it("titles entries by what they have", () => {
+    const blank = { title: " " };
+    const section = first([
+      cv([
+        entry("a"),
+        entry("b", "", { ...blank, organization: "Acme", role: "Lead" }),
+        entry("c", ul(li("x")), { ...blank, role: "Lead" }),
+        entry("d", ul(li("y")), blank),
+        entry("e", "", blank),
+      ]),
+    ]);
+    expect(section.entries.map(({ title }) => title)).toEqual(["Entry a", "Acme", "Lead", "Text y", "Untitled"]);
+  });
+});
+
+describe("buildChecklist new", () => {
+  const added = { item_added_at: { a: AFTER, b: AFTER, c: BEFORE, d: MADE, x: AFTER, y: BEFORE } };
+  const entries = ["a", "b", "c", "d", "e"].map((id) => entry(id, id === "a" ? ul(li("x"), li("y"), li("w")) : ""));
+
+  it("marks library content added after the CV was made", () => {
+    const section = first(
+      [cv([entry("a", ul(li("y")))], { section_template_id: 10 })],
+      [library(entries, added)]
+    );
+    expect(section.entries.map(({ isNew }) => isNew)).toEqual([false, true, false, false, false]);
+    expect(section.entries[0].items.map(({ id, isNew }) => [id, isNew])).toEqual([["x", true], ["y", false], ["w", false]]);
+    expect(section.isNew).toBe(false);
+  });
+
+  it("marks a section whose entries are all new", () => {
+    expect(first([], [library(entries.slice(0, 2), added)]).isNew).toBe(true);
+    expect(first([], [library(entries, added)]).isNew).toBe(false);
+  });
+
+  it("takes a Date too", () =>
+    expect(buildChecklist([], [library(entries.slice(0, 2), added)], new Date(MADE))[0].isNew).toBe(true));
+});
+
+it("builds again without parsing", () => {
+  const spy = vi.spyOn(document.implementation, "createHTMLDocument");
+  const make = () => {
+    const section = cv([entry("a", ul(li("p1", false, "Cached"), li("p2")))], {
+      section_template_id: 10,
+      base_items: { p1: li("p1", false, "Base") },
+    });
+    return build([section], [library([entry("a", ul(li("p1", false, "Library"), li("p2")))])]);
+  };
+  const built = make();
+  expect(spy).toHaveBeenCalled();
+  spy.mockClear();
+  expect(make()).toEqual(built);
+  expect(spy).not.toHaveBeenCalled();
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("tickEntry", () => {
+  const section = cv([entry("a", ul(li("x"), li("y", true))), entry("b", ul(li("z", true)))]);
+
+  it("restores item ticks", () => {
+    const off = apply(section, tickEntry(section, "a", false));
+    expect(ticks(off)).toBe("a(x-) B(-)");
+    expect(ticks(apply(off, tickEntry(off, "a", true)))).toBe("A(x-) B(-)");
+  });
+
+  it("ticks all items when none were ticked", () => {
+    const off = apply(section, tickEntry(section, "b", false));
+    expect(ticks(apply(off, tickEntry(off, "b", true)))).toBe("A(x-) B(z)");
+  });
+
+  it("shows only that entry of a hidden section", () =>
+    expect(ticks(apply({ ...section, hidden: true }, tickEntry({ ...section, hidden: true }, "a", true)))).toBe("A(x-) b(-)"));
+
+  it("hides the only entry", () => {
+    const only = cv([entry("a")]);
+    expect(tickEntry(only, "a", false)).toEqual({ entries: [{ ...only.entries[0], hidden: true }] });
+  });
+
+  it("changes nothing for an entry the CV lacks", () => {
+    expect(tickEntry({ ...section, hidden: true }, "q", true)).toEqual({});
+    expect(tickEntry(section, "q", false)).toEqual({});
+  });
+});
+
+describe("tickItem", () => {
+  const section = cv([entry("a", ul(li("x"), li("y", true))), entry("b", ul(li("z")))]);
+
+  it("leaves the entry ticked without its last item", () => {
+    const off = apply(section, tickItem(section, "b", "z", false));
+    expect(ticks(off)).toBe("A(x-) B(-)");
+    expect(off.entries[1].hidden).toBe(false);
+  });
+
+  it("leaves what is ticked alone", () =>
+    expect(ticks(apply(section, tickItem(section, "a", "y", true)))).toBe("A(xy) B(z)"));
+
+  it.each([
+    ["a hidden entry", false, true, "A(-y) B(z)"],
+    ["a hidden section", true, false, "A(-y) b(z)"],
+    ["both", true, true, "A(-y) b(z)"],
+  ])("shows only that item of %s", (_, hidden, entryHidden, expected) => {
+    const before = cv([{ ...section.entries[0], hidden: entryHidden }, section.entries[1]], { hidden });
+    expect(ticks(apply(before, tickItem(before, "a", "y", true)))).toBe(expected);
+  });
+
+  it("changes nothing for an item the entry lacks", () => {
+    const hidden = { ...section, hidden: true };
+    expect(tickItem(hidden, "a", "z", true)).toEqual({});
+    expect(tickItem(hidden, "q", "z", true)).toEqual({});
+    expect(tickItem(hidden, "a", "", true)).toEqual({});
+  });
+});
+
+describe("tickSection", () => {
+  it("restores earlier ticks", () => {
+    const section = cv([entry("a", ul(li("x"), li("y", true))), entry("b", "", { hidden: true }), entry("c", ul(li("z", true)))]);
+    const off = apply(section, tickSection(section, false));
+    expect(off.hidden).toBe(true);
+    expect(ticks(apply(off, tickSection(off, true)))).toBe("A(x-) b() C(-)");
+  });
+
+  it("shows all when every entry is hidden", () => {
+    const section = cv([entry("a", ul(li("x"), li("y", true)), { hidden: true }), entry("b", ul(li("z", true)), { hidden: true })]);
+    expect(ticks(apply(section, tickSection(section, true)))).toBe("A(x-) B(z)");
+  });
+
+  it("ticks all items of untitled entries when none were ticked", () => {
+    const section = cv([entry("a", ul(li("x", true), li("y", true)), { title: "" })], { hidden: true });
+    expect(ticks(apply(section, tickSection(section, true)))).toBe("A(xy)");
+  });
+
+  it("keeps title lines on their own", () => {
+    const section = cv([entry("a", ul(li("x", true)))], { hidden: true });
+    expect(ticks(apply(section, tickSection(section, true)))).toBe("A(-)");
+  });
+});
+
+it("moveSection swaps with a neighbour and keeps every id", () => {
+  expect(moveSection([1, 2, 3], 2, -1)).toEqual([2, 1, 3]);
+  expect(moveSection([1, 2, 3], 2, 1)).toEqual([1, 3, 2]);
+  expect(moveSection([1, 2, 3], 3, 1)).toEqual([1, 2, 3]);
+  expect(moveSection([1, 2, 3], 9, 1)).toEqual([1, 2, 3]);
+});
+
+describe("filterChecklist", () => {
+  const list = build([
+    cv([entry("a", ul(li("x", false, "Rails"), li("y"))), entry("b", ul(li("z", false, "Ruby")))]),
+    cv([entry("c", ul(li("w")))], { id: 2, section_type: "Awards" }),
+  ]);
+  const shape = (query: string) =>
+    filterChecklist(list, query).map(({ sectionId, entries }) => [sectionId, ...entries.map((e) => e.id + ids(e.items))]);
+
+  it("keeps the parents of what matches", () => expect(shape(" RAILS ")).toEqual([[1, "ax"]]));
+  it("keeps what is in a matching entry or section", () => {
+    expect(shape("entry a")).toEqual([[1, "axy"]]);
+    expect(shape("award")).toEqual([[2, "cw"]]);
+  });
+  it("finds several", () => expect(shape("text")).toEqual([[1, "ay"], [2, "cw"]]));
+  it("keeps counts", () => expect(filterChecklist(list, "rails")[0].total).toBe(3));
+  it("keeps all without a query", () => expect(filterChecklist(list, "  ")).toBe(list));
+  it("keeps nothing without a match", () => expect(shape("nope")).toEqual([]));
+});
+
+describe("suggestionPlace", () => {
+  const about = (quote: string, changes: Partial<CvSuggestion> = {}) =>
+    ({ entry_id: "a", field: "content", quote, ...changes }) as CvSuggestion;
+  const a = entry("a", ul(li("x", false, "Built  APIs"), li("y", true, "Ran tests")), { description: "A summary" });
+  const b = entry("b", ul(li("z", false, "Other")));
+  const section = cv([a, b]);
+
+  it.each([
+    ["Built APIs", {}, "visible"],
+    ["Ran tests", {}, "left_out"],
+    ["Gone", {}, "stale"],
+    ["Other", {}, "stale"],
+    ["Other", { entry_id: "b" }, "visible"],
+    ["Built", { entry_id: "q" }, "stale"],
+    ["Built", { entry_id: null, field: null }, "visible"],
+    ["A summary", {}, "stale"],
+    ["A summary", { field: "description" }, "visible"],
+    ["Gone", { field: "description" }, "stale"],
+  ] as const)("%s %j is %s", (quote, changes, place) =>
+    expect(suggestionPlace(section, about(quote, changes))).toBe(place));
+
+  it.each([
+    ["entry", cv([{ ...a, hidden: true }, b])],
+    ["section", cv([a, b], { hidden: true })],
+  ])("is left out in a hidden %s, if the text is still there", (_, hidden) => {
+    expect(suggestionPlace(hidden, about("Built"))).toBe("left_out");
+    expect(suggestionPlace(hidden, about("Ran tests"))).toBe("left_out");
+    expect(suggestionPlace(hidden, about("A summary", { field: "description" }))).toBe("left_out");
+    expect(suggestionPlace(hidden, about("Gone"))).toBe("stale");
+  });
+
+  it("is visible in a ticked item even if an unticked one has the same text", () =>
+    expect(suggestionPlace(cv([entry("a", ul(li("x", true, "Same"), li("y", false, "Same")))]), about("Same"))).toBe("visible"));
+
+  it("is stale when only separate items together have the text", () =>
+    expect(suggestionPlace(cv([entry("a", ul(li("x", false, "One"), li("y", false, "two")))]), about("One two"))).toBe("stale"));
+});
