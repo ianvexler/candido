@@ -158,23 +158,44 @@ describe("saving", () => {
     await expect(drafts.flush()).resolves.toBe(true);
   });
 
-  it("doesn't save an end date before its start, but does save hidden", async () => {
-    const { drafts, calls, onError } = setup();
-    drafts.change(1, edit("e1", { start_date: "2024-02-01", end_date: "2024-01-01" }));
+  it("doesn't save an end date before its start, but does save everything else", async () => {
+    const { drafts, calls, onError, shown } = setup([
+      section({ entries: [entry("e1", { title: "One", start_date: "2023-02-01" }), entry("e2")] }),
+    ]);
+    const dates = { start_date: "2024-02-01", end_date: "2024-01-01" };
+    drafts.change(1, edit("e1", dates));
     await pause();
     await expect(drafts.flush()).resolves.toBe(true);
     expect(calls).toHaveLength(0);
     expect(onError).not.toHaveBeenCalled();
 
-    drafts.change(1, { hidden: true });
+    drafts.change(1, edit("e2", { title: "Typed" }));
+    drafts.change(1, edit("e1", { hidden: true }));
     await pause();
-    expect(calls[0].patch).toEqual({ hidden: true });
+    expect(calls[0].patch.entries).toMatchObject([
+      { hidden: true, start_date: "2023-02-01", end_date: null },
+      { title: "Typed" },
+    ]);
     calls[0].resolve();
     await settle();
+    // The dates stay as typed, and aren't sent again and again.
+    expect(shown().entries[0]).toMatchObject(dates);
+    await expect(drafts.flush()).resolves.toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(drafts.isSaved(1)).toBe(true);
 
     drafts.change(1, edit("e1", { end_date: "2024-03-01" }));
     await pause();
     expect(calls[1].patch.entries![0]).toMatchObject({ start_date: "2024-02-01", end_date: "2024-03-01" });
+  });
+
+  it("saves a new entry without its invalid dates", async () => {
+    const { drafts, calls } = setup();
+    drafts.change(1, ({ entries }) => ({
+      entries: [...entries, entry("new", { title: "New", start_date: "2024-02-01", end_date: "2024-01-01" })],
+    }));
+    await pause();
+    expect(calls[0].patch.entries![2]).toMatchObject({ title: "New", start_date: null, end_date: null });
   });
 });
 

@@ -131,16 +131,12 @@ type Library = ReturnType<typeof readLibrary>;
 type Held = {
   entries: Set<string>;
   items: Set<string>;
-  /** Entries that several copies have. */
-  repeated: Set<string>;
 };
 
 const heldIn = (copies: CurriculumSection[]): Held => {
   const entries = copies.flatMap((copy) => copy.entries);
-  const ids = entries.map(({ id }) => id);
   return {
-    entries: new Set(ids),
-    repeated: new Set(ids.filter((id, index) => ids.indexOf(id) !== index)),
+    entries: new Set(entries.map(({ id }) => id)),
     items: new Set(entries.flatMap(({ content }) => itemsOf(content).map(({ id }) => id))),
   };
 };
@@ -216,8 +212,7 @@ const buildEntry = (
       state: "library_only",
       libraryText: null,
     }));
-  // The library's is offered once, and not where another copy's would be the one changed.
-  const offersSummary = !inCv || summaryOf(entry) !== null || (withLibrary && !held.repeated.has(entry.id));
+  const offersSummary = !inCv || summaryOf(entry) !== null || withLibrary;
   const summary = buildSummary(section, inCv ? entry : null, offersSummary ? libraryEntry : undefined, ticked);
   const items = [...summary, ...withLibraryOnly(own, libraryItems.map(({ id }) => id), extras)];
 

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { apiErrorMessage } from "./reviewPanel";
 import { createDrafts, EntryVersions, SectionDraft, SectionPatch } from "./sectionDrafts";
 
 const showError = (error: unknown) => {
   console.error(error);
-  const message = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
-  toast.error(message ?? "Couldn't save this section. Check your connection and try again.");
+  toast.error(apiErrorMessage(error, "Couldn't save this section. Check your connection and try again."));
 };
 
 // What text is being composed in. It may go away or lose focus without ending that.
@@ -37,6 +37,14 @@ export const useSectionDrafts = <T extends SectionDraft & { id: number }>(
     })
   );
   useEffect(() => () => drafts.dispose(), [drafts]);
+  // Closing or reloading doesn't wait for the pause: this comes first, and the request may still go out.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") void drafts.flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [drafts]);
 
   return { ...state, ...drafts };
 };

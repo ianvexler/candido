@@ -13,8 +13,8 @@ import AddSheetButton from "@/components/resume/AddSheetButton";
 import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
 import HeaderDocument from "@/components/resume/HeaderDocument";
 import ImportCvDialog from "@/components/resume/ImportCvDialog";
+import LibrarySection from "@/components/resume/LibrarySection";
 import { Button } from "@/components/ui/Button";
-import SectionDocument from "@/components/resume/SectionDocument";
 import SectionPreview from "@/components/resume/SectionPreview";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
 import { waitForSaves } from "@/lib/resume/saveTracker";
@@ -23,14 +23,22 @@ import { useSectionDrafts } from "@/lib/resume/useSectionDrafts";
 import { ResumeHeader, SectionTemplate } from "@/lib/types";
 import { ArrowLeftIcon, FileUpIcon } from "lucide-react";
 import NextLink from "next/link";
-import { useEffect, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 const saveTemplate = async (template: SectionTemplate, patch: SectionPatch) =>
   (await updateSectionTemplate(template.id, patch)).section_template;
 
+/** Memoised, as it reads all of the library. */
+const LibraryPreview = memo(({ profile, templates }: { profile: ResumeHeader; templates: SectionTemplate[] }) => (
+  <SectionPreview document={buildResumeDocument({ title: "Library", header: profile, sections: templates })} />
+));
+LibraryPreview.displayName = "LibraryPreview";
+
 const SectionLibraryPage = () => {
   const { sections: templates, versions, load, add, change, remove } = useSectionDrafts<SectionTemplate>(saveTemplate);
+  // The preview may follow a little later than typing.
+  const previewed = useDeferredValue(templates);
   const [profile, setProfile] = useState<ResumeHeader | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -75,15 +83,18 @@ const SectionLibraryPage = () => {
     }
   };
 
-  const removeTemplate = async (id: number) => {
-    try {
-      await remove(id, deleteSectionTemplate(id));
-      toast.success("Section deleted");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to delete section");
-    }
-  };
+  const removeTemplate = useCallback(
+    async (id: number) => {
+      try {
+        await remove(id, deleteSectionTemplate(id));
+        toast.success("Section deleted");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to delete section");
+      }
+    },
+    [remove]
+  );
 
   if (loading || !profile) {
     return (
@@ -130,7 +141,7 @@ const SectionLibraryPage = () => {
         </>
       }
       preview={
-        <SectionPreview document={buildResumeDocument({ title: "Library", header: profile, sections: templates })} />
+        <LibraryPreview profile={profile} templates={previewed} />
       }
     >
       <HeaderDocument
@@ -140,19 +151,12 @@ const SectionLibraryPage = () => {
       />
 
       {templates.map((template) => (
-        <SectionDocument
+        <LibrarySection
           key={template.id}
-          section={template}
+          template={template}
           versions={versions[template.id]}
-          onChange={(patch, editor) => change(template.id, patch, editor)}
-          onDelete={() => removeTemplate(template.id)}
-          deleteLabel="Delete from library"
-          deleteTitle="Delete this section?"
-          describeDeletion={(entryId) =>
-            entryId === undefined
-              ? "This removes the reusable section from your library. CVs that already use it keep their copy."
-              : "This removes it from the library section. CVs that already use it keep their copy."
-          }
+          onChange={change}
+          onDelete={removeTemplate}
         />
       ))}
 

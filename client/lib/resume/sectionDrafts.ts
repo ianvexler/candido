@@ -33,7 +33,7 @@ interface Draft<T> {
   current: T;
   /** As the server has it. */
   saved: T;
-  /** What was last sent, until it is known to be saved. */
+  /** The record with what was last sent, until it is known to be saved. */
   sent: T | null;
   /** The server may have other text than `saved`, so what is shown is sent even if it's the same. */
   uncertain: boolean;
@@ -87,12 +87,21 @@ const allOn = (html: string) => setItemsOff(html, listItems(html).map((item) => 
 // A CV's section's own settings.
 const OWN_KEYS = ["hidden", "placement"] as const;
 
-/** What to send, or null. A section with an invalid date range isn't sent; the editor says so. */
+/** As it can be saved: an invalid date range stays as it was. The editor says so. */
+const sendable = (current: SectionDraft, saved: SectionDraft): SectionFields => ({
+  section_type: current.section_type,
+  entries: current.entries.map((entry) => {
+    if (!endsBeforeStart(entry)) return entry;
+    const { start_date, end_date, current: ongoing } = byId(saved.entries, entry.id) ?? emptyEntry();
+    return { ...entry, start_date, end_date, current: ongoing };
+  }),
+});
+
+/** What to send, or null. */
 const unsaved = (current: SectionDraft, saved: SectionDraft): SectionPatch | null => {
   const patch: SectionPatch = {};
-  if (!current.entries.some(endsBeforeStart)) {
-    if (!sameFields(current, saved)) Object.assign(patch, clean(current));
-  }
+  const fields = sendable(current, saved);
+  if (!sameFields(fields, saved)) Object.assign(patch, clean(fields));
   OWN_KEYS.forEach((key) => {
     if (current[key] !== saved[key]) Object.assign(patch, { [key]: current[key] });
   });
@@ -125,16 +134,11 @@ const keepUnsaved = (shown: SectionEntry[], known: SectionEntry[][], next: Secti
       const before = byId(entries, entry.id);
       return before !== undefined && sameEntry(entry, before);
     });
-  // With an invalid date range nothing of the section is sent, so a flush didn't save its edits.
-  const unsendable = shown.some(endsBeforeStart);
-  const isEdited = (entry: SectionEntry) => {
-    const before = byId(known[0], entry.id);
-    return before === undefined || !sameEntry(entry, before);
-  };
   const taken = next.flatMap((entry) => {
     const now = byId(shown, entry.id);
     if (!now) return unchanged(entry) ? [] : [entry];
-    const keep = unchanged(entry) || sameEntry(entry, now) || (unsendable && isEdited(now));
+    // An invalid date range isn't sent, so a flush didn't save it.
+    const keep = unchanged(entry) || sameEntry(entry, now) || endsBeforeStart(now);
     return keep ? [now] : [entry];
   });
   const unsavedOnes = shown.filter(({ id }) => !byId(next, id) && !byId(known[0], id));
@@ -170,8 +174,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
 
   const unsavedIn = ({ current, saved, uncertain }: Draft<T>): SectionPatch | null => {
     const patch = unsaved(current, saved);
-    if (!uncertain || current.entries.some(endsBeforeStart)) return patch;
-    return { ...patch, ...clean(current) };
+    return uncertain ? { ...patch, ...clean(sendable(current, saved)) } : patch;
   };
 
   const find = (id: number) => drafts.find((draft) => draft.current.id === id);
@@ -258,7 +261,8 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
 
     const sent = draft.current;
     const { replaced, edits, uncertain } = draft;
-    draft.sent = sent;
+    const fields = clean(sendable(sent, draft.saved));
+    draft.sent = { ...sent, ...fields };
     if (patch.entries) draft.uncertain = false;
     const request = trackSave(
       `section-${sent.id}`,
@@ -266,7 +270,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
         (record) => {
           draft.sent = null;
           draft.savedEdits = edits;
-          settle(draft, sent, replaced, record);
+          settle(draft, sent, fields, replaced, record);
           return true;
         },
         (error) => {
@@ -286,7 +290,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     return request;
   };
 
-  const settle = (draft: Draft<T>, sent: T, replaced: number, response: T) => {
+  const settle = (draft: Draft<T>, sent: T, fields: SectionFields, replaced: number, response: T) => {
     if (draft.removed) return;
     const { current } = draft;
     const record = withEntry(response, current.entries);
@@ -304,12 +308,9 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     OWN_KEYS.forEach((key) => {
       if (current[key] !== sent[key]) Object.assign(next, { [key]: current[key] });
     });
-    const before = clean(sent);
-    // One with an invalid date range wasn't sent.
-    const wasSent = !sent.entries.some(endsBeforeStart);
-    if (wasSent && (disposed || !busy()) && sameFields(current, sent)) {
-      if (record.section_type !== before.section_type) next.section_type = record.section_type;
-      next.entries = takeStored(current.entries, before.entries, record.entries);
+    if ((disposed || !busy()) && sameFields(current, sent)) {
+      if (record.section_type !== fields.section_type) next.section_type = record.section_type;
+      next.entries = takeStored(current.entries, fields.entries, record.entries);
     }
     show(draft, next, { stale: false });
     notify();
@@ -352,7 +353,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
     /** A section as the server has it, as far as is known here. */
     saved: (id: number) => find(id)?.saved,
 
-    /** Nothing of it waits to be saved. An invalid date range keeps text from being sent at all. */
+    /** Nothing of it waits to be saved. An invalid date range isn't sent at all. */
     isSaved: (id: number) => {
       const draft = find(id);
       return draft !== undefined && !isDirty(draft);
@@ -402,8 +403,8 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
 
     /**
      * Shows a record from the server, added at the end if it's new. Unsaved edits
-     * of entries that the record changes are lost, unless an invalid date range keeps
-     * them from being sent: flush before asking for it.
+     * of entries that the record changes are lost, except in one with an invalid
+     * date range, which can't be sent: flush before asking for it.
      */
     replace: (section: T) => {
       const draft = find(section.id);
@@ -414,7 +415,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
       }
       const { current, saved, sent } = draft;
       const record = withEntry(section, current.entries);
-      const known: SectionDraft[] = sent ? [saved, { ...sent, ...clean(sent) }] : [saved];
+      const known: SectionDraft[] = sent ? [saved, sent] : [saved];
       const entries = keepUnsaved(current.entries, known.map((fields) => fields.entries), record.entries);
       const next = withEntry({ ...record, entries }, current.entries);
       (["section_type", ...OWN_KEYS] as const).forEach((key) => {

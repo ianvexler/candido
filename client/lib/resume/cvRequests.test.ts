@@ -65,7 +65,8 @@ describe("include", () => {
     await requests.include(payload);
     expect(flush.mock.invocationCallOrder[0]).toBeLessThan(sendInclude.mock.invocationCallOrder[0]);
     expect(replace).toHaveBeenCalledOnce();
-    expect(replace).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    // The server goes by position too.
+    expect(replace).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
   });
 
   it("shows a section the CV didn't have", async () => {
