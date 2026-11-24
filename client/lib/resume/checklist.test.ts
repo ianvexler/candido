@@ -104,6 +104,37 @@ describe("buildChecklist counts", () => {
     expect(counts(first([cv([entry("a", ul(li("x"))), entry("b")])]))).toEqual([2, 2, "on", true]));
 });
 
+describe("blank entries", () => {
+  const blank = (id: string, changes = {}) => entry(id, "<p></p>", { title: "", ...changes });
+
+  it("count for nothing", () => {
+    const section = first([cv([entry("a", ul(li("x"))), blank("b", { hidden: true }), blank("c")])]);
+    expect(counts(section)).toEqual([1, 1, "on", true]);
+    expect(section.entries.slice(1).map(counts)).toEqual([[0, 0, "off", false], [0, 0, "on", true]]);
+  });
+
+  it("aren't ticked content of a section", () =>
+    expect(counts(first([cv([entry("a", ul(li("x")), { hidden: true }), blank("b")])]))).toEqual([0, 1, "off", false]));
+
+  it("leave a section of only them its own tick", () => {
+    expect(counts(first([cv([blank("a", { hidden: true })])]))).toEqual([0, 0, "on", true]);
+    expect(counts(first([cv([blank("a")], { hidden: true })]))).toEqual([0, 0, "off", false]);
+  });
+
+  it("count library items they lack", () => {
+    const section = first([cv([blank("a")], { section_template_id: 10 })], [library([entry("a", ul(li("x")))])]);
+    expect(counts(section)).toEqual([0, 1, "partial", true]);
+  });
+
+  it("count for nothing in the library", () =>
+    expect(counts(first([], [library([blank("a"), entry("b")])]))).toEqual([0, 1, "off", false]));
+
+  it("aren't earlier ticks of a section", () => {
+    const section = cv([entry("a", ul(li("x")), { hidden: true }), blank("b")], { hidden: true });
+    expect(ticks(apply(section, tickSection(section, true)))).toBe("A(x) B()");
+  });
+});
+
 describe("buildChecklist rows", () => {
   it("lists CV-only sections, and library sections in no CV section once, last", () => {
     const list = build(
@@ -152,6 +183,25 @@ describe("buildChecklist rows", () => {
     ]);
   });
 
+  it("doesn't list what a later copy holds", () => {
+    const list = build(
+      [
+        cv([entry("a", ul(li("x")))], { id: 1, section_template_id: 10 }),
+        cv([entry("a", ul(li("y"))), entry("b", ul(li("z")))], { id: 2, section_template_id: 10 }),
+      ],
+      [library([entry("a", ul(li("x"), li("y"), li("w"))), entry("b", ul(li("z"))), entry("c")])]
+    );
+    expect(list.map(({ entries }) => entries.map((e) => e.id + ids(e.items)))).toEqual([["axw", "c"], ["ay", "bz"]]);
+  });
+
+  it("lists what another library section's copy holds", () => {
+    const section = first(
+      [cv([entry("a")], { section_template_id: 10 }), cv([entry("b")], { id: 2, section_template_id: 11 })],
+      [library([entry("a"), entry("b")]), library([], { id: 11 })]
+    );
+    expect(ids(section.entries)).toBe("ab");
+  });
+
   it("gives what isn't in the library as cv_only", () => {
     const section = first([cv([entry("a", ul(li("x")))], { section_template_id: 10 })], [library([])]);
     expect(section.entries[0]).toMatchObject({ inCv: true, fieldsState: "cv_only" });
@@ -172,6 +222,16 @@ describe("buildChecklist rows", () => {
 
   it("never lists blank items", () =>
     expect(ids(first([cv([entry("a", ul(li("x", false, " "), li("y")) + '<p data-cv-item="z"></p>')])]).entries[0].items)).toBe("y"));
+
+  it("titles a CV entry by its own items before the library's", () => {
+    const built = (content: string) =>
+      first(
+        [cv([entry("a", content, { title: "" })], { section_template_id: 10 })],
+        [library([entry("a", ul(li("x"), li("y")), { title: "" })])]
+      ).entries[0].title;
+    expect(built(ul(li("y")))).toBe("Text y");
+    expect(built("")).toBe("Text x");
+  });
 
   it("titles entries by what they have", () => {
     const blank = { title: " " };
@@ -369,6 +429,22 @@ describe("suggestionPlace", () => {
 
   it("is visible in a ticked item even if an unticked one has the same text", () =>
     expect(suggestionPlace(cv([entry("a", ul(li("x", true, "Same"), li("y", false, "Same")))]), about("Same"))).toBe("visible"));
+
+  it.each([
+    ["Secret", "stale"],
+    ["Before after", "stale"],
+    ["Before", "visible"],
+    ["bold part", "visible"],
+    ["part line", "visible"],
+    ["line Nested", "stale"],
+    ["Nested", "visible"],
+    ["Nested Deeper", "stale"],
+  ] as const)("matches what the editor does: %s is %s", (quote, place) => {
+    const item =
+      '<li data-cv-item="x"><p>Before <span data-cv-hidden="true">Secret</span> after</p>' +
+      "<p>A <strong>bold</strong> part<br>line</p><ul><li><p>Nested</p></li><li><p>Deeper</p></li></ul></li>";
+    expect(suggestionPlace(cv([entry("a", ul(item))]), about(quote))).toBe(place);
+  });
 
   it("is stale when only separate items together have the text", () =>
     expect(suggestionPlace(cv([entry("a", ul(li("x", false, "One"), li("y", false, "two")))]), about("One two"))).toBe("stale"));

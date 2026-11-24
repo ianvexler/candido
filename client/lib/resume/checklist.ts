@@ -1,7 +1,7 @@
 import { CurriculumSection, CvSuggestion, EntryFieldKeys, SectionEntry, SectionTemplate } from "@/lib/types";
-import { Item, listItems, setItemsOff } from "./items";
+import { Item, isSeparator, listItems, parseHtml, setItemsOff } from "./items";
 import { ItemState, fieldsState, itemState } from "./itemState";
-import { moveAt } from "./sectionEntries";
+import { isEmptyEntry, moveAt } from "./sectionEntries";
 import type { SectionDraft, SectionPatch } from "./sectionDrafts";
 import { findQuote } from "./suggestions";
 
@@ -12,7 +12,7 @@ type Counts = {
   /** In the CV as it stands: nothing in an unticked section or entry is. */
   ticked: boolean;
   state: TickState;
-  /** Items, and entries without any. */
+  /** Items, and entries without any unless they are blank. */
   total: number;
   /** How many of those the CV shows. */
   included: number;
@@ -86,8 +86,8 @@ const withLibraryOnly = <T extends { id: string }>(ours: T[], libraryIds: string
   return rows;
 };
 
-const entryTitle = (entry: SectionEntry, items: ChecklistItem[]) =>
-  [entry.title, entry.organization, entry.role, items[0]?.text].map((text) => text?.trim()).find(Boolean) ?? "Untitled";
+const entryTitle = (entry: SectionEntry, firstItem: ChecklistItem | undefined) =>
+  [entry.title, entry.organization, entry.role, firstItem?.text].map((text) => text?.trim()).find(Boolean) ?? "Untitled";
 
 const tickState = (ticked: boolean, included: number, total: number): TickState => {
   if (!ticked) return "off";
@@ -117,13 +117,23 @@ const readLibrary = (template: SectionTemplate | undefined, cvCreatedAt: Date | 
 
 type Library = ReturnType<typeof readLibrary>;
 
+/** Ids of what a CV has of one library section, in any copy of it. */
+type Held = { entries: Set<string>; items: Set<string> };
+
+const heldIn = (copies: CurriculumSection[]): Held => {
+  const entries = copies.flatMap((copy) => copy.entries);
+  return {
+    entries: new Set(entries.map(({ id }) => id)),
+    items: new Set(entries.flatMap(({ content }) => itemsOf(content).map(({ id }) => id))),
+  };
+};
+
 const buildEntry = (
   section: CurriculumSection | null,
   library: Library,
   entry: SectionEntry,
   inCv: boolean,
-  /** Items that aren't listed as the library's only. */
-  heldItems: Set<string>,
+  held: Held,
   withLibrary: boolean
 ): ChecklistEntry => {
   const libraryEntry = library.entries.find(({ id }) => id === entry.id);
@@ -140,7 +150,7 @@ const buildEntry = (
   }));
   const libraryItems = withLibrary && libraryEntry ? itemsOf(libraryEntry.content) : [];
   const extras = libraryItems
-    .filter(({ id }) => id !== "" && !heldItems.has(id))
+    .filter(({ id }) => id !== "" && !held.items.has(id))
     .map(({ id, text }): ChecklistItem => ({
       id,
       text,
@@ -152,12 +162,13 @@ const buildEntry = (
     }));
   const items = withLibraryOnly(own, libraryItems.map(({ id }) => id), extras);
 
-  const total = items.length || 1;
-  const included = items.length > 0 ? items.filter((item) => item.ticked).length : Number(ticked);
+  const countsItself = items.length === 0 && !isEmptyEntry(entry);
+  const total = countsItself ? 1 : items.length;
+  const included = countsItself ? Number(ticked) : items.filter((item) => item.ticked).length;
   return {
     id: entry.id,
     inCv,
-    title: entryTitle(entry, items),
+    title: entryTitle(entry, own[0] ?? items[0]),
     hidden: inCv ? entry.hidden : true,
     ticked,
     state: tickState(ticked, included, total),
@@ -174,14 +185,14 @@ const buildSection = (
   section: CurriculumSection | null,
   template: SectionTemplate | undefined,
   cvCreatedAt: Date | string,
+  held: Held,
   withLibrary: boolean
 ): ChecklistSection => {
   const library = readLibrary(template, cvCreatedAt);
   const ours = section?.entries ?? [];
-  const held = new Set(ours.flatMap((entry) => itemsOf(entry.content).map(({ id }) => id)));
   const build = (entry: SectionEntry, inCv: boolean) => buildEntry(section, library, entry, inCv, held, withLibrary);
 
-  const extras = withLibrary ? library.entries.filter(({ id }) => ours.every((entry) => entry.id !== id)) : [];
+  const extras = withLibrary ? library.entries.filter(({ id }) => !held.entries.has(id)) : [];
   const entries = withLibraryOnly(
     ours.map((entry) => build(entry, true)),
     library.entries.map(({ id }) => id),
@@ -190,7 +201,9 @@ const buildSection = (
 
   const total = sum(entries, "total");
   const included = sum(entries, "included");
-  const ticked = entries.some((entry) => entry.ticked);
+  // Blank entries don't show, so they only leave a section its own tick.
+  const written = ours.filter((entry) => !isEmptyEntry(entry));
+  const ticked = section !== null && !section.hidden && (written.length === 0 || written.some((entry) => !entry.hidden));
   return {
     key: section ? `cv-${section.id}` : `library-${template?.id}`,
     sectionId: section?.id ?? null,
@@ -216,21 +229,24 @@ export const buildChecklist = (
   templates: SectionTemplate[],
   cvCreatedAt: Date | string
 ): ChecklistSection[] => {
+  const held = (templateId: number | null) =>
+    heldIn(sections.filter((section) => templateId !== null && section.section_template_id === templateId));
   const copied = new Set<number>();
   const ours = sections.map((section) => {
     const template = templates.find(({ id }) => id === section.section_template_id);
     const isFirst = template !== undefined && !copied.has(template.id);
     if (template) copied.add(template.id);
-    return buildSection(section, template, cvCreatedAt, isFirst);
+    return buildSection(section, template, cvCreatedAt, held(section.section_template_id), isFirst);
   });
   const others = templates
     .filter(({ id }) => !copied.has(id))
-    .map((template) => buildSection(null, template, cvCreatedAt, true));
+    .map((template) => buildSection(null, template, cvCreatedAt, held(template.id), true));
   return [...ours, ...others];
 };
 
-// Ticking. For content the CV has; the rest is copied in by the server's
-// include_from_library!, which shows the same part of what was left out.
+// Ticking, for content the CV has; the server's include_from_library! copies in
+// the rest. Both show only the ticked part of a left out section or entry. Only
+// these tick everything when nothing was ticked: the server leaves ticks alone.
 
 const setOff = (entry: SectionEntry, ids: string[], off: boolean): SectionEntry => ({
   ...entry,
@@ -256,7 +272,7 @@ const hasFields = (entry: SectionEntry) =>
   EntryFieldKeys.some((key) => (typeof entry[key] === "string" ? entry[key].trim() : entry[key]));
 
 /** Has something ticked: items, or itself if it can do without. */
-const hasTicks = (entry: SectionEntry) => !entry.hidden && (hasFields(entry) || !allOff(entry));
+const hasTicks = (entry: SectionEntry) => !entry.hidden && !isEmptyEntry(entry) && (hasFields(entry) || !allOff(entry));
 
 export const tickSection = (section: SectionDraft, on: boolean): SectionPatch => {
   if (!on) return { hidden: true };
@@ -317,6 +333,28 @@ export const filterChecklist = (list: ChecklistSection[], query: string): Checkl
   });
 };
 
+/** An item's text as the editor matches quotes in it: by block, and apart where text is hidden. */
+const runsOf = cached((html: string): readonly string[] => {
+  const runs = [""];
+  const visit = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      runs[runs.length - 1] += node.textContent ?? "";
+      return;
+    }
+    if (node.nodeName === "BR") {
+      runs[runs.length - 1] += " ";
+      return;
+    }
+    const hidden = node instanceof Element && node.matches("span[data-cv-hidden]");
+    const apart = hidden || isSeparator(node);
+    if (apart) runs.push("");
+    if (!hidden) node.childNodes.forEach(visit);
+    if (apart) runs.push("");
+  };
+  visit(parseHtml(html));
+  return runs.filter((run) => run.trim());
+});
+
 /** Where the text a suggestion quotes is now. */
 export const suggestionPlace = (
   section: SectionDraft,
@@ -333,7 +371,7 @@ export const suggestionPlace = (
   const shown = section.hidden || entry.hidden ? "left_out" : "visible";
   if (suggestion.field === "description") return quoted(entry.description ?? "") ? shown : "stale";
 
-  const found = itemsOf(entry.content).filter(({ text }) => quoted(text));
+  const found = itemsOf(entry.content).filter(({ html }) => runsOf(html).some(quoted));
   if (found.length === 0) return "stale";
   return found.some(({ off }) => !off) ? shown : "left_out";
 };
