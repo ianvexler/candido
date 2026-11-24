@@ -16,6 +16,8 @@ interface ConfirmationModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "default" | "destructive";
+  /** Where focus goes once closed, when what had it before is gone. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 const ConfirmationModal = ({
@@ -28,6 +30,7 @@ const ConfirmationModal = ({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   variant = "default",
+  onCloseAutoFocus,
 }: ConfirmationModalProps) => {
   // Held while confirming, so a second click can't run it twice.
   const [confirming, setConfirming] = useState(false);
@@ -50,6 +53,7 @@ const ConfirmationModal = ({
           className="fixed left-1/2 top-1/2 z-101 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg"
           onPointerDownOutside={onClose}
           onEscapeKeyDown={onClose}
+          onCloseAutoFocus={onCloseAutoFocus}
         >
           <Dialog.Title asChild>
             <h2 className="text-lg font-semibold">{title}</h2>

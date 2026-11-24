@@ -10,7 +10,8 @@ import { arrayMove } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import NextLink from "next/link";
-import { ComponentProps, useState } from "react";
+import { ComponentProps, useRef, useState } from "react";
+import { rowBox } from "./ChecklistRow";
 import ChecklistSection, { DragData } from "./ChecklistSection";
 import { deletionNote, REMOVE_SECTION } from "./removeSection";
 
@@ -63,6 +64,22 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
     const entries = sections.find((section) => section.sectionId === sectionId)?.entries ?? [];
     const ids = entries.filter(({ inCv }) => inCv).map(({ id }) => id);
     if (from !== to) actions.orderEntries(sectionId, arrayMove(ids, from, to));
+  };
+
+  const asked = useRef<{ id: number; index: number } | null>(null);
+  const askRemove = (id: number) => {
+    asked.current = { id, index: ours.indexOf(id) };
+    setRemoving(id);
+  };
+  // The menu item that opened the dialog is gone: back to its menu's button, or
+  // to the row that took the section's place.
+  const restoreFocus = (event: Event) => {
+    if (!asked.current) return;
+    event.preventDefault();
+    const { id, index } = asked.current;
+    const menu = document.querySelector<HTMLElement>(`[data-row="section-${id}"] button[aria-haspopup="menu"]`);
+    const next = ours[Math.min(index, ours.length - 1)];
+    (menu ?? rowBox(`section-${next}`) ?? document.querySelector<HTMLElement>("[data-add-sheet]"))?.focus();
   };
 
   const retry = async () => {
@@ -127,7 +144,7 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
             column={(section.sectionId !== null && columns?.get(section.sectionId)) || null}
             canReorder={!searching}
             actions={actions}
-            onAskRemove={setRemoving}
+            onAskRemove={askRemove}
           />
         ))}
       </DragDropProvider>
@@ -141,6 +158,7 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
         title={REMOVE_SECTION.title}
         description={deletionNote(removingSection, !libraryLoading && !libraryFailed)}
         confirmLabel="Delete"
+        onCloseAutoFocus={restoreFocus}
         variant="destructive"
       />
     </div>
