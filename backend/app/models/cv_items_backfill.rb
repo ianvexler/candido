@@ -132,11 +132,15 @@ class CvItemsBackfill
     end
     fields = entries.filter_map do |entry|
       library_entry = template.find_entry(entry["id"])
-      [ entry["id"], fields_of(library_entry) ] if library_entry && (up_to_date || same_fields?(entry, library_entry))
+      next if library_entry.nil?
+
+      kept = [ SectionContent::HEAD_KEYS, %w[description] ].select { |keys| up_to_date || same?(keys, entry, library_entry) }
+      kept -= [ %w[description] ] if library_entry["description"].blank? && !up_to_date
+      [ entry["id"], library_entry.slice(*kept.flatten) ] if kept.any?
     end
     {
       base_items: items.to_h.merge(section.base_items.except(*renamed.to_a.flatten)),
-      base_fields: fields.to_h.merge(section.base_fields)
+      base_fields: fields.to_h.merge(section.base_fields) { |_id, found, stored| fill_base(found, stored) }
     }
   end
 
@@ -144,12 +148,13 @@ class CvItemsBackfill
     entries.flat_map { |entry| CvItems.list(entry["content"]) }.index_by { |item| item[:id] }
   end
 
-  def fields_of(entry)
-    entry.slice(*SectionContent::FIELD_KEYS)
+  # A stored base may have only the summary, or only the other fields.
+  def fill_base(found, stored)
+    found.except(*(stored.key?("title") ? SectionContent::HEAD_KEYS : [])).merge(stored)
   end
 
-  def same_fields?(*entries)
-    entries.map { |entry| SectionContent::FIELD_KEYS.map { |key| entry[key].presence } }.uniq.one?
+  def same?(keys, *entries)
+    entries.map { |entry| keys.map { |key| entry[key].presence } }.uniq.one?
   end
 
   # What the user's CVs and library show now, and all of their content.

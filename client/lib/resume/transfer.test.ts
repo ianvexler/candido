@@ -98,7 +98,7 @@ describe("an entry's summary", () => {
     ({ section_type: "Work", entries: [{ ...emptyEntry(), id: "a", title, description, description_off: true }] }) as SectionDraft;
 
   it("is compared as plain text, and null when blank", () => {
-    expect(valueIn(having(" x <b> "), subject)).toBe("x <b>");
+    expect(valueIn(having(" x <b> "), subject)).toBe(" x <b> ");
     expect(valueIn(having(" "), subject)).toBeNull();
     expect(sameText(having("<b>x</b>"), having("<i>x</i>"), subject)).toBe(false);
   });

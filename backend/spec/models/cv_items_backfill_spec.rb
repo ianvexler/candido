@@ -170,11 +170,27 @@ RSpec.describe CvItemsBackfill do
       expect(section.reload.base_items).to eq("a" => '<p data-cv-item="a">A</p>')
     end
 
+    it "takes the summary and the other fields apart" do
+      template = library(entry("e", "", description: "Sum"), entry("f", "", description: "Sum"))
+      section = copy(template, entry("e", "", description: "Own"), entry("f", "", title: "Own", description: "Sum"), synced_at: nil)
+      run
+
+      expect(section.reload.base_fields["e"]).to eq(entry("e", "").slice(*SectionContent::HEAD_KEYS))
+      expect(section.base_fields["f"]).to eq("description" => "Sum")
+    end
+
+    it "adds the other fields to a base with only the summary" do
+      section = copy(library(entry("e", "", description: "Sum")), entry("e", "", description: "Own"), base_fields: { "e" => { "description" => "Kept" } })
+      run
+
+      expect(section.reload.base_fields["e"]).to include("title" => "Engineer", "description" => "Kept")
+    end
+
     it "keeps those already set" do
       section = copy(library(library_entry), cv_entry, base_items: { "a" => "<p>Old</p>" }, base_fields: { "e" => { "title" => "Old" } })
       run
       expect(section.reload.base_items).to include("a" => "<p>Old</p>")
-      expect(section.base_fields).to eq("e" => { "title" => "Old" })
+      expect(section.base_fields).to eq("e" => { "title" => "Old", "description" => nil })
     end
   end
 

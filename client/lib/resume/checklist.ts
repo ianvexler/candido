@@ -128,12 +128,19 @@ const readLibrary = (template: SectionTemplate | undefined, cvCreatedAt: Date | 
 type Library = ReturnType<typeof readLibrary>;
 
 /** Ids of what a CV has of one library section, in any copy of it. */
-type Held = { entries: Set<string>; items: Set<string> };
+type Held = {
+  entries: Set<string>;
+  items: Set<string>;
+  /** Entries that several copies have. */
+  repeated: Set<string>;
+};
 
 const heldIn = (copies: CurriculumSection[]): Held => {
   const entries = copies.flatMap((copy) => copy.entries);
+  const ids = entries.map(({ id }) => id);
   return {
-    entries: new Set(entries.map(({ id }) => id)),
+    entries: new Set(ids),
+    repeated: new Set(ids.filter((id, index) => ids.indexOf(id) !== index)),
     items: new Set(entries.flatMap(({ content }) => itemsOf(content).map(({ id }) => id))),
   };
 };
@@ -209,7 +216,9 @@ const buildEntry = (
       state: "library_only",
       libraryText: null,
     }));
-  const summary = buildSummary(section, inCv ? entry : null, inCv && !withLibrary && !summaryOf(entry) ? undefined : libraryEntry, ticked);
+  // The library's is offered once, and not where another copy's would be the one changed.
+  const offersSummary = !inCv || summaryOf(entry) !== null || (withLibrary && !held.repeated.has(entry.id));
+  const summary = buildSummary(section, inCv ? entry : null, offersSummary ? libraryEntry : undefined, ticked);
   const items = [...summary, ...withLibraryOnly(own, libraryItems.map(({ id }) => id), extras)];
 
   const blank = isEmptyEntry(entry);
