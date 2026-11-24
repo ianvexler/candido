@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CurriculumSection, SectionEntry } from "@/lib/types";
-import { createCvRequests, INVALID_DATES, MAX_INCLUDES, UNSAVED } from "./cvRequests";
+import { CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
+import {
+  createCvRequests,
+  CHANGED_ELSEWHERE,
+  INVALID_DATES,
+  MAX_INCLUDES,
+  TRANSFER_INVALID_DATES,
+  TRANSFER_UNSAVED,
+  UNSAVED,
+} from "./cvRequests";
 import { waitForSaves } from "./saveTracker";
+import type { TransferResult } from "@/api/resources/curriculums/transferWithLibrary";
 import { emptyEntry } from "./sectionEntries";
 
 const section = (id: number, changes: Partial<CurriculumSection> = {}) =>
@@ -33,6 +42,12 @@ const setup = (initial = [section(1), section(2, { section_template_id: 20 })]) 
     }),
     sendInclude: vi.fn(async () => shown.map((item) => ({ ...item }))),
     sendOrder: vi.fn(async (ids: number[]): Promise<unknown> => ids),
+    saved: vi.fn((id: number) => shown.find((item) => item.id === id)),
+    change: vi.fn(),
+    setRecord: vi.fn(),
+    templates: vi.fn((): SectionTemplate[] => []),
+    takeTemplate: vi.fn(),
+    sendTransfer: vi.fn(async (): Promise<TransferResult> => ({ conflict: false, section: section(1), section_template: null })),
   };
   const order = () => shown.map(({ id }) => id);
   return { ...deps, edit, order, requests: createCvRequests(deps) };
@@ -206,5 +221,135 @@ describe("orderSections", () => {
     await a;
     await expect(b).rejects.toThrow();
     expect(order()).toEqual([2, 1, 3]);
+  });
+});
+
+describe("transfer", () => {
+  const li = (text: string) => `<li data-cv-item="x">${text}</li>`;
+  const written = (text: string, title = "T", id = "e") => ({ ...emptyEntry(), id, title, content: `<ul>${li(text)}</ul>` });
+  const template = (text: string) => ({ id: 10, entries: [{ ...written(text), id: "other" }] }) as SectionTemplate;
+  const ofItem = { sectionId: 1, entryId: "e", itemId: "x" };
+  const result = (text: string, changes: Partial<TransferResult> = {}): TransferResult => ({
+    conflict: false,
+    section: section(1, { entries: [written(text)], base_items: { x: li(text) } }),
+    section_template: template(text),
+    ...changes,
+  });
+  const start = () => {
+    const all = setup([section(1, { entries: [written("CV")] })]);
+    all.templates.mockReturnValue([template("Library")]);
+    all.sendTransfer.mockResolvedValue(result("CV"));
+    return all;
+  };
+
+  it("saves, sends what each side has, then shows both records", async () => {
+    const { requests, flush, saved, sendTransfer, replace, takeTemplate } = start();
+    // What the server stored may be written differently.
+    saved.mockReturnValue(section(1, { entries: [written("Stored")] }));
+    await requests.transfer(ofItem, "to_library");
+    expect(flush.mock.invocationCallOrder[0]).toBeLessThan(sendTransfer.mock.invocationCallOrder[0]);
+    expect(sendTransfer).toHaveBeenCalledWith(1, {
+      direction: "to_library",
+      entry_id: "e",
+      item_id: "x",
+      expected_cv: li("Stored"),
+      expected_library: li("Library"),
+    });
+    expect(replace).toHaveBeenCalledWith(result("CV").section);
+    expect(takeTemplate).toHaveBeenCalledWith(10, result("CV").section_template);
+  });
+
+  it("sends the library text there was when it was asked for", async () => {
+    const { requests, templates, flush, sendTransfer } = start();
+    flush.mockImplementationOnce(async () => {
+      templates.mockReturnValue([template("Newer")]);
+      return true;
+    });
+    await requests.transfer(ofItem, "to_library");
+    expect(sendTransfer).toHaveBeenCalledWith(1, expect.objectContaining({ expected_library: li("Library") }));
+  });
+
+  it("sends fields, and null for what the library lacks", async () => {
+    const { requests, sendTransfer } = start();
+    await requests.transfer({ sectionId: 1, entryId: "e" }, "to_library");
+    expect(sendTransfer).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ expected_cv: expect.objectContaining({ title: "T", role: null }), expected_library: null })
+    );
+  });
+
+  it("sends nothing unsaved or with invalid dates", async () => {
+    const first = start();
+    first.flush.mockResolvedValue(false);
+    await expect(first.requests.transfer(ofItem, "to_library")).rejects.toThrow(TRANSFER_UNSAVED);
+    const second = start();
+    second.edit(1, { entries: [written("CV"), invalid] });
+    await expect(second.requests.transfer(ofItem, "to_library")).rejects.toThrow(TRANSFER_INVALID_DATES);
+    expect(first.sendTransfer).not.toHaveBeenCalled();
+    expect(second.sendTransfer).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing for what is gone", async () => {
+    const { requests, sendTransfer } = start();
+    await requests.transfer({ ...ofItem, sectionId: 9 }, "to_library");
+    await requests.transfer({ ...ofItem, itemId: "gone" }, "to_library");
+    expect(sendTransfer).not.toHaveBeenCalled();
+  });
+
+  it("shows both records and says so when it changed elsewhere", async () => {
+    const { requests, sendTransfer, replace, takeTemplate } = start();
+    const refused = result("Other", { conflict: true, section_template: null });
+    sendTransfer.mockResolvedValue(refused);
+    await expect(requests.transfer(ofItem, "to_library")).rejects.toThrow(CHANGED_ELSEWHERE);
+    expect(replace).toHaveBeenCalledWith(refused.section);
+    expect(takeTemplate).toHaveBeenCalledWith(10, null);
+  });
+
+  it("keeps what was edited during the request", async () => {
+    const { requests, edit, sendTransfer, replace, change, setRecord, takeTemplate } = start();
+    sendTransfer.mockImplementationOnce(async () => {
+      edit(1, { entries: [written("CV", "Typed")] });
+      return result("Library");
+    });
+    await requests.transfer(ofItem, "to_cv");
+    expect(replace).not.toHaveBeenCalled();
+    expect(takeTemplate).toHaveBeenCalledOnce();
+    expect(setRecord).toHaveBeenCalledWith(1, expect.objectContaining({ base_items: { x: li("Library") } }));
+    const pull = change.mock.calls[0][1];
+    expect(pull(section(1, { entries: [written("CV", "Typed")] }))).toEqual({ entries: [written("Library", "Typed")] });
+  });
+
+  it("pulls nothing over text typed before it could be sent", async () => {
+    const { requests, edit, flush, sendTransfer } = start();
+    flush.mockImplementationOnce(async () => {
+      edit(1, { entries: [written("Typed")] });
+      return true;
+    });
+    await requests.transfer(ofItem, "to_cv");
+    expect(sendTransfer).not.toHaveBeenCalled();
+  });
+
+  it("goes again when it was refused and edited here meanwhile", async () => {
+    const { requests, edit, sendTransfer, replace } = start();
+    sendTransfer.mockImplementationOnce(async () => {
+      edit(1, { entries: [written("Typed")] });
+      return result("CV", { conflict: true });
+    });
+    await requests.transfer(ofItem, "to_library");
+    expect(sendTransfer).toHaveBeenCalledTimes(2);
+    expect(sendTransfer).toHaveBeenLastCalledWith(1, expect.objectContaining({ expected_cv: li("Typed") }));
+    expect(replace).toHaveBeenCalledOnce();
+  });
+
+  it("waits its turn", async () => {
+    const { requests, sendTransfer } = start();
+    const first = deferred();
+    const a = requests.enqueue(() => first.promise);
+    const b = requests.transfer(ofItem, "to_library");
+    await settle();
+    expect(sendTransfer).not.toHaveBeenCalled();
+    first.resolve();
+    await Promise.all([a, b]);
+    expect(sendTransfer).toHaveBeenCalledOnce();
   });
 });

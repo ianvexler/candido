@@ -1,20 +1,17 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
-import type { ChecklistEntry, ChecklistSection as Section } from "@/lib/resume/checklist";
-import { ChecklistActions, ChecklistTarget, targetKey } from "@/lib/resume/useCvChecklist";
+import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/DropdownMenu";
+import { ChecklistEntry, ChecklistSection as Section, entryOffer, itemOffer } from "@/lib/resume/checklist";
+import type { TransferTarget } from "@/lib/resume/transfer";
+import { ChecklistActions, ChecklistTarget, targetKey, transferKey } from "@/lib/resume/useCvChecklist";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { ArrowDownIcon, ArrowUpIcon, EllipsisIcon, PanelLeftIcon, Trash2Icon } from "lucide-react";
-import { memo, ReactNode, useCallback } from "react";
-import ChecklistRow, { ChecklistItemRow } from "./ChecklistRow";
+import { PanelLeftIcon, Trash2Icon } from "lucide-react";
+import { memo, useCallback } from "react";
+import ChecklistRow, { ChecklistItemRow, rowBox } from "./ChecklistRow";
+import { changeControls } from "./ItemChangeMenu";
 import { REMOVE_SECTION } from "./removeSection";
+import RowMenu from "./RowMenu";
 
 /** What dragging a row gives the drop handler. */
 export type DragData = { sectionId: number; entryId?: string };
@@ -36,40 +33,31 @@ const overRow: Detector = ({ dragOperation, droppable }) => {
 const sortableId = (sectionId: number | null, key: string, entryId?: string) =>
   entryId === undefined ? (sectionId ?? key) : `${key}/${entryId}`;
 
-interface RowMenuProps {
-  label: string;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  onMove: (by: -1 | 1) => void;
-  children?: ReactNode;
-}
+const rowIdOf = ({ sectionId, entryId, itemId = "" }: TransferTarget) => [sectionId, entryId, itemId].join("/");
 
-const RowMenu = ({ label, canMoveUp, canMoveDown, onMove, children }: RowMenuProps) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Options for ${label}`}
-        className="mt-0.5 size-6 shrink-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
-      >
-        <EllipsisIcon />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem disabled={!canMoveUp} onSelect={() => onMove(-1)}>
-        <ArrowUpIcon />
-        Move up
-      </DropdownMenuItem>
-      <DropdownMenuItem disabled={!canMoveDown} onSelect={() => onMove(1)}>
-        <ArrowDownIcon />
-        Move down
-      </DropdownMenuItem>
-      {children}
-    </DropdownMenuContent>
-  </DropdownMenu>
-);
+/** Focus stays on the row when the button that was used is gone. */
+const transferFrom = async (actions: ChecklistActions, rowId: string, target: TransferTarget, direction: TransferDirection) => {
+  await actions.transfer(target, direction);
+  requestAnimationFrame(() => {
+    if (document.activeElement === document.body) rowBox(rowId)?.focus();
+  });
+};
+
+/** What an entry's row offers, or its section's if that stands for it. */
+const entryControls = (
+  { entry, sectionId, offerChanges, pending, actions }: Pick<EntryRowsProps, "entry" | "offerChanges" | "pending" | "actions"> & { sectionId: number | null },
+  label: string,
+  rowId: string
+): ReturnType<typeof changeControls> => {
+  if (sectionId === null || !offerChanges) return {};
+  const target = { sectionId, entryId: entry.id };
+  return changeControls(entryOffer(entry), {
+    label,
+    changed: entry.differences,
+    busy: pending.includes(transferKey(target)),
+    onChoose: (direction) => void transferFrom(actions, rowId, target, direction),
+  });
+};
 
 interface EntryRowsProps {
   section: Section;
@@ -81,10 +69,12 @@ interface EntryRowsProps {
   bare: boolean;
   pending: string[];
   canReorder: boolean;
+  /** The library is known. */
+  offerChanges: boolean;
   actions: ChecklistActions;
 }
 
-const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, actions }: EntryRowsProps) => {
+const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, offerChanges, actions }: EntryRowsProps) => {
   const { sectionId, templateId } = section;
   const sortable = entry.inCv && sectionId !== null && canReorder && count > 1;
   const { ref, targetRef, handleRef } = useSortable({
@@ -106,6 +96,17 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, ac
       actions.tick({ sectionId, templateId, entryId: entry.id, itemId, inCv }, on),
     [actions, sectionId, templateId, entry.id]
   );
+  const transferItem = useCallback(
+    (itemId: string, direction: TransferDirection) => {
+      if (sectionId === null) return;
+      const item = { sectionId, entryId: entry.id, itemId };
+      void transferFrom(actions, rowIdOf(item), item, direction);
+    },
+    [actions, sectionId, entry.id]
+  );
+
+  const rowId = sectionId === null ? undefined : rowIdOf({ sectionId, entryId: entry.id });
+  const { add, change } = entryControls({ entry, sectionId, offerChanges, pending, actions }, entry.title, rowId ?? "");
 
   return (
     // Without a handle the whole block would be announced as the thing to drag.
@@ -122,14 +123,25 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, ac
           onTick={(on) => actions.tick(target, on)}
           rowRef={sortable ? targetRef : undefined}
           handleRef={sortable ? handleRef : undefined}
+          rowId={rowId}
+          change={change}
           menu={
-            sortable ? (
+            sortable || add ? (
               <RowMenu
                 label={entry.title}
-                canMoveUp={index > 0}
-                canMoveDown={index < count - 1}
-                onMove={(by) => actions.moveEntry(sectionId, entry.id, by)}
-              />
+                move={
+                  sortable
+                    ? {
+                        canMoveUp: index > 0,
+                        canMoveDown: index < count - 1,
+                        onMove: (by) => actions.moveEntry(sectionId, entry.id, by),
+                      }
+                    : undefined
+                }
+              >
+                {sortable && add && <DropdownMenuSeparator />}
+                {add}
+              </RowMenu>
             ) : undefined
           }
         />
@@ -144,6 +156,11 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, ac
           isNew={item.isNew && !entry.isNew && !section.isNew}
           busy={pending.includes(targetKey({ ...target, itemId: item.id }))}
           onTickItem={tickItem}
+          rowId={sectionId === null || item.id === "" ? undefined : rowIdOf({ sectionId, entryId: entry.id, itemId: item.id })}
+          offer={offerChanges ? itemOffer(entry, item) : null}
+          libraryText={item.libraryText}
+          transferring={sectionId !== null && pending.includes(transferKey({ sectionId, entryId: entry.id, itemId: item.id }))}
+          onTransferItem={transferItem}
         />
       ))}
     </div>
@@ -155,12 +172,14 @@ interface ChecklistSectionProps {
   index: number;
   /** Sections in the CV. */
   count: number;
-  /** The keys of this section's targets that are being included. */
+  /** The keys of this section's targets that are being included or passed on. */
   pending: string[];
   /** Null when the template has one column. */
   column: "sidebar" | "main" | null;
   /** False while searching. */
   canReorder: boolean;
+  /** The library is known. */
+  offerChanges: boolean;
   actions: ChecklistActions;
   onAskRemove: (id: number) => void;
 }
@@ -173,6 +192,7 @@ const ChecklistSection = ({
   pending,
   column,
   canReorder,
+  offerChanges,
   actions,
   onAskRemove,
 }: ChecklistSectionProps) => {
@@ -197,6 +217,10 @@ const ChecklistSection = ({
   const bare =
     entries.length === 1 &&
     (only.items.length === 0 ? only.title === "Untitled" : only.items.some(({ text }) => text === only.title));
+  const rowId = `section-${sectionId}`;
+  const { add, change }: ReturnType<typeof entryControls> = bare
+    ? entryControls({ entry: only, sectionId, offerChanges, pending, actions }, label, rowId)
+    : {};
 
   return (
     <div ref={sortable ? ref : undefined} className="bg-background">
@@ -211,15 +235,20 @@ const ChecklistSection = ({
         onTick={(on) => actions.tick(target, on)}
         rowRef={sortable ? targetRef : undefined}
         handleRef={sortable ? handleRef : undefined}
+        rowId={rowId}
+        change={change}
         menu={
           inCv ? (
             <RowMenu
               label={label}
-              canMoveUp={canReorder && index > 0}
-              canMoveDown={canReorder && index < count - 1}
-              onMove={(by) => actions.moveSection(sectionId, by)}
+              move={{
+                canMoveUp: canReorder && index > 0,
+                canMoveDown: canReorder && index < count - 1,
+                onMove: (by) => actions.moveSection(sectionId, by),
+              }}
             >
               <DropdownMenuSeparator />
+              {add}
               {column && (
                 <DropdownMenuItem onSelect={() => actions.toggleColumn(sectionId)}>
                   <PanelLeftIcon />
@@ -244,6 +273,7 @@ const ChecklistSection = ({
           bare={bare}
           pending={pending}
           canReorder={canReorder}
+          offerChanges={offerChanges}
           actions={actions}
         />
       ))}

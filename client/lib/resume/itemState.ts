@@ -1,5 +1,7 @@
+import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
+import { formatMonth } from "@/components/resume/sectionDetails";
 import { EntryFieldKeys, EntryFields } from "@/lib/types";
-import { ITEM_ATTRIBUTE, OFF_ATTRIBUTE, isSeparator, parseHtml } from "./items";
+import { ITEM_ATTRIBUTE, OFF_ATTRIBUTE, isSeparator, parseStyled } from "./items";
 import { cleanLine } from "./sectionEntries";
 
 /** How a CV's text stands against the library's. "differs": it isn't known which side changed. */
@@ -61,7 +63,7 @@ const wrapListText = (container: Element) =>
  * target, and paragraphs in list items.
  */
 const normalize = (html: string): Element => {
-  const container = parseHtml(html);
+  const container = parseStyled(html);
   container.querySelectorAll("span[data-cv-hidden]").forEach((span) => span.replaceWith(...span.childNodes));
   container.querySelectorAll("*").forEach((node) => {
     node.removeAttribute(ITEM_ATTRIBUTE);
@@ -109,3 +111,47 @@ export const fieldsState = (
   library: EntryFields | null,
   base: EntryFields | null
 ): ItemState => compare(cv, library, base, sameEntryFields);
+
+const ALL_ACTIONS: TransferDirection[] = ["to_library", "to_cv", "keep"];
+
+const ACTIONS: Record<ItemState, TransferDirection[]> = {
+  same: [],
+  library_only: [],
+  cv_changed: ["to_library"],
+  cv_only: ["to_library"],
+  library_changed: ["to_cv"],
+  both_changed: ALL_ACTIONS,
+  differs: ALL_ACTIONS,
+};
+
+/** What can be done about a state. */
+export const actionsFor = (state: ItemState): TransferDirection[] => ACTIONS[state];
+
+const ACTION_LABELS: Record<TransferDirection, string> = {
+  to_library: "Update library too",
+  to_cv: "Use library version",
+  keep: "Keep both as they are",
+};
+
+export const actionLabel = (state: ItemState, action: TransferDirection) =>
+  state === "cv_only" ? "Add to library" : ACTION_LABELS[action];
+
+/** One of an entry's fields on each side, as shown; "" if blank. */
+export type FieldDifference = { label: string; cv: string; library: string };
+
+const FIELD_LABELS: [label: string, value: (fields: EntryFields) => string | null][] = [
+  ["Title", ({ title }) => title],
+  ["Role", ({ role }) => role],
+  ["Organisation", ({ organization }) => organization],
+  ["Location", ({ location }) => location],
+  ["Start", ({ start_date }) => start_date && formatMonth(start_date)],
+  ["End", ({ end_date, current }) => (current ? "Present" : end_date && formatMonth(end_date))],
+];
+
+export const differingFields = (cv: EntryFields, library: EntryFields): FieldDifference[] =>
+  [
+    ...FIELD_LABELS.map(([label, value]) => ({ label, cv: cleanLine(value(cv)), library: cleanLine(value(library)) })),
+    { label: "Summary", cv: cleanValue(cv, "description"), library: cleanValue(library, "description") },
+  ]
+    .filter((field) => field.cv !== field.library)
+    .map((field) => ({ label: field.label, cv: String(field.cv ?? ""), library: String(field.library ?? "") }));

@@ -24,12 +24,13 @@ interface CvChecklistProps {
   actions: ChecklistActions;
   /** By section id, with a two-column template. */
   columns: Map<number, SectionPlacement> | null;
+  libraryLoading: boolean;
   libraryFailed: boolean;
   onRetryLibrary: () => Promise<void>;
 }
 
 /** Everything the CV could show, to tick and put in order. */
-const CvChecklist = ({ sections, pending, actions, columns, libraryFailed, onRetryLibrary }: CvChecklistProps) => {
+const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libraryFailed, onRetryLibrary }: CvChecklistProps) => {
   const [query, setQuery] = useState("");
   const [removing, setRemoving] = useState<number | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -97,7 +98,7 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryFailed, onRet
         </p>
       )}
 
-      {sections.length === 0 && !libraryFailed && (
+      {sections.length === 0 && !libraryLoading && !libraryFailed && (
         <p className="text-sm text-muted-foreground">
           Your library is empty.{" "}
           <NextLink href="/resume/sections" className="underline">
@@ -105,6 +106,9 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryFailed, onRet
           </NextLink>{" "}
           to pick from them here.
         </p>
+      )}
+      {sections.length === 0 && libraryLoading && (
+        <p className="text-sm text-muted-foreground">Loading your library…</p>
       )}
       {searching && shown.length === 0 && <p className="mt-4 text-sm text-muted-foreground">Nothing matches.</p>}
 
@@ -115,7 +119,10 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryFailed, onRet
             section={section}
             index={section.sectionId === null ? ours.length : ours.indexOf(section.sectionId)}
             count={ours.length}
-            pending={[...pending].filter((key) => key.startsWith(`${section.templateId}:`))}
+            pending={[...pending].filter(
+              (key) => key.startsWith(`${section.templateId}:`) || key.startsWith(`transfer:${section.sectionId}:`)
+            )}
+            offerChanges={!libraryLoading && !libraryFailed}
             column={(section.sectionId !== null && columns?.get(section.sectionId)) || null}
             canReorder={!searching}
             actions={actions}

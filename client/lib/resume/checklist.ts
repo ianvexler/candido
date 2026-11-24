@@ -1,6 +1,6 @@
 import { CurriculumSection, CvSuggestion, EntryFieldKeys, SectionEntry, SectionTemplate } from "@/lib/types";
 import { Item, isSeparator, listItems, parseHtml, setItemsOff } from "./items";
-import { ItemState, fieldsState, itemState } from "./itemState";
+import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState } from "./itemState";
 import { isEmptyEntry, moveAt } from "./sectionEntries";
 import type { SectionDraft, SectionPatch } from "./sectionDrafts";
 import { findQuote } from "./suggestions";
@@ -28,6 +28,8 @@ export type ChecklistItem = {
   ticked: boolean;
   isNew: boolean;
   state: ItemState;
+  /** When both sides have it and differ. */
+  libraryText: string | null;
 };
 
 export type ChecklistEntry = Counts & {
@@ -38,6 +40,10 @@ export type ChecklistEntry = Counts & {
   hidden: boolean;
   isNew: boolean;
   fieldsState: ItemState;
+  /** When both sides have it. */
+  differences: FieldDifference[];
+  /** Nothing is written in it. */
+  blank: boolean;
   items: ChecklistItem[];
 };
 
@@ -139,15 +145,20 @@ const buildEntry = (
   const libraryEntry = library.entries.find(({ id }) => id === entry.id);
   const ticked = inCv && !section?.hidden && !entry.hidden;
 
-  const own = (inCv ? itemsOf(entry.content) : []).map((item): ChecklistItem => ({
-    id: item.id,
-    text: item.text,
-    inCv: true,
-    off: item.off,
-    ticked: ticked && !item.off,
-    isNew: false,
-    state: stateOf(item.html, library.items.get(item.id)?.html ?? null, section?.base_items[item.id] ?? null),
-  }));
+  const own = (inCv ? itemsOf(entry.content) : []).map((item): ChecklistItem => {
+    const theirs = library.items.get(item.id);
+    const state = stateOf(item.html, theirs?.html ?? null, section?.base_items[item.id] ?? null);
+    return {
+      id: item.id,
+      text: item.text,
+      inCv: true,
+      off: item.off,
+      ticked: ticked && !item.off,
+      isNew: false,
+      state,
+      libraryText: theirs && state !== "same" ? theirs.text : null,
+    };
+  });
   const libraryItems = withLibrary && libraryEntry ? itemsOf(libraryEntry.content) : [];
   const extras = libraryItems
     .filter(({ id }) => id !== "" && !held.items.has(id))
@@ -159,10 +170,12 @@ const buildEntry = (
       ticked: false,
       isNew: library.isNew(id),
       state: "library_only",
+      libraryText: null,
     }));
   const items = withLibraryOnly(own, libraryItems.map(({ id }) => id), extras);
 
-  const countsItself = items.length === 0 && !isEmptyEntry(entry);
+  const blank = isEmptyEntry(entry);
+  const countsItself = items.length === 0 && !blank;
   const total = countsItself ? 1 : items.length;
   const included = countsItself ? Number(ticked) : items.filter((item) => item.ticked).length;
   return {
@@ -176,6 +189,8 @@ const buildEntry = (
     total,
     included,
     fieldsState: fieldsState(inCv ? entry : null, libraryEntry ?? null, section?.base_fields[entry.id] ?? null),
+    differences: inCv && libraryEntry ? differingFields(entry, libraryEntry) : [],
+    blank,
     items,
   };
 };
@@ -242,6 +257,20 @@ export const buildChecklist = (
     .filter(({ id }) => !copied.has(id))
     .map((template) => buildSection(null, template, cvCreatedAt, held(template.id), true));
   return [...ours, ...others];
+};
+
+// The state a row offers something about, if any; see actionsFor.
+
+const offerFor = (state: ItemState) => (actionsFor(state).length > 0 ? state : null);
+
+/** About an entry's fields, or all of it if the library lacks it. */
+export const entryOffer = ({ inCv, blank, fieldsState: state }: ChecklistEntry): ItemState | null =>
+  inCv && !blank ? offerFor(state) : null;
+
+/** Adding an entry adds its items, so they don't offer that too. */
+export const itemOffer = (entry: ChecklistEntry, { id, state }: ChecklistItem): ItemState | null => {
+  const addedWithEntry = state === "cv_only" && entry.fieldsState === "cv_only";
+  return id === "" || addedWithEntry ? null : offerFor(state);
 };
 
 // Ticking, for content the CV has; the server's include_from_library! copies in

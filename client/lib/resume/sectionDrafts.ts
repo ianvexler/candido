@@ -1,5 +1,5 @@
 import { SectionEntry, SectionFields, SectionPlacement } from "@/lib/types";
-import { listItems, parseHtml, setItemsOff } from "./items";
+import { listItems, sameMarkup, setItemsOff } from "./items";
 import { markPending, markSettled, trackSave } from "./saveTracker";
 import { cleanFields, emptyEntry, endsBeforeStart } from "./sectionEntries";
 
@@ -53,17 +53,8 @@ interface Draft<T> {
 
 const ENTRY_KEYS = Object.keys(emptyEntry()) as (keyof SectionEntry)[];
 
-/** Browsers and the server write the same styles and entities differently. */
-const parsed = (html: string) => {
-  const container = parseHtml(html);
-  container.querySelectorAll<HTMLElement>("[style]").forEach((node) => {
-    node.setAttribute("style", node.style.cssText);
-  });
-  return container;
-};
-
 const sameValue = (key: keyof SectionEntry, a: SectionEntry, b: SectionEntry) =>
-  a[key] === b[key] || (key === "content" && parsed(a.content).isEqualNode(parsed(b.content)));
+  a[key] === b[key] || (key === "content" && sameMarkup(a.content, b.content));
 
 const sameEntry = (a: SectionEntry, b: SectionEntry) => ENTRY_KEYS.every((key) => sameValue(key, a, b));
 
@@ -330,6 +321,19 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
 
     /** The sections as edited, which may be newer than what is rendered. */
     current: () => drafts.map((draft) => draft.current),
+
+    /** A section as the server has it, as far as is known here. */
+    saved: (id: number) => find(id)?.saved,
+
+    /** Sets fields that aren't edited here, newer than what a save on its way will bring. */
+    setRecord: (id: number, fields: Partial<Omit<T, keyof SectionDraft | "id">>) => {
+      const draft = find(id);
+      if (!draft) return;
+      draft.replaced += 1;
+      draft.current = { ...draft.current, ...fields };
+      draft.saved = { ...draft.saved, ...fields };
+      notify();
+    },
 
     /** Starts over with these. What was still unsaved is sent. */
     load: (sections: T[]) => {

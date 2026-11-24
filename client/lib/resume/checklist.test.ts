@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CurriculumSection, CvSuggestion, SectionEntry, SectionTemplate } from "@/lib/types";
 import {
   buildChecklist,
+  entryOffer,
   filterChecklist,
+  itemOffer,
   moveSection,
   suggestionPlace,
   tickEntry,
@@ -477,4 +479,50 @@ describe("tickSuggestion", () => {
   });
 
   it("changes nothing for text that is gone", () => expect(tickSuggestion(cv([a]), about("Gone"))).toEqual({}));
+});
+
+describe("what differs from the library", () => {
+  it("gives the library's text of an item wherever it is in its section", () => {
+    const section = first(
+      [cv([entry("a", ul(li("x", false, "Mine")))], { section_template_id: 10 })],
+      [library([entry("a"), entry("b", ul(li("x", false, "Theirs")))])]
+    );
+    expect(section.entries[0].items[0]).toMatchObject({ state: "differs", libraryText: "Theirs" });
+  });
+
+  it("lists the fields that differ, and marks blank entries", () => {
+    const section = first(
+      [cv([entry("a", "", { title: "Mine" }), entry("b", "", { title: "" })], { section_template_id: 10 })],
+      [library([entry("a", "", { title: "Theirs" })])]
+    );
+    expect(section.entries[0]).toMatchObject({ blank: false, differences: [{ label: "Title", cv: "Mine", library: "Theirs" }] });
+    expect(section.entries[1]).toMatchObject({ blank: true, differences: [] });
+  });
+});
+
+describe("offers", () => {
+  const offered = (sections: CurriculumSection[], templates: SectionTemplate[] = []) => {
+    const section = first(sections, templates);
+    return section.entries.map((row) => [entryOffer(row), ...row.items.map((item) => itemOffer(row, item))]);
+  };
+
+  it("offers a whole entry the library lacks once, not each item", () =>
+    expect(offered([cv([entry("a", ul(li("x"), li("y")))])])).toEqual([["cv_only", null, null]]));
+
+  it("offers an item in an entry the library has", () =>
+    expect(
+      offered(
+        [cv([entry("a", ul(li("x"), li("y", false, "Other")))], { section_template_id: 10, base_items: { y: li("y") } })],
+        [library([entry("a", ul(li("y")))])]
+      )
+    ).toEqual([[null, "cv_only", "cv_changed"]]));
+
+  it("offers nothing on blank entries, or where only the library has it", () => {
+    expect(offered([cv([entry("a", "", { title: "" })])])).toEqual([[null]]);
+    expect(offered([cv([entry("a")], { section_template_id: 10 })], [library([entry("a", ul(li("x")))])])).toEqual([[null, null]]);
+    expect(offered([], [library([entry("a", ul(li("x")))])])).toEqual([[null, null]]);
+  });
+
+  it("offers nothing on an item without an id", () =>
+    expect(offered([cv([entry("a", "<p>x</p>")], { section_template_id: 10 })], [library([entry("a")])])).toEqual([[null, null]]));
 });

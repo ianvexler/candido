@@ -2,15 +2,18 @@ import { addEmptyCurriculumSection } from "@/api/resources/curriculums/addEmptyC
 import { deleteCurriculumSection } from "@/api/resources/curriculums/deleteCurriculumSection";
 import { includeFromLibrary } from "@/api/resources/curriculums/includeFromLibrary";
 import { reorderCurriculumSections } from "@/api/resources/curriculums/reorderCurriculumSections";
+import { TransferDirection, transferWithLibrary } from "@/api/resources/curriculums/transferWithLibrary";
 import { CurriculumSection } from "@/lib/types";
 import { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { moveSection, tickEntry, tickItem, tickSection } from "./checklist";
-import { createCvRequests, IncludeStopped } from "./cvRequests";
+import { createCvRequests, RequestStopped } from "./cvRequests";
 import { sectionColumn } from "./exportDocument";
 import { apiErrorMessage } from "./reviewPanel";
 import { moveEntry } from "./sectionEntries";
+import type { TransferTarget } from "./transfer";
 import type { useSectionDrafts } from "./useSectionDrafts";
+import type { useSectionLibrary } from "./useSectionLibrary";
 
 /** A section, or an entry or item of it. */
 export type ChecklistTarget = {
@@ -25,6 +28,10 @@ export type ChecklistTarget = {
 export const targetKey = ({ sectionId, templateId, entryId = "", itemId = "" }: ChecklistTarget) =>
   [templateId === null ? `cv-${sectionId}` : templateId, entryId, itemId].join(":");
 
+/** Apart from any targetKey of what is being included. */
+export const transferKey = ({ sectionId, entryId, itemId = "" }: TransferTarget) =>
+  ["transfer", sectionId, entryId, itemId].join(":");
+
 export type ChecklistActions = {
   tick: (target: ChecklistTarget, on: boolean) => void;
   moveSection: (id: number, by: -1 | 1) => void;
@@ -33,25 +40,28 @@ export type ChecklistActions = {
   orderEntries: (sectionId: number, entryIds: string[]) => void;
   toggleColumn: (id: number) => void;
   removeSection: (id: number) => Promise<void>;
+  /** Passes text between the CV and the library. Never rejects. */
+  transfer: (target: TransferTarget, direction: TransferDirection) => Promise<void>;
 };
 
 type Drafts = Pick<
   ReturnType<typeof useSectionDrafts<CurriculumSection>>,
-  "current" | "change" | "flush" | "replace" | "add" | "reorder" | "remove"
+  "current" | "saved" | "change" | "setRecord" | "flush" | "replace" | "add" | "reorder" | "remove"
 >;
 
 const NOTHING_PENDING: ReadonlySet<string> = new Set();
+type Library = Pick<ReturnType<typeof useSectionLibrary>, "current" | "take" | "refresh">;
 
-/** What the checklist does to a CV. The functions stay the same. `refreshLibrary` is for when it turns out to have changed. */
+/** What the checklist does to a CV. The functions stay the same. */
 export const useCvChecklist = (
   curriculumId: number,
-  { current, change, flush, replace, add, reorder, remove }: Drafts,
-  refreshLibrary: () => Promise<void>
+  { current, saved, change, setRecord, flush, replace, add, reorder, remove }: Drafts,
+  { current: templates, take: takeTemplate, refresh: refreshLibrary }: Library
 ) => {
   const [pending, setPending] = useState(NOTHING_PENDING);
 
   // As with the drafts: these go by the CV first given, and a page has only one.
-  const [{ enqueue, include, orderSections: saveOrder }] = useState(() =>
+  const [{ enqueue, include, transfer: sendTransfer, orderSections: saveOrder }] = useState(() =>
     createCvRequests({
       current,
       flush,
@@ -59,6 +69,12 @@ export const useCvChecklist = (
       reorder,
       sendInclude: async (payload) => (await includeFromLibrary(curriculumId, payload)).curriculum.sections ?? [],
       sendOrder: (ids) => reorderCurriculumSections(curriculumId, ids),
+      saved,
+      change,
+      setRecord,
+      templates,
+      takeTemplate,
+      sendTransfer: (sectionId, payload) => transferWithLibrary(curriculumId, sectionId, payload),
     })
   );
 
@@ -86,7 +102,7 @@ export const useCvChecklist = (
       setBusy(key, true);
       void include({ section_template_id: templateId, entry_id: entryId, item_id: itemId })
         .catch((error) => {
-          if (error instanceof IncludeStopped) {
+          if (error instanceof RequestStopped) {
             toast.error(error.message);
             return;
           }
@@ -97,6 +113,30 @@ export const useCvChecklist = (
         .finally(() => setBusy(key, false));
     },
     [change, include, refreshLibrary, setBusy]
+  );
+
+  const transfer = useCallback(
+    async (target: TransferTarget, direction: TransferDirection) => {
+      const key = transferKey(target);
+      if (pendingKeys.current.has(key)) return;
+
+      setBusy(key, true);
+      try {
+        const done = await sendTransfer(target, direction);
+        if (done && direction === "to_library") toast.success("Library updated");
+      } catch (error) {
+        if (error instanceof RequestStopped) {
+          toast.error(error.message);
+        } else {
+          console.error(error);
+          toast.error(apiErrorMessage(error, "Couldn't do this. Check your connection and try again."));
+          void refreshLibrary();
+        }
+      } finally {
+        setBusy(key, false);
+      }
+    },
+    [refreshLibrary, sendTransfer, setBusy]
   );
 
   const orderSections = useCallback(
@@ -137,6 +177,7 @@ export const useCvChecklist = (
       tick,
       orderSections,
       removeSection,
+      transfer,
       moveSection: (id, by) => orderSections(moveSection(current().map((section) => section.id), id, by)),
       moveEntry: (sectionId, entryId, by) =>
         change(sectionId, ({ entries }) => ({ entries: moveEntry(entries, entryId, by) })),
@@ -148,7 +189,7 @@ export const useCvChecklist = (
       toggleColumn: (id) =>
         change(id, (section) => ({ placement: sectionColumn(section) === "sidebar" ? "main" : "sidebar" })),
     }),
-    [tick, orderSections, removeSection, current, change]
+    [tick, orderSections, removeSection, transfer, current, change]
   );
 
   return { pending, actions, addSection };

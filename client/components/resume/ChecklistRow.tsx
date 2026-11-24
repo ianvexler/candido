@@ -1,9 +1,13 @@
 "use client";
 
+import type { TransferDirection } from "@/api/resources/curriculums/transferWithLibrary";
 import type { TickState } from "@/lib/resume/checklist";
+import type { ItemState } from "@/lib/resume/itemState";
 import { cn } from "@/lib/utils";
 import { GripVerticalIcon } from "lucide-react";
 import { memo, ReactNode, useLayoutEffect, useRef } from "react";
+import { changeControls } from "./ItemChangeMenu";
+import RowMenu from "./RowMenu";
 
 interface ChecklistRowProps {
   kind: "section" | "entry" | "item";
@@ -21,8 +25,16 @@ interface ChecklistRowProps {
   /** Given when the row can be dragged. */
   handleRef?: (element: Element | null) => void;
   rowRef?: (element: Element | null) => void;
+  /** Names the row for rowBox. */
+  rowId?: string;
+  /** The Changed button. */
+  change?: ReactNode;
   menu?: ReactNode;
 }
+
+/** The tick box of the row with this id. */
+export const rowBox = (rowId: string) =>
+  document.querySelector<HTMLInputElement>(`[data-row="${CSS.escape(rowId)}"] input[type="checkbox"]`);
 
 const KIND_STYLES = {
   section: "mt-3 font-semibold",
@@ -43,6 +55,8 @@ const ChecklistRow = ({
   onTick,
   handleRef,
   rowRef,
+  rowId,
+  change,
   menu,
 }: ChecklistRowProps) => {
   const boxRef = useRef<HTMLInputElement>(null);
@@ -55,6 +69,7 @@ const ChecklistRow = ({
   return (
     <div
       ref={rowRef}
+      data-row={rowId}
       className={cn(
         "group/row relative flex items-start gap-1 rounded-md pr-1.5 text-sm hover:bg-muted/60",
         KIND_STYLES[kind]
@@ -107,6 +122,7 @@ const ChecklistRow = ({
           </span>
         )}
       </label>
+      {change}
       {menu ?? (kind !== "item" && <span aria-hidden className="w-6 shrink-0" />)}
     </div>
   );
@@ -119,22 +135,41 @@ export const ChecklistItemRow = memo(
     inCv,
     onTickItem,
     ticked,
+    offer,
+    libraryText,
+    transferring,
+    onTransferItem,
     ...row
-  }: Pick<ChecklistRowProps, "label" | "isNew" | "busy"> & {
+  }: Pick<ChecklistRowProps, "label" | "isNew" | "busy" | "rowId"> & {
     itemId: string;
     inCv: boolean;
     ticked: boolean;
     onTickItem: (itemId: string, inCv: boolean, on: boolean) => void;
-  }) => (
-    <ChecklistRow
-      {...row}
-      kind="item"
-      state={ticked ? "on" : "off"}
-      // Not stored with an id yet.
-      disabled={itemId === ""}
-      onTick={(on) => onTickItem(itemId, inCv, on)}
-    />
-  )
+    /** See itemOffer. */
+    offer: ItemState | null;
+    libraryText: string | null;
+    transferring: boolean;
+    onTransferItem: (itemId: string, direction: TransferDirection) => void;
+  }) => {
+    const { add, change } = changeControls(offer, {
+      label: row.label,
+      changed: { cv: row.label, library: libraryText ?? "" },
+      busy: transferring,
+      onChoose: (direction) => onTransferItem(itemId, direction),
+    });
+    return (
+      <ChecklistRow
+        {...row}
+        kind="item"
+        state={ticked ? "on" : "off"}
+        // Not stored with an id yet.
+        disabled={itemId === ""}
+        onTick={(on) => onTickItem(itemId, inCv, on)}
+        change={change}
+        menu={add && <RowMenu label={row.label}>{add}</RowMenu>}
+      />
+    );
+  }
 );
 ChecklistItemRow.displayName = "ChecklistItemRow";
 
