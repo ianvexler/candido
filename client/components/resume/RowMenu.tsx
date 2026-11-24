@@ -12,9 +12,9 @@ interface RowMenuProps {
   children?: ReactNode;
 }
 
-/** A checklist row's options. */
+/** A checklist row's options. Not modal: one that opens a dialog would leave the page ignoring the mouse. */
 const RowMenu = ({ label, move, children }: RowMenuProps) => (
-  <DropdownMenu>
+  <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild>
       <Button
         type="button"
