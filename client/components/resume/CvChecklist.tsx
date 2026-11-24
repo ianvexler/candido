@@ -12,7 +12,7 @@ import { isSortable } from "@dnd-kit/react/sortable";
 import NextLink from "next/link";
 import { ComponentProps, useState } from "react";
 import ChecklistSection, { DragData } from "./ChecklistSection";
-import { REMOVE_SECTION } from "./removeSection";
+import { deletionNote, REMOVE_SECTION } from "./removeSection";
 
 type DragEndEvent = Parameters<NonNullable<ComponentProps<typeof DragDropProvider>["onDragEnd"]>>[0];
 
@@ -36,6 +36,7 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
   const [retrying, setRetrying] = useState(false);
 
   const searching = query.trim() !== "";
+  const removingSection = sections.find(({ sectionId }) => removing !== null && sectionId === removing);
   const shown = filterChecklist(sections, query);
   const ours = sections.flatMap(({ sectionId }) => sectionId ?? []);
 
@@ -138,7 +139,7 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
           if (removing !== null) await actions.removeSection(removing);
         }}
         title={REMOVE_SECTION.title}
-        description={REMOVE_SECTION.description}
+        description={deletionNote(removingSection, !libraryLoading && !libraryFailed)}
         confirmLabel="Delete"
         variant="destructive"
       />

@@ -1,6 +1,6 @@
 import { EntryFields } from "@/lib/types";
 import { describe, expect, it } from "vitest";
-import { actionLabel, actionsFor, changeLabel, differingFields, fieldsState, itemState } from "./itemState";
+import { actionLabel, actionsFor, changeLabel, differingFields, fieldsState, itemState, shownText, warnsOfHidden } from "./itemState";
 
 const html = (text: string) => `<p data-cv-item="a">${text}</p>`;
 
@@ -131,4 +131,20 @@ describe("differingFields", () => {
 
   it("takes an end month beside Present as none", () =>
     expect(differingFields(fields("A", { current: true, end_date: "2024-01-01" }), fields("A", { current: true }))).toEqual([]));
+});
+
+describe("shownText", () => {
+  it.each([
+    ['A <span data-cv-hidden="true">secret</span> B', "A B"],
+    ['<span data-cv-hidden="true">All</span>', ""],
+    ['A<span data-cv-hidden="true"> </span>', null],
+    ["A", null],
+  ])("of %s is %j", (text, shown) => expect(shownText(html(text))).toBe(shown));
+});
+
+it("warnsOfHidden only where hidden text would be replaced", () => {
+  const states = ["same", "cv_changed", "library_changed", "both_changed", "differs", "cv_only", "library_only"] as const;
+  expect(states.filter((state) => warnsOfHidden(state, "A"))).toEqual(["library_changed", "both_changed", "differs"]);
+  expect(states.filter((state) => warnsOfHidden(state, ""))).toHaveLength(3);
+  expect(states.filter((state) => warnsOfHidden(state, null))).toEqual([]);
 });

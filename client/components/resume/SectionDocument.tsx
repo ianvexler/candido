@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/Button";
 import { tickItem } from "@/lib/resume/checklist";
 import { emptyEntry, moveEntry } from "@/lib/resume/sectionEntries";
 import type { EntryEditor, EntryVersions, SectionChange } from "@/lib/resume/sectionDrafts";
+import type { TransferTarget } from "@/lib/resume/transfer";
 import { CvSuggestion, SectionEntry, SectionFields } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Selection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { ReactNode, RefObject, useCallback, useMemo, useRef, useState } from "react";
+import { ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { rowBox, rowIdOf } from "./ChecklistRow";
 import IconAction from "./IconAction";
 import SectionEntryEditor, { EntryChange, SuggestionProps } from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
@@ -28,7 +30,8 @@ interface SectionDocumentProps extends SuggestionProps {
   onDelete: () => Promise<void>;
   deleteLabel: string;
   deleteTitle: string;
-  deleteDescription: string;
+  /** What deleting it, or one of its entries, means. Asked when that is about to be confirmed. */
+  describeDeletion: (entryId?: string) => string;
   /** Shown above the section, e.g. which column it's in. */
   notice?: ReactNode;
   /** Shows what is ticked only. Order is up to the checklist. */
@@ -37,18 +40,33 @@ interface SectionDocumentProps extends SuggestionProps {
 
 const FOCUS_FRAMES = 20;
 
+const isVisible = (element: HTMLElement) => element.checkVisibility?.({ visibilityProperty: true }) ?? true;
+
+/** For when the entry went with its last item: its row in the checklist, or what is left of the page. */
+const focusElsewhere = (target: TransferTarget) => {
+  if (document.activeElement !== document.body) return;
+  const heading = document.querySelector<HTMLElement>(
+    `[data-section-id="${target.sectionId}"] input[aria-label="Section heading"]`
+  );
+  const papers = document.querySelectorAll<HTMLElement>('[data-section-id] input[aria-label="Section heading"]');
+  [rowBox(rowIdOf(target)), heading, ...papers, document.querySelector<HTMLElement>("[data-add-sheet]")]
+    .find((element) => element !== null && element !== undefined && isVisible(element))
+    ?.focus();
+};
+
 /** Focuses the editor that replaces `before`, near a position, once it's there. */
 const focusNext = (
+  target: TransferTarget,
   editors: RefObject<Map<string, Editor>>,
-  entryId: string,
   before: Editor | undefined,
   position: number
 ) => {
   let frames = 0;
   const attempt = () => {
-    const editor = editors.current.get(entryId);
+    const editor = editors.current.get(target.entryId);
     if (!editor || editor === before || editor.isDestroyed) {
       if (++frames < FOCUS_FRAMES) requestAnimationFrame(attempt);
+      else focusElsewhere(target);
       return;
     }
     const { tr, doc } = editor.state;
@@ -69,7 +87,7 @@ const SectionDocument = ({
   onDelete,
   deleteLabel,
   deleteTitle,
-  deleteDescription,
+  describeDeletion,
   notice,
   inCv = false,
   suggestions = NO_SUGGESTIONS,
@@ -78,9 +96,10 @@ const SectionDocument = ({
   onSuggestionClose,
   onSuggestionResolve,
 }: SectionDocumentProps) => {
-  const { section_type: sectionType, entries } = section;
+  const { id: sectionId, section_type: sectionType, entries } = section;
   const shown = inCv ? entries.filter((entry) => !entry.hidden) : entries;
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteNote, setDeleteNote] = useState("");
   const editors = useRef(new Map<string, Editor>());
 
   const changeEntries = useCallback(
@@ -89,13 +108,13 @@ const SectionDocument = ({
     [onChange]
   );
   const changeEntry = useCallback(
-    (id: string, changes: EntryChange, version: number) =>
+    (id: string, changes: EntryChange, version?: number) =>
       changeEntries(
         (list) =>
           list.map((entry) =>
             entry.id === id ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
           ),
-        { entryId: id, version }
+        version === undefined ? undefined : { entryId: id, version }
       ),
     [changeEntries]
   );
@@ -107,13 +126,23 @@ const SectionDocument = ({
     (id: string) => changeEntries((list) => list.filter((entry) => entry.id !== id)),
     [changeEntries]
   );
+  const latestDescribe = useRef(describeDeletion);
+  useEffect(() => {
+    latestDescribe.current = describeDeletion;
+  });
+  // Stays the same, for the entries' memo.
+  const describeEntry = useCallback((id: string) => latestDescribe.current(id), []);
+  const askDelete = () => {
+    setDeleteNote(describeDeletion());
+    setDeleteOpen(true);
+  };
   const leaveOut = useCallback(
     (entryId: string, itemId: string, focusAt: number | null) => {
       const before = editors.current.get(entryId);
       onChange((current) => tickItem(current, entryId, itemId, false));
-      if (focusAt !== null) focusNext(editors, entryId, before, focusAt);
+      if (focusAt !== null) focusNext({ sectionId, entryId, itemId }, editors, before, focusAt);
     },
-    [onChange]
+    [onChange, sectionId]
   );
 
   // --- Review suggestions -------------------------------------------------
@@ -135,7 +164,7 @@ const SectionDocument = ({
         className="group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-6 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14"
       >
         <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
-          <IconAction label={deleteLabel} onClick={() => setDeleteOpen(true)}>
+          <IconAction label={deleteLabel} onClick={askDelete}>
             <Trash2Icon />
           </IconAction>
         </div>
@@ -167,6 +196,7 @@ const SectionDocument = ({
                 onMove={move}
                 canDelete={entries.length > 1}
                 onDelete={deleteEntry}
+                describeDeletion={describeEntry}
                 onLeaveOut={inCv ? leaveOut : undefined}
                 suggestions={suggestionsByEntry.get(entry.id)}
                 activeSuggestionId={activeSuggestionId}
@@ -195,7 +225,7 @@ const SectionDocument = ({
         onClose={() => setDeleteOpen(false)}
         onConfirm={onDelete}
         title={deleteTitle}
-        description={deleteDescription}
+        description={deleteNote}
         confirmLabel="Delete"
         variant="destructive"
       />

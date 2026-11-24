@@ -16,6 +16,8 @@ interface CurriculumSectionCardProps {
   versions?: EntryVersions;
   onChange: (id: number, change: SectionChange, editor?: EntryEditor) => void;
   onRemove: ChecklistActions["removeSection"];
+  /** What deleting a section, or an entry of it, loses. */
+  describeDeletion: (id: number, entryId?: string) => string;
   /** The resume uses a two-column template. */
   twoColumn?: boolean;
   /** This section's review suggestions; see SectionDocument. */
@@ -32,6 +34,7 @@ const CurriculumSectionCard = ({
   versions,
   onChange,
   onRemove,
+  describeDeletion,
   twoColumn = false,
   ...suggestionProps
 }: CurriculumSectionCardProps) => {
@@ -58,7 +61,7 @@ const CurriculumSectionCard = ({
       onDelete={() => onRemove(id)}
       deleteLabel={REMOVE_SECTION.label}
       deleteTitle={REMOVE_SECTION.title}
-      deleteDescription={REMOVE_SECTION.description}
+      describeDeletion={(entryId) => describeDeletion(id, entryId)}
       {...suggestionProps}
     />
   );

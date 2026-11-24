@@ -8,7 +8,7 @@ import { ChecklistActions, ChecklistTarget, targetKey, transferKey } from "@/lib
 import { useSortable } from "@dnd-kit/react/sortable";
 import { PanelLeftIcon, Trash2Icon } from "lucide-react";
 import { memo, useCallback } from "react";
-import ChecklistRow, { ChecklistItemRow, rowBox } from "./ChecklistRow";
+import ChecklistRow, { ChecklistItemRow, rowBox, rowIdOf } from "./ChecklistRow";
 import { changeControls } from "./ItemChangeMenu";
 import { REMOVE_SECTION } from "./removeSection";
 import RowMenu from "./RowMenu";
@@ -32,8 +32,6 @@ const overRow: Detector = ({ dragOperation, droppable }) => {
 
 const sortableId = (sectionId: number | null, key: string, entryId?: string) =>
   entryId === undefined ? (sectionId ?? key) : `${key}/${entryId}`;
-
-const rowIdOf = ({ sectionId, entryId, itemId = "" }: TransferTarget) => [sectionId, entryId, itemId].join("/");
 
 /** Focus stays on the row when the button that was used is gone. */
 const transferFrom = async (actions: ChecklistActions, rowId: string, target: TransferTarget, direction: TransferDirection) => {
@@ -159,6 +157,7 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, of
           rowId={sectionId === null || item.id === "" ? undefined : rowIdOf({ sectionId, entryId: entry.id, itemId: item.id })}
           offer={offerChanges ? itemOffer(entry, item) : null}
           libraryText={item.libraryText}
+          shownText={item.shownText}
           transferring={sectionId !== null && pending.includes(transferKey({ sectionId, entryId: entry.id, itemId: item.id }))}
           onTransferItem={transferItem}
         />

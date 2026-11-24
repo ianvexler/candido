@@ -157,7 +157,7 @@ const ResumesPage = () => {
               Import a CV
             </Button>
             <Button variant="outline" onClick={() => void onCreate()} disabled={creating}>
-              Start from scratch
+              New CV
             </Button>
           </div>
         </div>

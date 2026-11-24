@@ -73,7 +73,7 @@ const CvPageHeader = ({ curriculum, onRename, onExport }: CvPageHeaderProps) => 
         className="border-0 py-0 text-4xl font-bold tracking-tight"
       />
       <p className="mt-1 text-base font-light text-muted-foreground">
-        Changes here only affect this CV, not your library.
+        Changes here only affect this CV, unless you send them to your library.
       </p>
     </>
   );

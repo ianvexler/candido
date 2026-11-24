@@ -62,7 +62,7 @@ const words = (node: Node): string => {
 // What Ruby's [[:space:]] matches. \s would also take U+FEFF and miss U+0085.
 const SPACES = new RegExp("\\p{White_Space}+", "gu");
 
-const textOf = (node: Node) => words(node).replace(SPACES, " ").replace(/^ | $/g, "");
+export const textOf = (node: Node) => words(node).replace(SPACES, " ").replace(/^ | $/g, "");
 
 const listElements = (list: Element) => Array.from(list.children).filter((child) => isOneOf(["li"], child));
 

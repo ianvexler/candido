@@ -148,7 +148,11 @@ const SectionLibraryPage = () => {
           onDelete={() => removeTemplate(template.id)}
           deleteLabel="Delete from library"
           deleteTitle="Delete this section?"
-          deleteDescription="This removes the reusable section from your library. CVs that already use it keep their copy."
+          describeDeletion={(entryId) =>
+            entryId === undefined
+              ? "This removes the reusable section from your library. CVs that already use it keep their copy."
+              : "This removes it from the library section. CVs that already use it keep their copy."
+          }
         />
       ))}
 

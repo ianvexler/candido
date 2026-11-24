@@ -12,6 +12,7 @@ import CvChecklist from "@/components/resume/CvChecklist";
 import CvPageHeader from "@/components/resume/CvPageHeader";
 import CvWorkspace, { CvTab } from "@/components/resume/CvWorkspace";
 import HeaderDocument from "@/components/resume/HeaderDocument";
+import { deletionNote } from "@/components/resume/removeSection";
 import ReviewPanel from "@/components/resume/review/ReviewPanel";
 import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
 import { resolveDesign } from "@/lib/resume/design";
@@ -24,7 +25,7 @@ import { useSectionDrafts } from "@/lib/resume/useSectionDrafts";
 import { useSectionLibrary } from "@/lib/resume/useSectionLibrary";
 import { Curriculum, CurriculumSection, CvSuggestion, MissingSection, ResumeHeader } from "@/lib/types";
 import NextLink from "next/link";
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 const NO_SUGGESTIONS: CvSuggestion[] = [];
@@ -82,11 +83,22 @@ const CvPage = ({ id }: { id: string }) => {
     };
   }, [id, load, refreshLibrary, setTailoring]);
 
+  const libraryLoaded = !library.loading && !library.failed;
   const createdAt = curriculum?.created_at;
   const checklist = useMemo(
     () => (createdAt === undefined ? [] : buildChecklist(sections, library.templates, createdAt)),
     [sections, library.templates, createdAt]
   );
+
+  // Stays the same, for the sections' memo.
+  const known = useRef({ checklist, libraryLoaded });
+  useEffect(() => {
+    known.current = { checklist, libraryLoaded };
+  });
+  const describeDeletion = useCallback((sectionId: number, entryId?: string) => {
+    const section = known.current.checklist.find((row) => row.sectionId === sectionId);
+    return deletionNote(section, known.current.libraryLoaded, entryId);
+  }, []);
 
   // The heading of a section just added, once it's on the page.
   const focusSection = useRef<number | null>(null);
@@ -242,6 +254,7 @@ const CvPage = ({ id }: { id: string }) => {
           versions={versions[section.id]}
           onChange={change}
           onRemove={actions.removeSection}
+          describeDeletion={describeDeletion}
           twoColumn={twoColumn}
           {...(tailored && {
             suggestions: review.suggestionsBySection.get(section.id) ?? NO_SUGGESTIONS,
