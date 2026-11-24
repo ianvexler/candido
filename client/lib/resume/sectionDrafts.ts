@@ -128,10 +128,17 @@ const keepUnsaved = (shown: SectionEntry[], known: SectionEntry[][], next: Secti
       const before = byId(entries, entry.id);
       return before !== undefined && sameEntry(entry, before);
     });
+  // With an invalid date range nothing of the section is sent, so a flush didn't save its edits.
+  const unsendable = shown.some(endsBeforeStart);
+  const isEdited = (entry: SectionEntry) => {
+    const before = byId(known[0], entry.id);
+    return before === undefined || !sameEntry(entry, before);
+  };
   const taken = next.flatMap((entry) => {
     const now = byId(shown, entry.id);
     if (!now) return unchanged(entry) ? [] : [entry];
-    return unchanged(entry) || sameEntry(entry, now) ? [now] : [entry];
+    const keep = unchanged(entry) || sameEntry(entry, now) || (unsendable && isEdited(now));
+    return keep ? [now] : [entry];
   });
   const unsavedOnes = shown.filter(({ id }) => !byId(next, id) && !byId(known[0], id));
   if (!known.some((entries) => sameOrder(entries, next))) return [...taken, ...unsavedOnes];
@@ -351,7 +358,8 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
 
     /**
      * Shows a record from the server, added at the end if it's new. Unsaved edits
-     * of entries that the record changes are lost: flush before asking for it.
+     * of entries that the record changes are lost, unless an invalid date range keeps
+     * them from being sent: flush before asking for it.
      */
     replace: (section: T) => {
       const draft = find(section.id);

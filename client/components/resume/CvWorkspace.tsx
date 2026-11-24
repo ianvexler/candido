@@ -17,6 +17,10 @@ interface CvWorkspaceProps {
   onTabChange: (tab: CvTab) => void;
 }
 
+// Drawn inside, above what the panel holds.
+const FOCUS =
+  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground focus-visible:outline-solid";
+
 // Panels stay mounted and laid out, so they keep their edits and scroll. Three
 // columns need more room than two.
 const LAYOUTS = {
@@ -62,14 +66,14 @@ const CvWorkspace = ({ header, checklist, children, review, tab, onTabChange }: 
           <TabsContent
             forceMount
             value="include"
-            className={cn("overflow-y-auto border-border bg-background", layout.panel, layout.checklist)}
+            className={cn("overflow-y-auto border-border bg-background", FOCUS, layout.panel, layout.checklist)}
           >
             {checklist}
           </TabsContent>
           <TabsContent
             forceMount
             value="cv"
-            className={cn("min-w-0 overflow-y-auto bg-muted/50 px-4 py-8 sm:px-8", layout.panel, hasReview && "xl:min-w-[26rem]")}
+            className={cn("min-w-0 overflow-y-auto bg-muted/50 px-4 py-8 sm:px-8", FOCUS, layout.panel, hasReview && "xl:min-w-[26rem]")}
           >
             <div className="space-y-8 pb-16">{children}</div>
           </TabsContent>
@@ -77,7 +81,7 @@ const CvWorkspace = ({ header, checklist, children, review, tab, onTabChange }: 
             <TabsContent
               forceMount
               value="review"
-              className={cn("overflow-x-hidden overflow-y-auto border-border bg-background", layout.panel, layout.review)}
+              className={cn("overflow-x-hidden overflow-y-auto border-border bg-background", FOCUS, layout.panel, layout.review)}
             >
               {review}
             </TabsContent>

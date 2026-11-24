@@ -11,23 +11,29 @@ type Place = { id: string; top: number };
 
 interface LeaveOutAreaProps {
   editor: Editor;
+  /** A suggestion's card is open, which Escape closes. */
+  cardOpen: boolean;
   /** `focusAt` is where the caret should go afterwards, or null if focus was elsewhere. */
   onLeaveOut: (itemId: string, focusAt: number | null) => void;
   children: ReactNode;
 }
 
-/** The item the caret is in, unless it is blank. */
-const caretItem = (editor: Editor): HTMLElement | null => {
+/** The item that an element is (in), unless it is blank. */
+export const offerableItem = (element: Element | null): Element | null => {
+  const item = element?.closest(ITEM_SELECTOR) ?? null;
+  return item?.textContent?.trim() ? item : null;
+};
+
+const caretItem = (editor: Editor): Element | null => {
   const { node } = editor.view.domAtPos(editor.state.selection.from);
-  const element = node instanceof Element ? node : node.parentElement;
-  return element?.closest<HTMLElement>(ITEM_SELECTOR) ?? null;
+  return offerableItem(node instanceof Element ? node : node.parentElement);
 };
 
 /**
  * Puts "Leave out" beside the item that is pointed at or has the caret. It isn't
  * part of the document. Escape moves from the text to the button and back.
  */
-const LeaveOutArea = ({ editor, onLeaveOut, children }: LeaveOutAreaProps) => {
+const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, children }: LeaveOutAreaProps) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [hovered, setHovered] = useState<Place | null>(null);
@@ -71,14 +77,16 @@ const LeaveOutArea = ({ editor, onLeaveOut, children }: LeaveOutAreaProps) => {
 
   const onPointerMove = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || event.buttons > 0) return;
-    const item = (event.target as Element).closest(ITEM_SELECTOR);
-    if (!item) return;
+    const target = event.target as Element;
+    // Between items, or on the button: as it was.
+    if (!target.closest(ITEM_SELECTOR)) return;
+    const item = offerableItem(target);
     const next = placeOf(item);
     setHovered((now) => (now?.id === next?.id && now?.top === next?.top ? now : next));
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+    if (cardOpen || event.key !== "Escape" || event.nativeEvent.isComposing) return;
     if (event.target === buttonRef.current) {
       editor.commands.focus();
     } else if (caret) {
@@ -98,10 +106,12 @@ const LeaveOutArea = ({ editor, onLeaveOut, children }: LeaveOutAreaProps) => {
   return (
     <div
       ref={areaRef}
-      className="relative"
+      // Reaches into the paper's margin, so the button has room beside the text.
+      className="relative -mr-7 pr-[44px] sm:-mr-10 sm:pr-[68px]"
       onPointerMove={onPointerMove}
       onPointerLeave={() => setHovered(null)}
-      onKeyDown={onKeyDown}
+      // Before the card closes, so it counts as open.
+      onKeyDownCapture={onKeyDown}
     >
       {children}
       {place && (
@@ -117,7 +127,7 @@ const LeaveOutArea = ({ editor, onLeaveOut, children }: LeaveOutAreaProps) => {
                 if (!areaRef.current?.contains(event.relatedTarget)) setCaret(null);
               }}
               style={{ top: place.top }}
-              className="absolute left-full w-10 rounded-md bg-white px-0.5 py-0.5 text-left text-[11px] leading-tight text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none sm:-ml-1.5 sm:w-auto sm:px-1 sm:whitespace-nowrap"
+              className="absolute right-0 w-[40px] rounded-md bg-muted px-0.5 py-0.5 text-center text-[12px] leading-tight [overflow-wrap:normal] text-foreground hover:bg-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:w-auto sm:px-1.5 sm:whitespace-nowrap [@media(pointer:coarse)]:min-h-[44px]"
             >
               Leave out
             </button>

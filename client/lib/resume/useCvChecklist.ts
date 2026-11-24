@@ -6,9 +6,9 @@ import { CurriculumSection } from "@/lib/types";
 import { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { moveSection, tickEntry, tickItem, tickSection } from "./checklist";
+import { createCvRequests, IncludeStopped } from "./cvRequests";
 import { sectionColumn } from "./exportDocument";
 import { apiErrorMessage } from "./reviewPanel";
-import { trackSave } from "./saveTracker";
 import { moveEntry } from "./sectionEntries";
 import type { useSectionDrafts } from "./useSectionDrafts";
 
@@ -40,11 +40,7 @@ type Drafts = Pick<
   "current" | "change" | "flush" | "replace" | "add" | "reorder" | "remove"
 >;
 
-// Only someone typing on without a pause gets this far.
-const MAX_INCLUDES = 20;
 const NOTHING_PENDING: ReadonlySet<string> = new Set();
-
-const sectionWith = (sections: CurriculumSection[], id: number) => sections.find((section) => section.id === id);
 
 /** What the checklist does to a CV. The functions stay the same. `refreshLibrary` is for when it turns out to have changed. */
 export const useCvChecklist = (
@@ -54,13 +50,17 @@ export const useCvChecklist = (
 ) => {
   const [pending, setPending] = useState(NOTHING_PENDING);
 
-  // Requests that change the CV's set or order of sections run one at a time.
-  const last = useRef<Promise<unknown>>(Promise.resolve());
-  const enqueue = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
-    const request = trackSave("cv-sections", last.current.then(task));
-    last.current = request.catch(() => undefined);
-    return request;
-  }, []);
+  // As with the drafts: these go by the CV first given, and a page has only one.
+  const [{ enqueue, include, orderSections: saveOrder }] = useState(() =>
+    createCvRequests({
+      current,
+      flush,
+      replace,
+      reorder,
+      sendInclude: async (payload) => (await includeFromLibrary(curriculumId, payload)).curriculum.sections ?? [],
+      sendOrder: (ids) => reorderCurriculumSections(curriculumId, ids),
+    })
+  );
 
   const pendingKeys = useRef(new Set<string>());
   const setBusy = useCallback((key: string, busy: boolean) => {
@@ -68,35 +68,6 @@ export const useCvChecklist = (
     else pendingKeys.current.delete(key);
     setPending(new Set(pendingKeys.current));
   }, []);
-
-  const include = useCallback(
-    async (templateId: number, entryId?: string, itemId?: string) => {
-      for (let count = 1; ; count += 1) {
-        if (!(await flush())) {
-          toast.error("Your latest changes couldn't be saved, so this wasn't added. Try again.");
-          return;
-        }
-        const before = current();
-        const { curriculum } = await includeFromLibrary(curriculumId, {
-          section_template_id: templateId,
-          entry_id: entryId,
-          item_id: itemId,
-        });
-        const [copy] = (curriculum.sections ?? [])
-          .filter((section) => section.section_template_id === templateId)
-          .sort((a, b) => a.id - b.id);
-        if (!copy) return;
-        // Edited meanwhile: save that and include again, or the response would undo the edit.
-        const edited = sectionWith(before, copy.id) !== sectionWith(current(), copy.id);
-        if (!edited) {
-          replace(copy);
-          return;
-        }
-        if (count === MAX_INCLUDES) throw new Error("The section kept changing");
-      }
-    },
-    [curriculumId, current, flush, replace]
-  );
 
   const tick = useCallback(
     (target: ChecklistTarget, on: boolean) => {
@@ -113,29 +84,28 @@ export const useCvChecklist = (
       if (!on || templateId === null || pendingKeys.current.has(key)) return;
 
       setBusy(key, true);
-      void enqueue(() => include(templateId, entryId, itemId))
+      void include({ section_template_id: templateId, entry_id: entryId, item_id: itemId })
         .catch((error) => {
+          if (error instanceof IncludeStopped) {
+            toast.error(error.message);
+            return;
+          }
           console.error(error);
           toast.error(apiErrorMessage(error, "Couldn't add this from your library. Try again."));
           void refreshLibrary();
         })
         .finally(() => setBusy(key, false));
     },
-    [change, enqueue, include, refreshLibrary, setBusy]
+    [change, include, refreshLibrary, setBusy]
   );
 
   const orderSections = useCallback(
-    (ids: number[]) => {
-      const previous = current().map(({ id }) => id);
-      if (ids.join() === previous.join()) return;
-      reorder(ids);
-      void enqueue(() => reorderCurriculumSections(curriculumId, current().map(({ id }) => id))).catch((error) => {
+    (ids: number[]) =>
+      void saveOrder(ids).catch((error) => {
         console.error(error);
         toast.error("Failed to save the new order");
-        reorder(previous);
-      });
-    },
-    [curriculumId, current, enqueue, reorder]
+      }),
+    [saveOrder]
   );
 
   const addSection = useCallback(
