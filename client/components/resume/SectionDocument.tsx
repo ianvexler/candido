@@ -2,13 +2,15 @@
 
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { Button } from "@/components/ui/Button";
+import { tickItem } from "@/lib/resume/checklist";
 import { emptyEntry, moveEntry } from "@/lib/resume/sectionEntries";
 import type { EntryEditor, EntryVersions, SectionChange } from "@/lib/resume/sectionDrafts";
 import { CvSuggestion, SectionEntry, SectionFields } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Selection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { ReactNode, Ref, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, RefObject, useCallback, useMemo, useRef, useState } from "react";
 import IconAction from "./IconAction";
 import SectionEntryEditor, { EntryChange, SuggestionProps } from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
@@ -27,19 +29,34 @@ interface SectionDocumentProps extends SuggestionProps {
   deleteLabel: string;
   deleteTitle: string;
   deleteDescription: string;
-  /** Extra icon actions at the top right, shown on hover before the built-in ones. */
-  actions?: ReactNode;
-  /** Shown in the left margin on hover, e.g. a drag handle. */
-  handle?: ReactNode;
-  /** Shown above the section, e.g. a "library changed" notice. */
+  /** Shown above the section, e.g. which column it's in. */
   notice?: ReactNode;
-  /** Fades the page, e.g. when the section is hidden from a CV. */
-  dimmed?: boolean;
-  /** Offers leaving single entries out, as a resume does. */
-  canHideEntries?: boolean;
-  articleRef?: Ref<HTMLElement>;
-  className?: string;
+  /** Shows what is ticked only. Order is up to the checklist. */
+  inCv?: boolean;
 }
+
+const FOCUS_FRAMES = 20;
+
+/** Focuses the editor that replaces `before`, near a position, once it's there. */
+const focusNext = (
+  editors: RefObject<Map<string, Editor>>,
+  entryId: string,
+  before: Editor | undefined,
+  position: number
+) => {
+  let frames = 0;
+  const attempt = () => {
+    const editor = editors.current.get(entryId);
+    if (!editor || editor === before || editor.isDestroyed) {
+      if (++frames < FOCUS_FRAMES) requestAnimationFrame(attempt);
+      return;
+    }
+    const { tr, doc } = editor.state;
+    editor.view.dispatch(tr.setSelection(Selection.near(doc.resolve(Math.min(position, doc.content.size)), -1)));
+    editor.view.focus();
+  };
+  requestAnimationFrame(attempt);
+};
 
 /**
  * A paper-style editor for one section and its entries. Controls stay out of the way until the
@@ -53,34 +70,51 @@ const SectionDocument = ({
   deleteLabel,
   deleteTitle,
   deleteDescription,
-  actions,
-  handle,
   notice,
-  dimmed = false,
-  canHideEntries = false,
-  articleRef,
-  className,
+  inCv = false,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
   onSuggestionResolve,
-  onStaleChange,
 }: SectionDocumentProps) => {
   const { section_type: sectionType, entries } = section;
+  const shown = inCv ? entries.filter((entry) => !entry.hidden) : entries;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const editors = useRef(new Map<string, Editor>());
 
-  const changeEntries = (change: (entries: SectionEntry[]) => SectionEntry[], editor?: EntryEditor) =>
-    onChange((current) => ({ entries: change(current.entries) }), editor);
-  const changeEntry = (id: string, changes: EntryChange) =>
-    changeEntries(
-      (list) =>
-        list.map((entry) =>
-          entry.id === id ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
-        ),
-      { entryId: id, version: versions[id] ?? 0 }
-    );
+  const changeEntries = useCallback(
+    (change: (entries: SectionEntry[]) => SectionEntry[], editor?: EntryEditor) =>
+      onChange((current) => ({ entries: change(current.entries) }), editor),
+    [onChange]
+  );
+  const changeEntry = useCallback(
+    (id: string, changes: EntryChange, version: number) =>
+      changeEntries(
+        (list) =>
+          list.map((entry) =>
+            entry.id === id ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
+          ),
+        { entryId: id, version }
+      ),
+    [changeEntries]
+  );
+  const move = useCallback(
+    (id: string, by: -1 | 1) => changeEntries((list) => moveEntry(list, id, by)),
+    [changeEntries]
+  );
+  const deleteEntry = useCallback(
+    (id: string) => changeEntries((list) => list.filter((entry) => entry.id !== id)),
+    [changeEntries]
+  );
+  const leaveOut = useCallback(
+    (entryId: string, itemId: string, focusAt: number | null) => {
+      const before = editors.current.get(entryId);
+      onChange((current) => tickItem(current, entryId, itemId, false));
+      if (focusAt !== null) focusNext(editors, entryId, before, focusAt);
+    },
+    [onChange]
+  );
 
   // --- Review suggestions -------------------------------------------------
   // Reviews from before sections had entries are about the first one.
@@ -94,42 +128,13 @@ const SectionDocument = ({
     return map;
   }, [suggestions, firstEntryId]);
 
-  // Stale suggestion ids as each entry last reported them. Pending ones about
-  // a deleted entry are stale too.
-  const [staleByEntry, setStaleByEntry] = useState<Record<string, number[]>>({});
-  const entryIds = entries.map((entry) => entry.id);
-  const staleKey = [
-    ...entryIds.flatMap((id) => staleByEntry[id] ?? []),
-    ...suggestions
-      .filter((s) => s.status === "pending" && s.entry_id !== null && !entryIds.includes(s.entry_id))
-      .map((s) => s.id),
-  ].join(",");
-  const reportedStale = useRef("");
-  useEffect(() => {
-    if (!onStaleChange || staleKey === reportedStale.current) return;
-    reportedStale.current = staleKey;
-    onStaleChange(staleKey ? staleKey.split(",").map(Number) : []);
-  }, [onStaleChange, staleKey]);
-
   return (
     <>
       <article
-        ref={articleRef}
         data-section-id={section.id}
-        className={cn(
-          "group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-6 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14 transition-opacity",
-          dimmed && "opacity-55",
-          className
-        )}
+        className="group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-6 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14"
       >
-        {handle && (
-          <div className="absolute left-2 top-9 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100 sm:left-4">
-            {handle}
-          </div>
-        )}
-
         <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
-          {actions}
           <IconAction label={deleteLabel} onClick={() => setDeleteOpen(true)}>
             <Trash2Icon />
           </IconAction>
@@ -146,29 +151,31 @@ const SectionDocument = ({
         />
 
         <div className="mt-1 space-y-11">
-          {entries.map((entry, index) => (
-            <SectionEntryEditor
-              key={`${entry.id}:${versions[entry.id] ?? 0}`}
-              entry={entry}
-              editors={editors}
-              sectionType={sectionType}
-              onChange={(changes) => changeEntry(entry.id, changes)}
-              onMoveUp={index > 0 ? () => changeEntries((list) => moveEntry(list, entry.id, -1)) : undefined}
-              onMoveDown={index < entries.length - 1 ? () => changeEntries((list) => moveEntry(list, entry.id, 1)) : undefined}
-              onDelete={
-                entries.length > 1 ? () => changeEntries((list) => list.filter((item) => item.id !== entry.id)) : undefined
-              }
-              canHide={canHideEntries && (entries.length > 1 || entry.hidden)}
-              suggestions={suggestionsByEntry.get(entry.id)}
-              activeSuggestionId={activeSuggestionId}
-              onSuggestionClick={onSuggestionClick}
-              onSuggestionClose={onSuggestionClose}
-              onSuggestionResolve={onSuggestionResolve}
-              onStaleChange={
-                onStaleChange && ((ids) => setStaleByEntry((current) => ({ ...current, [entry.id]: ids })))
-              }
-            />
-          ))}
+          {shown.map((entry) => {
+            const index = entries.indexOf(entry);
+            const version = versions[entry.id] ?? 0;
+            return (
+              <SectionEntryEditor
+                key={`${entry.id}:${version}`}
+                entry={entry}
+                version={version}
+                editors={editors}
+                sectionType={sectionType}
+                onEntryChange={changeEntry}
+                canMoveUp={!inCv && index > 0}
+                canMoveDown={!inCv && index < entries.length - 1}
+                onMove={move}
+                canDelete={entries.length > 1}
+                onDelete={deleteEntry}
+                onLeaveOut={inCv ? leaveOut : undefined}
+                suggestions={suggestionsByEntry.get(entry.id)}
+                activeSuggestionId={activeSuggestionId}
+                onSuggestionClick={onSuggestionClick}
+                onSuggestionClose={onSuggestionClose}
+                onSuggestionResolve={onSuggestionResolve}
+              />
+            );
+          })}
         </div>
 
         <Button

@@ -14,7 +14,6 @@ import Description from "@/components/common/Description";
 import Loader from "@/components/common/Loader";
 import PageContainer from "@/components/common/PageContainer";
 import Title from "@/components/common/Title";
-import SectionPickerDialog, { SectionPickerResult } from "@/components/resume/SectionPickerDialog";
 import { Button } from "@/components/ui/Button";
 import { deleteDescription, splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { Curriculum } from "@/lib/types";
@@ -87,13 +86,15 @@ const ResumesPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const onCreate = async ({ name, sectionTemplateIds }: SectionPickerResult) => {
+  const onCreate = async () => {
+    setCreating(true);
     try {
-      const response = await createCurriculum({ title: name, section_template_ids: sectionTemplateIds });
+      const response = await createCurriculum({ whole_library: true });
       router.push(`/resume/${response.curriculum.id}`);
     } catch (error) {
+      console.error(error);
       toast.error("Failed to create CV");
-      throw error;
+      setCreating(false);
     }
   };
 
@@ -133,7 +134,7 @@ const ResumesPage = () => {
               <FileUpIcon />
               Import a CV
             </Button>
-            <Button onClick={() => setCreating(true)}>
+            <Button onClick={() => void onCreate()} disabled={creating}>
               <PlusIcon />
               New CV
             </Button>
@@ -155,7 +156,7 @@ const ResumesPage = () => {
               <FileUpIcon />
               Import a CV
             </Button>
-            <Button variant="outline" onClick={() => setCreating(true)}>
+            <Button variant="outline" onClick={() => void onCreate()} disabled={creating}>
               Start from scratch
             </Button>
           </div>
@@ -235,17 +236,6 @@ const ResumesPage = () => {
           if (curriculum_id) router.push(`/resume/${curriculum_id}`);
           else toast.success("Profile updated");
         }}
-      />
-
-      <SectionPickerDialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        title="New CV"
-        description="Name it, then tick the library sections to start from. You can add more later."
-        confirmLabel="Create CV"
-        nameLabel="Name"
-        allowEmpty
-        onConfirm={onCreate}
       />
 
       <ConfirmationModal

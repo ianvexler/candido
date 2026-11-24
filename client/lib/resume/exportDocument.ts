@@ -82,7 +82,7 @@ const toExportSection = (section: InputSection): ExportSection => ({
 });
 
 /** Hidden itself, or every entry is. */
-const isLeftOut = (section: InputSection) =>
+export const isLeftOut = (section: Pick<InputSection, "hidden" | "entries">) =>
   section.hidden || (section.entries.length > 0 && section.entries.every((entry) => entry.hidden));
 
 const hasContent = (section: ExportSection) => Boolean(section.heading || section.entries.length > 0);

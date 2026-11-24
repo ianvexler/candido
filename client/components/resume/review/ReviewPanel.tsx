@@ -15,8 +15,11 @@ interface ReviewPanelProps {
   tailoring: CvTailoring | null;
   sections: CurriculumSection[];
   staleIds: Set<number>;
+  leftOutIds: Set<number>;
   activeId: number | null;
-  onSelect: (id: number) => void;
+  onSelect: (s: CvSuggestion) => void;
+  /** Ticks the left out text a suggestion is about. */
+  onInclude: (s: CvSuggestion) => void;
   /** Marks a stale suggestion or a note as rejected. */
   onDismiss: (s: CvSuggestion) => Promise<void>;
   /** Adds an empty section of a type the review found missing. */
@@ -64,8 +67,10 @@ const ReviewPanel = ({
   tailoring,
   sections,
   staleIds,
+  leftOutIds,
   activeId,
   onSelect,
+  onInclude,
   onDismiss,
   onAddSection,
   onRerun,
@@ -82,8 +87,8 @@ const ReviewPanel = ({
 
   const sectionsById = useMemo(() => new Map(sections.map((s) => [s.id, s])), [sections]);
   const groups = useMemo(
-    () => reviewGroups(tailoring?.suggestions ?? [], staleIds, new Set(sectionsById.keys())),
-    [tailoring, staleIds, sectionsById]
+    () => reviewGroups(tailoring?.suggestions ?? [], staleIds, new Set(sectionsById.keys()), leftOutIds),
+    [tailoring, staleIds, sectionsById, leftOutIds]
   );
   const labelOf = (s: CvSuggestion) => sectionLabel(sectionsById.get(s.curriculum_section_id), s.entry_id);
 
@@ -121,7 +126,7 @@ const ReviewPanel = ({
           <RotateCcwIcon className={cn(rerunning && "animate-spin [animation-direction:reverse]")} />
           Re-run review
         </Button>
-        {groups.left > 0 && <span className="text-xs text-muted-foreground">Open suggestions are replaced.</span>}
+        {groups.left + groups.leftOut.length > 0 && <span className="text-xs text-muted-foreground">Open suggestions are replaced.</span>}
       </div>
     )
   );
@@ -255,9 +260,11 @@ const ReviewPanel = ({
               Suggestions <span className="font-normal">· {groups.left} left</span>
             </Heading>
             {groups.left === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {groups.done.length > 0 ? "All done." : "No changes suggested."}
-              </p>
+              (groups.done.length > 0 || groups.leftOut.length === 0) && (
+                <p className="text-sm text-muted-foreground">
+                  {groups.done.length > 0 ? "All done." : "No changes suggested."}
+                </p>
+              )
             ) : (
               <ul className="space-y-1.5">
                 {[...groups.open, ...groups.stale].map((s) => (
@@ -268,11 +275,32 @@ const ReviewPanel = ({
                     stale={staleIds.has(s.id)}
                     active={s.id === activeId}
                     dismissing={dismissing.includes(s.id)}
-                    onSelect={() => onSelect(s.id)}
+                    onSelect={() => onSelect(s)}
                     onDismiss={() => void dismiss(s)}
                   />
                 ))}
               </ul>
+            )}
+
+            {groups.leftOut.length > 0 && (
+              <div className="mt-4">
+                <Heading>Left out</Heading>
+                <ul className="space-y-1.5">
+                  {groups.leftOut.map((s) => (
+                    <SuggestionRow
+                      key={s.id}
+                      suggestion={s}
+                      label={labelOf(s)}
+                      leftOut
+                      active={s.id === activeId}
+                      dismissing={dismissing.includes(s.id)}
+                      onSelect={() => onSelect(s)}
+                      onInclude={() => onInclude(s)}
+                      onDismiss={() => void dismiss(s)}
+                    />
+                  ))}
+                </ul>
+              </div>
             )}
 
             {groups.done.length > 0 && (

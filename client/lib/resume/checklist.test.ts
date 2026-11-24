@@ -8,6 +8,7 @@ import {
   tickEntry,
   tickItem,
   tickSection,
+  tickSuggestion,
 } from "./checklist";
 import { listItems } from "./items";
 import { emptyEntry } from "./sectionEntries";
@@ -448,4 +449,32 @@ describe("suggestionPlace", () => {
 
   it("is stale when only separate items together have the text", () =>
     expect(suggestionPlace(cv([entry("a", ul(li("x", false, "One"), li("y", false, "two")))]), about("One two"))).toBe("stale"));
+});
+
+describe("tickSuggestion", () => {
+  const about = (quote: string, changes: Partial<CvSuggestion> = {}) =>
+    ({ entry_id: "a", field: "content", quote, ...changes }) as CvSuggestion;
+  const a = entry("a", ul(li("x", true, "Built APIs"), li("y", true, "Ran tests")), { description: "A summary" });
+  const ticked = (section: CurriculumSection, suggestion: CvSuggestion) => ({
+    ...section,
+    ...tickSuggestion(section, suggestion),
+  });
+
+  it.each([
+    ["an item", cv([a])],
+    ["an item of a left out entry", cv([{ ...a, hidden: true }])],
+    ["an item of a left out section", cv([a], { hidden: true })],
+  ])("shows %s", (_, section) => {
+    const suggestion = about("Ran tests");
+    const next = ticked(section, suggestion);
+    expect(suggestionPlace(next, suggestion)).toBe("visible");
+    expect(listItems(next.entries[0].content).map(({ off }) => off)).toEqual([true, false]);
+  });
+
+  it("shows the entry of a summary", () => {
+    const suggestion = about("A summary", { field: "description" });
+    expect(suggestionPlace(ticked(cv([{ ...a, hidden: true }]), suggestion), suggestion)).toBe("visible");
+  });
+
+  it("changes nothing for text that is gone", () => expect(tickSuggestion(cv([a]), about("Gone"))).toEqual({}));
 });

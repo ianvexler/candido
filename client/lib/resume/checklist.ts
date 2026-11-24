@@ -355,23 +355,36 @@ const runsOf = cached((html: string): readonly string[] => {
   return runs.filter((run) => run.trim());
 });
 
+type Quoting = Pick<CvSuggestion, "entry_id" | "field" | "quote">;
+
+// Reviews from before sections had entries are about the first one.
+const entryOf = ({ entries }: SectionDraft, { entry_id }: Quoting) =>
+  entry_id === null ? entries[0] : entries.find(({ id }) => id === entry_id);
+
+const quotesIn = ({ quote }: Quoting) => (text: string) => findQuote(text, quote) !== null;
+
+const quotedItems = (entry: SectionEntry, suggestion: Quoting) =>
+  itemsOf(entry.content).filter(({ html }) => runsOf(html).some(quotesIn(suggestion)));
+
 /** Where the text a suggestion quotes is now. */
-export const suggestionPlace = (
-  section: SectionDraft,
-  suggestion: Pick<CvSuggestion, "entry_id" | "field" | "quote">
-): "visible" | "left_out" | "stale" => {
-  // Reviews from before sections had entries are about the first one.
-  const entry =
-    suggestion.entry_id === null
-      ? section.entries[0]
-      : section.entries.find(({ id }) => id === suggestion.entry_id);
+export const suggestionPlace = (section: SectionDraft, suggestion: Quoting): "visible" | "left_out" | "stale" => {
+  const entry = entryOf(section, suggestion);
   if (!entry) return "stale";
 
-  const quoted = (text: string) => findQuote(text, suggestion.quote) !== null;
   const shown = section.hidden || entry.hidden ? "left_out" : "visible";
-  if (suggestion.field === "description") return quoted(entry.description ?? "") ? shown : "stale";
+  if (suggestion.field === "description") return quotesIn(suggestion)(entry.description ?? "") ? shown : "stale";
 
-  const found = itemsOf(entry.content).filter(({ html }) => runsOf(html).some(quoted));
+  const found = quotedItems(entry, suggestion);
   if (found.length === 0) return "stale";
   return found.some(({ off }) => !off) ? shown : "left_out";
+};
+
+/** Shows the left out text a suggestion quotes. Nothing changes if it's gone. */
+export const tickSuggestion = (section: SectionDraft, suggestion: Quoting): SectionPatch => {
+  const entry = entryOf(section, suggestion);
+  if (!entry || suggestionPlace(section, suggestion) !== "left_out") return {};
+  if (suggestion.field === "description") return tickEntry(section, entry.id, true);
+
+  const found = quotedItems(entry, suggestion);
+  return tickItem(section, entry.id, (found.find(({ off }) => !off) ?? found[0]).id, true);
 };
