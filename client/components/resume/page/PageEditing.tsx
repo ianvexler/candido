@@ -1,6 +1,7 @@
 "use client";
 
 import { ExportEntry, ExportSection } from "@/lib/resume/exportDocument";
+import type { ResumeHeader } from "@/lib/types";
 import { createContext, ReactNode } from "react";
 
 /** A piece of one-line text on the page. */
@@ -20,6 +21,8 @@ export type TextBinding = {
   placeholder?: string;
   /** Never reported blank: left blank, it goes back to what it was when entered. */
   required?: boolean;
+  /** What blank text stands for: shown again once left blank. */
+  fallback?: string;
   /** Enter moves on; without this it only leaves the field. */
   onEnter?: () => void;
 };
@@ -36,7 +39,7 @@ export type PageEditing = {
   /** Replaces what is inside the entry's .rc-body. */
   body: (entry: ExportEntry) => ReactNode | null;
   /** Replaces the contact details and links. */
-  contact: () => ReactNode | null;
+  contact: (header: ResumeHeader, stacked: boolean) => ReactNode | null;
 };
 
 /** Null wherever a CV is only shown or printed. */

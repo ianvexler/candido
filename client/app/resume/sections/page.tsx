@@ -145,7 +145,7 @@ const SectionLibraryPage = () => {
       }
     >
       <HeaderDocument
-        key={headerVersion}
+        version={headerVersion}
         value={profile}
         save={async (draft) => setProfile((await updateResumeProfile(draft)).profile)}
       />

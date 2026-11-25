@@ -300,6 +300,19 @@ describe("text that can't be blank", () => {
   });
 });
 
+describe("text that falls back when blank", () => {
+  it("shows what it falls back to once left, even without an answer", () => {
+    show("Sam", { fallback: "Sam" });
+    focus();
+    input("");
+    expect(onChange).toHaveBeenLastCalledWith("");
+    expect(element().textContent).toBe("");
+    blur();
+    expect(element().textContent).toBe("Sam");
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("taken away", () => {
   it("reports what was being composed", () => {
     show("One");

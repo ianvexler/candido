@@ -82,7 +82,7 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
     if (!element || composing.current || isFocused(element)) return;
     // Typed text whose report isn't answered yet is newer than the value.
     const text = unanswered.current === null ? latest.current.value : known.current;
-    setText(element, asPrinted(text));
+    setText(element, asPrinted(text) || asPrinted(latest.current.fallback ?? ""));
     known.current = readText(element);
   };
 

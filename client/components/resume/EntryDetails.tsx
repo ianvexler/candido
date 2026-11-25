@@ -10,7 +10,153 @@ import { formatDateRange, fromMonthInput, hasDetails, toMonthInput } from "./sec
 import { ghostInput } from "./styles";
 import { useOpenWhileFocused } from "./useOpenWhileFocused";
 
-type DetailField = "role" | "organization" | "dates" | "location";
+export type DetailField = "role" | "organization" | "dates" | "location";
+
+/** An entry's months as typed: a half-typed one isn't a date yet. */
+export const useEntryMonths = (entry: SectionEntry) => {
+  const [typed, setTyped] = useState({ start: toMonthInput(entry.start_date), end: toMonthInput(entry.end_date) });
+  // What the browser's own picker has half of, which its value doesn't tell.
+  const [halfPicked, setHalf] = useState({ start: false, end: false });
+
+  // Typing sets the date too, so another date was set elsewhere.
+  const shown = {
+    start: fromMonthInput(typed.start) === entry.start_date ? typed.start : toMonthInput(entry.start_date),
+    end: fromMonthInput(typed.end) === entry.end_date ? typed.end : toMonthInput(entry.end_date),
+  };
+  if (shown.start !== typed.start || shown.end !== typed.end) {
+    setTyped(shown);
+    setHalf({
+      start: halfPicked.start && shown.start === typed.start,
+      end: halfPicked.end && shown.end === typed.end,
+    });
+  }
+
+  const isUnfinished = (end: "start" | "end") =>
+    halfPicked[end] || (shown[end] !== "" && fromMonthInput(shown[end]) === null);
+
+  return {
+    ...shown,
+    set: (end: "start" | "end", month: string) => setTyped((now) => ({ ...now, [end]: month })),
+    setHalfPicked: (end: "start" | "end", half: boolean) => setHalf((now) => ({ ...now, [end]: half })),
+    unfinished: isUnfinished("start") || (!entry.current && isUnfinished("end")),
+    endBeforeStart: endsBeforeStart(entry),
+  };
+};
+
+export type EntryMonths = ReturnType<typeof useEntryMonths>;
+
+interface EntryDetailsFieldsProps {
+  entry: SectionEntry;
+  onChange: (changes: Partial<SectionEntry>) => void;
+  months: EntryMonths;
+  /** Says so if a month isn't complete. */
+  warn: boolean;
+  /** Counts the times it was said: a new one is read out again. */
+  warnings?: number;
+}
+
+/** All the fields of an entry's role, dates and place, and what is wrong with them. */
+export const EntryDetailsFields = ({ entry, onChange, months, warn, warnings }: EntryDetailsFieldsProps) => {
+  const { unfinished, endBeforeStart } = months;
+  return (
+    <>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <input
+          data-field="role"
+          value={entry.role ?? ""}
+          onChange={(event) => onChange({ role: event.target.value })}
+          placeholder="Role or degree"
+          aria-label="Role or degree"
+          className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5 font-medium")}
+        />
+        <span aria-hidden className="text-muted-foreground/60">at</span>
+        <input
+          data-field="organization"
+          value={entry.organization ?? ""}
+          onChange={(event) => onChange({ organization: event.target.value })}
+          placeholder="Organisation"
+          aria-label="Organisation or school"
+          className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
+        />
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-1.5 text-muted-foreground">
+        <input
+          data-field="dates"
+          type="month"
+          value={months.start}
+          onChange={(event) => {
+            months.set("start", event.target.value);
+            onChange({ start_date: fromMonthInput(event.target.value) });
+          }}
+          onBlur={({ target }) => months.setHalfPicked("start", target.validity.badInput)}
+          aria-label="Start month"
+          className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5")}
+        />
+        <span aria-hidden>–</span>
+        {entry.current ? (
+          <span className="px-1 py-0.5 text-foreground">Present</span>
+        ) : (
+          <input
+            type="month"
+            value={months.end}
+            min={months.start || undefined}
+            onChange={(event) => {
+              months.set("end", event.target.value);
+              onChange({ end_date: fromMonthInput(event.target.value) });
+            }}
+            onBlur={({ target }) => months.setHalfPicked("end", target.validity.badInput)}
+            aria-label="End month"
+            aria-invalid={endBeforeStart || undefined}
+            className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5", endBeforeStart && "text-destructive")}
+          />
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-pressed={entry.current}
+              // Safari doesn't focus a pressed button, which would close the fields.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                // The end month, which may have the focus, goes.
+                event.currentTarget.focus();
+                months.setHalfPicked("end", false);
+                onChange({ current: !entry.current });
+              }}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-xs transition-colors",
+                entry.current
+                  ? "border-transparent bg-muted text-foreground"
+                  : "border-dashed border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Current
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{entry.current ? "Set an end date instead" : "Still here? Show the end date as Present"}</TooltipContent>
+        </Tooltip>
+        <input
+          data-field="location"
+          value={entry.location ?? ""}
+          onChange={(event) => onChange({ location: event.target.value })}
+          placeholder="Location"
+          aria-label="Location"
+          className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
+        />
+      </div>
+      {warn && unfinished && (
+        <p key={`unfinished-${warnings}`} role="alert" tabIndex={-1} className="w-full text-xs text-destructive outline-none">
+          A month isn&apos;t complete, so it isn&apos;t saved. Write it like 2022-03.
+        </p>
+      )}
+      {endBeforeStart && (
+        <p key={`backwards-${warnings}`} role="alert" tabIndex={-1} className="w-full text-xs text-destructive outline-none">
+          The end month is before the start month, so the dates aren&apos;t saved yet.
+        </p>
+      )}
+    </>
+  );
+};
 
 interface EntryDetailsProps {
   entry: SectionEntry;
@@ -24,11 +170,7 @@ interface EntryDetailsProps {
 
 /** An entry's role, dates and place: reads as in the CV, and shows all its fields while being edited. */
 const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: EntryDetailsProps) => {
-  // Kept as typed: a half-typed month isn't a date yet.
-  const [startMonth, setStartMonth] = useState(toMonthInput(entry.start_date));
-  const [endMonth, setEndMonth] = useState(toMonthInput(entry.end_date));
-  // What the browser's own picker has half of, which its value doesn't tell.
-  const [halfPicked, setHalfPicked] = useState({ start: false, end: false });
+  const months = useEntryMonths(entry);
   const { open, setOpen, focusProps } = useOpenWhileFocused();
   const rowRef = useRef<HTMLDivElement>(null);
   const focusField = useRef<DetailField | null>(null);
@@ -53,11 +195,8 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
     focusField.current = null;
   }, [open]);
 
-  const endBeforeStart = endsBeforeStart(entry);
+  const { unfinished, endBeforeStart } = months;
   const filled = hasDetails(entry);
-  const isUnfinished = (month: string, picked: boolean) => picked || (month !== "" && fromMonthInput(month) === null);
-  const unfinished =
-    isUnfinished(startMonth, halfPicked.start) || (!entry.current && isUnfinished(endMonth, halfPicked.end));
   if (!open && !filled && !offered && !unfinished) return null;
 
   const row = "mt-1 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 text-sm";
@@ -102,100 +241,7 @@ const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: Ent
 
   return (
     <div ref={rowRef} className={row} {...focusProps}>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <input
-          data-field="role"
-          value={entry.role ?? ""}
-          onChange={(event) => onChange({ role: event.target.value })}
-          placeholder="Role or degree"
-          aria-label="Role or degree"
-          className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5 font-medium")}
-        />
-        <span aria-hidden className="text-muted-foreground/60">at</span>
-        <input
-          data-field="organization"
-          value={entry.organization ?? ""}
-          onChange={(event) => onChange({ organization: event.target.value })}
-          placeholder="Organisation"
-          aria-label="Organisation or school"
-          className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
-        />
-      </div>
-      <div className="flex flex-wrap items-baseline gap-x-1.5 text-muted-foreground">
-        <input
-          data-field="dates"
-          type="month"
-          value={startMonth}
-          onChange={(event) => {
-            setStartMonth(event.target.value);
-            onChange({ start_date: fromMonthInput(event.target.value) });
-          }}
-          onBlur={({ target }) => setHalfPicked((now) => ({ ...now, start: target.validity.badInput }))}
-          aria-label="Start month"
-          className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5")}
-        />
-        <span aria-hidden>–</span>
-        {entry.current ? (
-          <span className="px-1 py-0.5 text-foreground">Present</span>
-        ) : (
-          <input
-            type="month"
-            value={endMonth}
-            min={startMonth || undefined}
-            onChange={(event) => {
-              setEndMonth(event.target.value);
-              onChange({ end_date: fromMonthInput(event.target.value) });
-            }}
-            onBlur={({ target }) => setHalfPicked((now) => ({ ...now, end: target.validity.badInput }))}
-            aria-label="End month"
-            aria-invalid={endBeforeStart || undefined}
-            className={cn(ghostInput, "cv-month w-[9.75rem] py-0.5", endBeforeStart && "text-destructive")}
-          />
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-pressed={entry.current}
-              // Safari doesn't focus a pressed button, which would close the fields.
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={(event) => {
-                // The end month, which may have the focus, goes.
-                event.currentTarget.focus();
-                setHalfPicked((now) => ({ ...now, end: false }));
-                onChange({ current: !entry.current });
-              }}
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-xs transition-colors",
-                entry.current
-                  ? "border-transparent bg-muted text-foreground"
-                  : "border-dashed border-border text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Current
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{entry.current ? "Set an end date instead" : "Still here? Show the end date as Present"}</TooltipContent>
-        </Tooltip>
-        <input
-          data-field="location"
-          value={entry.location ?? ""}
-          onChange={(event) => onChange({ location: event.target.value })}
-          placeholder="Location"
-          aria-label="Location"
-          className={cn(ghostInput, "field-sizing-content min-w-[7ch] py-0.5")}
-        />
-      </div>
-      {!open && unfinished && (
-        <p role="alert" className="w-full text-xs text-destructive">
-          A month isn&apos;t complete, so it isn&apos;t saved. Write it like 2022-03.
-        </p>
-      )}
-      {endBeforeStart && (
-        <p role="alert" className="w-full text-xs text-destructive">
-          The end month is before the start month, so the dates aren&apos;t saved yet.
-        </p>
-      )}
+      <EntryDetailsFields entry={entry} onChange={onChange} months={months} warn={!open} />
     </div>
   );
 };

@@ -7,7 +7,6 @@ import type { EntryVersions } from "@/lib/resume/sectionDrafts";
 import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@/lib/types";
 import {
   FocusEvent,
-  ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -22,19 +21,19 @@ import type { SuggestionProps } from "../useEntrySuggestions";
 import BodySlot, { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
 import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, MARK_SIZE } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
+import { CardsContext } from "./cardPlace";
 import { createPageSections, sourceOfEntry, sourceOfSection } from "./pageDocument";
 import { PageEditing, PageEditingContext, TextBinding } from "./PageEditing";
 import type { PageEditors } from "./pageEditors";
 import { pageWidth, SHEETS, sheetsHeight } from "./pageSize";
 import { placeOf } from "./pagePlace";
+import PageContact, { hasContact } from "./PageContact";
+import { CardMarks, DatesMarkAt, findDatesMarks, PageCards } from "./PageCards";
+import PageLine from "./PageLine";
+import type { HeaderBinding } from "./useHeaderBinding";
 import { useNearEntries } from "./useNearEntries";
+import { usePageCards } from "./usePageCards";
 import { PagePaging, usePaging } from "./usePaging";
-
-/** Makes the header editable. */
-export type HeaderBinding = {
-  text: (kind: "name" | "headline") => TextBinding | null;
-  contact: () => ReactNode | null;
-};
 
 interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** The drafts. */
@@ -105,10 +104,14 @@ const Page = ({
 
   // --- What is on the page --------------------------------------------------
   const [focusedIn, setFocusedIn] = useState<KeptPlace | null>(null);
+  const cards = usePageCards(rootRef, sections);
+  const { openCard, unfinished } = cards;
+  const cardPlace = cards.open?.place;
+  const cardIn = cardPlace?.kind === "entry" ? cardPlace : null;
   const [buildSections] = useState(createPageSections);
   const shownSections = useMemo(
-    () => buildSections(sections, versions, [focusedIn, open].filter((place) => place !== null)),
-    [buildSections, sections, versions, focusedIn, open]
+    () => buildSections(sections, versions, [focusedIn, open, cardIn].filter((place) => place !== null)),
+    [buildSections, sections, versions, focusedIn, open, cardIn]
   );
   const shownHeader = useMemo(() => buildResumeDocument({ title: "", header, sections: [] }).header, [header]);
   const shown: ResumeDocument = useMemo(
@@ -142,7 +145,10 @@ const Page = ({
     const onEnter = () => moveOn(rootRef.current);
     return {
       text: (slot, of) => {
-        if (!("sectionId" in slot)) return headerBinding?.text(slot.kind) ?? null;
+        if (!("sectionId" in slot)) {
+          const binding = headerBinding?.text(slot.kind);
+          return binding ? { ...binding, onEnter } : null;
+        }
         if (!of) return null;
         if (slot.kind === "heading") {
           const section = "entries" in of ? sourceOfSection(of) : undefined;
@@ -168,14 +174,18 @@ const Page = ({
         // Left out, so it isn't on the page at all.
         return entry.description_off ? null : bind("description", "Summary");
       },
-      line: () => null,
+      line: (entryShown) => {
+        const source = sourceOfEntry(entryShown);
+        return source ? <PageLine entry={entryShown} sectionId={source.section.id} source={source.entry} /> : null;
+      },
       body: (entryShown: ExportEntry) => {
         const source = sourceOfEntry(entryShown);
         if (!source) return null;
         const { section, entry, version } = source;
         return <BodySlot sectionId={section.id} isFirst={section.entries[0]?.id === entry.id} entry={entry} version={version} />;
       },
-      contact: () => headerBinding?.contact() ?? null,
+      contact: (headerShown, stacked) =>
+        headerBinding ? <PageContact header={headerShown} stacked={stacked} /> : null,
     };
   }, [headerBinding, onSectionChange]);
 
@@ -196,12 +206,18 @@ const Page = ({
 
   // --- Pages ----------------------------------------------------------------
   const [marks, setMarks] = useState<HiddenMarkAt[]>([]);
+  const [datesMarks, setDatesMarks] = useState<DatesMarkAt[]>([]);
+  const [headerTop, setHeaderTop] = useState(0);
   const onLaidOut = useCallback(
     (root: HTMLElement, at: number) => {
       const found = findHiddenMarks(root, at, shownSections);
       setMarks((before) => (JSON.stringify(before) === JSON.stringify(found) ? before : found));
+      const dates = findDatesMarks(root, at, shownSections, unfinished, found);
+      setDatesMarks((before) => (JSON.stringify(before) === JSON.stringify(dates) ? before : dates));
+      const top = root.querySelector(".rc-header")?.getBoundingClientRect().top ?? 0;
+      setHeaderTop(Math.round((top - root.getBoundingClientRect().top) / at));
     },
-    [shownSections]
+    [shownSections, unfinished]
   );
   const paging = usePaging(rootRef, { pageId, design, paper, scale, onLaidOut });
   useEffect(() => onPaging(paging), [onPaging, paging]);
@@ -230,6 +246,7 @@ const Page = ({
   const { sheetHeight, gap } = paging.metrics;
   const height = sheetsHeight(pages, paging.metrics);
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
+  const marksInside = markRoom < MARK_SIZE + 8;
 
   return (
     <div ref={outerRef} className="paged-cv">
@@ -267,14 +284,31 @@ const Page = ({
             onBlur={onBlur}
           >
             <BodiesContext value={bodies}>
-              <PageEditingContext value={editing}>
-                <ResumeTemplate document={shown} paper={paper} design={design} />
-              </PageEditingContext>
+              <CardsContext value={cards.context}>
+                <PageEditingContext value={editing}>
+                  <ResumeTemplate document={shown} paper={paper} design={design} />
+                </PageEditingContext>
+              </CardsContext>
             </BodiesContext>
           </div>
-          <HiddenTextMarks marks={marks} inside={markRoom < MARK_SIZE + 8} onShow={showHidden} />
+          <HiddenTextMarks marks={marks} inside={marksInside} onShow={showHidden} />
+          <CardMarks
+            marks={datesMarks}
+            inside={marksInside}
+            openKey={cards.context.openKey}
+            openCard={openCard}
+            addContact={headerBinding && !hasContact(shownHeader) ? headerTop + MARK_SIZE / 2 : null}
+          />
         </div>
       </div>
+      <PageCards
+        cards={cards}
+        rootRef={rootRef}
+        sections={sections}
+        versions={versions}
+        onSectionChange={onSectionChange}
+        contact={headerBinding?.contact ?? null}
+      />
     </div>
   );
 };

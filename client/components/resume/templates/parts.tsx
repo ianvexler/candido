@@ -3,7 +3,8 @@ import { PageText } from "@/components/resume/page/PageText";
 import { DesignSettings, designStyle } from "@/lib/resume/design";
 import { ExportEntry, ExportSection, ResumeDocument } from "@/lib/resume/exportDocument";
 import { PaperSize, ResumeHeader } from "@/lib/types";
-import { memo, useContext } from "react";
+import { cn } from "@/lib/utils";
+import { ComponentProps, memo, useContext } from "react";
 import { FONT_FAMILIES } from "./fonts";
 
 /** What every template receives. */
@@ -47,8 +48,15 @@ const slotText = (
   );
 };
 
+interface ContactLinesProps {
+  header: ResumeHeader;
+  stacked?: boolean;
+  /** For where a press edits them: links that go nowhere. */
+  inert?: boolean;
+}
+
 /** The contact details and links. */
-export const ContactLines = ({ header, stacked = false }: { header: ResumeHeader; stacked?: boolean }) => {
+export const ContactLines = ({ header, stacked = false, inert = false }: ContactLinesProps) => {
   const contact = [header.email, header.phone, header.location].filter(Boolean);
   return (
     <>
@@ -65,7 +73,7 @@ export const ContactLines = ({ header, stacked = false }: { header: ResumeHeader
       {header.links.length > 0 && (
         <p className="rc-links">
           {header.links.map((link) => (
-            <a key={link.url} href={link.url}>
+            <a key={link.url} href={inert ? undefined : link.url}>
               {linkText(link.label, link.url)}
             </a>
           ))}
@@ -82,15 +90,15 @@ export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeH
     <header className="rc-header" data-stacked={stacked || undefined} data-block={editing ? "header" : undefined}>
       {slotText(editing, { kind: "name" }, null, { as: "h1", className: "rc-name", text: header.name })}
       {slotText(editing, { kind: "headline" }, null, { as: "p", className: "rc-headline", text: header.headline })}
-      {editing?.contact() ?? <ContactLines header={header} stacked={stacked} />}
+      {editing?.contact(header, stacked) ?? <ContactLines header={header} stacked={stacked} />}
     </header>
   );
 };
 
 /** An entry's role and organisation, then its dates and place. */
-export const EntryLine = ({ entry }: { entry: ExportEntry }) =>
+export const EntryLine = ({ entry, className, ...props }: { entry: ExportEntry } & ComponentProps<"div">) =>
   (entry.subtitle || entry.meta) && (
-    <div className="rc-entry-line">
+    <div className={cn("rc-entry-line", className)} {...props}>
       <span className="rc-subtitle">{entry.subtitle}</span>
       <span className="rc-meta">{entry.meta}</span>
     </div>
