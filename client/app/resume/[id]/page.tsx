@@ -6,7 +6,9 @@ import CvCards from "@/components/resume/CvCards";
 import CvChecklist from "@/components/resume/CvChecklist";
 import CvPageHeader from "@/components/resume/CvPageHeader";
 import CvWorkspace, { CvTab } from "@/components/resume/CvWorkspace";
+import DesignSheet from "@/components/resume/DesignSheet";
 import { createHalfPickedGate } from "@/components/resume/halfPicked";
+import { watchMovedOn } from "@/components/resume/movedOn";
 import { createPageEditors } from "@/components/resume/page/pageEditors";
 import PagePreview from "@/components/resume/page/PagePreview";
 import PageView from "@/components/resume/page/PageView";
@@ -17,7 +19,7 @@ import ReviewPanel from "@/components/resume/review/ReviewPanel";
 import { showSuggestion } from "@/components/resume/review/showSuggestion";
 import { CvView, useCvView } from "@/components/resume/useCvView";
 import { useCvEdits } from "@/components/resume/useCvEdits";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useRoomForPage } from "@/components/resume/useRoomForPage";
 import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
 import { isLeftOut, sectionColumn } from "@/lib/resume/exportDocument";
 import { createMonthDrafts, MonthDraftsContext } from "@/lib/resume/monthDrafts";
@@ -26,9 +28,6 @@ import { CvSuggestion, MissingSection } from "@/lib/types";
 import NextLink from "next/link";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-
-// The page is edited from here on; below it's only shown.
-const ROOM_FOR_PAGE = "(min-width: 1024px)";
 
 interface ResumePageProps {
   params: Promise<{ id: string }>;
@@ -39,7 +38,7 @@ const CvPage = ({ id }: { id: string }) => {
   const { sections, versions, change } = drafts;
   const { pending, actions, addSection } = checklist;
   const [view, setView] = useCvView();
-  const roomForPage = useMediaQuery(ROOM_FOR_PAGE);
+  const roomForPage = useRoomForPage(view);
   const [tab, setTab] = useState<CvTab>("cv");
   const [adding, setAdding] = useState(false);
   const onPage = view === "page" && roomForPage;
@@ -67,15 +66,17 @@ const CvPage = ({ id }: { id: string }) => {
   // Stays the same, for the checklist's memo.
   const addNamedSection = useCallback(async (name: string) => {
     setAdding(true);
+    const movedOn = watchMovedOn();
     try {
       const section = await addSection(name);
-      if (section) goToNew(section.id);
+      if (section && !movedOn()) goToNew(section.id);
       return true;
     } catch (error) {
       console.error(error);
       toast.error(`Couldn't add the ${name.toLowerCase()} section. Try again.`);
       return false;
     } finally {
+      movedOn();
       setAdding(false);
     }
   }, [addSection, goToNew]);
@@ -202,8 +203,14 @@ const CvPage = ({ id }: { id: string }) => {
     onSectionChange: change,
     editors,
     header: header.resolved,
+  };
+  const designPanel = {
     design: look.design,
     paper: look.paper,
+    onDesignChange: look.changeDesign,
+    onPaperChange: look.changePaper,
+    designName,
+    onDesignNameChange: setDesignName,
   };
 
   const emptyHint = sections.every(isLeftOut) && (
@@ -236,6 +243,7 @@ const CvPage = ({ id }: { id: string }) => {
             onExport={() => void exportPdf()}
             view={view}
             onViewChange={changeView}
+            design={!onPage && <DesignSheet {...designPanel} />}
             compact={onPage}
           />
           {onPage ? (
@@ -245,10 +253,7 @@ const CvPage = ({ id }: { id: string }) => {
               headerBinding={headerBinding}
               open={added}
               leaveRef={leaveRef}
-              designName={designName}
-              onDesignNameChange={setDesignName}
-              onDesignChange={look.changeDesign}
-              onPaperChange={look.changePaper}
+              look={designPanel}
               checklist={checklistPanel}
               review={reviewPanel}
               notice={emptyHint}
@@ -261,7 +266,7 @@ const CvPage = ({ id }: { id: string }) => {
               onTabChange={setTab}
               checklist={checklistPanel}
               review={reviewPanel}
-              page={roomForPage ? null : <PagePreview {...page} />}
+              page={roomForPage ? null : <PagePreview {...page} design={look.design} paper={look.paper} />}
             >
               <CvCards
                 header={header}

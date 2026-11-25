@@ -8,7 +8,7 @@ import { Curriculum } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ArrowLeftIcon, DownloadIcon, LayersIcon } from "lucide-react";
 import NextLink from "next/link";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import toast from "react-hot-toast";
 import type { CvView } from "./useCvView";
 
@@ -23,12 +23,14 @@ interface CvPageHeaderProps {
   onExport: () => void;
   view: CvView;
   onViewChange: (view: CvView) => void;
+  /** What opens the design, where that isn't beside the CV. */
+  design: ReactNode;
   /** Leaves the room to what is below. */
   compact: boolean;
 }
 
 /** A CV's name, how it is shown, and the ways out of its page. */
-const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, compact }: CvPageHeaderProps) => {
+const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, design, compact }: CvPageHeaderProps) => {
   const [title, setTitle] = useState(curriculum.title);
 
   const saveTitle = async () => {
@@ -62,7 +64,7 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, comp
     <header
       className={cn(
         "flex shrink-0 items-center border-b border-border",
-        compact ? "gap-x-5 px-5 py-2.5" : "flex-wrap justify-between gap-x-4 gap-y-2 px-6 py-5"
+        compact ? "gap-x-5 gap-y-2 px-5 py-2.5 max-lg:flex-wrap" : "flex-wrap justify-between gap-x-4 gap-y-2 px-6 py-5"
       )}
     >
       <NextLink
@@ -83,7 +85,7 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, comp
           </p>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:shrink-0">
         <NextLink
           href="/resume/sections"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -91,7 +93,9 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, comp
           <LayersIcon className="size-4" />
           Section library
         </NextLink>
-        <Segmented label="View" options={VIEWS} value={view} onChange={onViewChange} className="max-lg:hidden" />
+        {/* On a smaller screen the page may only be held there by a month that isn't finished. */}
+        <Segmented label="View" options={VIEWS} value={view} onChange={onViewChange} className={cn(!compact && "max-lg:hidden")} />
+        {design}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" onClick={onExport}>

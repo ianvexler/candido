@@ -19,6 +19,27 @@ const isFocused = (element: HTMLElement) => element.ownerDocument.activeElement 
 // Placeholders are drawn from this; CSS alone can't tell text from a <br> left when all is deleted.
 const markEmpty = (element: HTMLElement) => element.toggleAttribute("data-empty", !element.textContent);
 
+/** Where the caret, or the selection's ends, are in the text. */
+const selectionIn = (element: HTMLElement): [number, number] | null => {
+  const selection = getSelection();
+  const offset = (node: Node | null | undefined, at = 0) => {
+    if (!node || !element.contains(node)) return null;
+    const range = document.createRange();
+    range.setStart(element, 0);
+    range.setEnd(node, at);
+    return range.toString().length;
+  };
+  const anchor = offset(selection?.anchorNode, selection?.anchorOffset);
+  const focus = offset(selection?.focusNode, selection?.focusOffset);
+  return anchor === null || focus === null ? null : [anchor, focus];
+};
+
+const selectIn = (element: HTMLElement, [anchor, focus]: [number, number]) => {
+  const node = element.firstChild ?? element;
+  const within = (offset: number) => Math.min(offset, node.textContent?.length ?? 0);
+  getSelection()?.setBaseAndExtent(node, within(anchor), node, within(focus));
+};
+
 const setText = (element: HTMLElement, text: string) => {
   // Rewriting the same text would drop the browser's undo for nothing.
   if (element.textContent !== text) element.textContent = text;
@@ -71,6 +92,8 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
   const known = useRef("");
   /** The value when a report was made, until the owner answers with another. */
   const unanswered = useRef<string | null>(null);
+  /** The value the text was last made, or was the answer to. */
+  const seen = useRef<string | null>(null);
   /** The text when it was entered, for one that can't be left blank. */
   const entered = useRef("");
 
@@ -84,6 +107,22 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
     const text = unanswered.current === null ? latest.current.value : known.current;
     setText(element, asPrinted(text) || asPrinted(latest.current.fallback ?? ""));
     known.current = readText(element);
+    seen.current = latest.current.value;
+  };
+
+  /** Another value came while this is written in. What is typed and not known yet is newer. */
+  const takeFocused = () => {
+    const element = ref.current;
+    const { value: next, fallback } = latest.current;
+    if (!element || composing.current || !isFocused(element) || seen.current === next) return;
+    seen.current = next;
+    const text = asPrinted(next) || asPrinted(fallback ?? "");
+    if (readText(element) !== known.current || text === asPrinted(known.current)) return;
+    const selected = selectionIn(element);
+    setText(element, text);
+    if (selected) selectIn(element, selected);
+    known.current = readText(element);
+    if (text) entered.current = text;
   };
 
   const report = () => {
@@ -95,7 +134,8 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
     const text = latest.current.required && !typed.trim() ? entered.current : typed;
     if (text === known.current) return;
     known.current = text;
-    unanswered.current = latest.current.value;
+    // Its owner may have it already, but for its spaces.
+    unanswered.current = asPrinted(text) === asPrinted(latest.current.value) ? null : latest.current.value;
     latest.current.onChange(text);
   };
 
@@ -109,7 +149,10 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
   });
 
   useLayoutEffect(() => {
+    // The answer to what was typed: that stays as typed.
+    if (unanswered.current !== null && !composing.current) seen.current = value;
     unanswered.current = null;
+    takeFocused();
     takeValue();
   }, [value, visible]);
 
@@ -193,6 +236,7 @@ export const PageText = ({ as: As, className, binding, block }: PageTextProps) =
   const handleCompositionEnd = () => {
     composing.current = false;
     report();
+    if (unanswered.current === null) takeFocused();
   };
 
   const handleBlur = () => {

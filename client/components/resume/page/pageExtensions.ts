@@ -34,8 +34,8 @@ const withSafeRules = (extension: AnyExtension): AnyExtension => {
 
 /** What an entry's editor on the page reads and writes. */
 export const pageExtensions = [
-  // Pressing a link edits its text. New code isn't offered: making it would show hidden text.
-  ...contentExtensionsWith({ link: { openOnClick: false }, code: false, codeBlock: false }).map(withSafeRules),
+  // New code isn't offered: making it would show hidden text.
+  ...contentExtensionsWith({ code: false, codeBlock: false }).map(withSafeRules),
   ShownCode,
   ShownCodeBlock,
   HiddenGuard,

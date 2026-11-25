@@ -280,7 +280,11 @@ const Page = ({
                 inside={marksInside}
                 openKey={cards.context.openKey}
                 openCard={openCard}
-                addContact={headerBinding && !hasContact(shownHeader) ? headerTop + MARK_SIZE / 2 : null}
+                addContact={
+                  headerBinding && !hasContact(shownHeader)
+                    ? { top: headerTop + MARK_SIZE / 2, named: Boolean(shownHeader.name) }
+                    : null
+                }
               />
             </>
           )}

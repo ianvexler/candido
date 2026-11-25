@@ -124,7 +124,7 @@ export const PageCards = ({ cards, rootRef, sections, versions, onSectionChange,
       {open?.place.kind === "contact" && contact && (
         <PageCard
           anchor={() => cardAnchor(rootRef.current, open.place)}
-          label="Contact details and links"
+          label="Name, contact details and links"
           focus={open.focus}
           gateRef={gateRef}
           onClose={(byKey) => close(open.key, byKey)}
@@ -182,7 +182,7 @@ interface CardMarksProps {
   openKey: string | null;
   openCard: PageCardsState["openCard"];
   /** Nothing is on the page to open the contact card from. */
-  addContact: number | null;
+  addContact: { top: number; named: boolean } | null;
 }
 
 /** Beside the sheets: what opens a card where the page has nothing to press. */
@@ -190,14 +190,14 @@ export const CardMarks = ({ marks, inside, openKey, openCard, addContact }: Card
   <>
     {addContact !== null && (
       <IconAction
-        label="Add contact details"
+        label={addContact.named ? "Add contact details" : "Add name and contact details"}
         data-add-contact
         side="left"
         aria-haspopup="dialog"
         aria-expanded={openKey === "contact"}
-        onClick={() => openCard({ kind: "contact" }, "email")}
+        onClick={() => openCard({ kind: "contact" }, addContact.named ? "email" : "name")}
         className="absolute size-6 text-muted-foreground/70 print:hidden [&_svg]:size-3.5"
-        style={markStyle(addContact, "left", inside)}
+        style={markStyle(addContact.top, "left", inside)}
       >
         <PlusIcon />
       </IconAction>

@@ -1,26 +1,17 @@
 "use client";
 
-import Segmented from "@/components/ui/Segmented";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
-import type { CvLook } from "@/lib/resume/cvDesign";
-import { PaperSizes } from "@/lib/types";
 import { ReactNode } from "react";
-import DesignPanel from "../DesignPanel";
+import CvDesignPanel, { CvDesignPanelProps } from "../CvDesignPanel";
 
 export type PagePanelTab = "design" | "review";
 
-const PAPER_LABEL = { a4: "A4", letter: "Letter" };
-const PAPERS = PaperSizes.map((value) => ({ value, label: PAPER_LABEL[value] }));
-
-interface PagePanelProps extends CvLook {
+interface PagePanelProps {
   /** Null while closed. */
   tab: PagePanelTab | null;
   onTabChange: (tab: PagePanelTab) => void;
   review?: ReactNode;
-  onDesignChange: (design: CvLook["design"]) => void;
-  onPaperChange: (paper: CvLook["paper"]) => void;
-  designName: string | null;
-  onDesignNameChange: (name: string | null) => void;
+  design: CvDesignPanelProps;
 }
 
 /** How a CV looks and, for a tailored one, its review. */
@@ -29,20 +20,11 @@ const PagePanel = ({
   onTabChange,
   review,
   design,
-  paper,
-  onDesignChange,
-  onPaperChange,
-  designName,
-  onDesignNameChange,
 }: PagePanelProps) => {
   const designTab = (
     <div className="px-5 py-5">
       {review === undefined && <h2 className="mb-4 text-sm font-semibold">Design</h2>}
-      <div className="mb-5 flex items-center justify-between gap-3 text-sm">
-        <span className="font-medium">Paper</span>
-        <Segmented label="Paper size" options={PAPERS} value={paper} onChange={onPaperChange} />
-      </div>
-      <DesignPanel design={design} onChange={onDesignChange} newName={designName} onNewNameChange={onDesignNameChange} />
+      <CvDesignPanel {...design} />
     </div>
   );
 

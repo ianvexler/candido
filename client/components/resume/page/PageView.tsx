@@ -6,7 +6,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { ListChecksIcon, PaletteIcon, SparklesIcon } from "lucide-react";
 import { ReactNode, useState } from "react";
-import type { CvLook } from "@/lib/resume/cvDesign";
+import type { CvDesignPanelProps } from "../CvDesignPanel";
 import FitMeter from "./FitMeter";
 import PagedCv, { PagedCvProps } from "./PagedCv";
 import PagePanel from "./PagePanel";
@@ -21,13 +21,9 @@ const ZOOMS = [
 // Below this there is room for one panel beside the sheet.
 const WIDE = "(min-width: 1280px)";
 
-type PageViewProps = Omit<PagedCvProps, "zoom" | "onPaging" | "readOnly" | keyof CvLook> &
-  CvLook & {
-    onDesignChange: (design: CvLook["design"]) => void;
-    onPaperChange: (paper: CvLook["paper"]) => void;
-    /** A design being named; see DesignPanel. */
-    designName: string | null;
-    onDesignNameChange: (name: string | null) => void;
+type PageViewProps = Omit<PagedCvProps, "zoom" | "onPaging" | "readOnly" | "design" | "paper"> & {
+    /** What chooses how it looks, and how it does. */
+    look: CvDesignPanelProps;
     checklist: ReactNode;
     review?: ReactNode;
     /** Over the sheets. */
@@ -38,10 +34,7 @@ type PageViewProps = Omit<PagedCvProps, "zoom" | "onPaging" | "readOnly" | keyof
 
 /** A CV edited on its page, between what it includes and how it looks. */
 const PageView = ({
-  onDesignChange,
-  onPaperChange,
-  designName,
-  onDesignNameChange,
+  look,
   checklist,
   review,
   notice,
@@ -101,19 +94,14 @@ const PageView = ({
           className="min-w-0 flex-1 overflow-auto bg-[#e4e7ea] px-12 py-8 [scrollbar-gutter:stable]"
         >
           {notice && <div className="pb-6">{notice}</div>}
-          <PagedCv {...page} zoom={zoom} onPaging={setReport} />
+          <PagedCv {...page} design={look.design} paper={look.paper} zoom={zoom} onPaging={setReport} />
           <div className="mx-auto max-w-md pt-6 pb-10">{children}</div>
         </div>
         <PagePanel
           tab={shown.panel}
           onTabChange={(panel) => setPanels({ ...panels, panel })}
           review={review}
-          design={page.design}
-          paper={page.paper}
-          onDesignChange={onDesignChange}
-          onPaperChange={onPaperChange}
-          designName={designName}
-          onDesignNameChange={onDesignNameChange}
+          design={look}
         />
       </div>
     </div>

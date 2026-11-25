@@ -11,7 +11,7 @@ export type EditTarget = { sectionId: number } & (
 export type EditHandler = (target: EditTarget) => boolean;
 
 const LIMIT_MS = 4000;
-const MODIFIERS = ["Shift", "Control", "Alt", "Meta"];
+export const MODIFIERS = ["Shift", "Control", "Alt", "Meta"];
 
 /**
  * Passes "go there and edit" on to whichever view is on the screen. What isn't there

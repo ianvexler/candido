@@ -17,6 +17,13 @@ const CONTACT_FIELDS: { field: ResumeHeaderTextField; placeholder: string }[] = 
   { field: "location", placeholder: "Location" },
 ];
 
+// Above the rest of the sheet's fields; a card has none but these.
+const CARD_FIELDS: typeof CONTACT_FIELDS = [
+  { field: "name", placeholder: "Name" },
+  { field: "headline", placeholder: "Headline" },
+  ...CONTACT_FIELDS,
+];
+
 interface HeaderTextProps {
   header: HeaderDraft;
   field: ResumeHeaderTextField;
@@ -91,7 +98,7 @@ const OnlyHere = ({ what, onUndo }: OnlyHereProps) => (
   </p>
 );
 
-/** The contact details and links, as fields. */
+/** The contact details and links, as fields. A card has the name and headline too. */
 export const HeaderFields = ({ header, inCard = false }: { header: HeaderDraft; inCard?: boolean }) => {
   const { links, setLinks, editLink } = header;
   const isOverride = header.fallback !== undefined;
@@ -101,7 +108,7 @@ export const HeaderFields = ({ header, inCard = false }: { header: HeaderDraft; 
   return (
     <>
       <div className={cn("grid gap-x-4 gap-y-0.5 text-sm", inCard ? "gap-y-2" : "mt-3 sm:grid-cols-[1.6fr_1fr_1fr]")}>
-        {CONTACT_FIELDS.map(({ field, placeholder }) => (
+        {(inCard ? CARD_FIELDS : CONTACT_FIELDS).map(({ field, placeholder }) => (
           <div key={field} data-header-field>
             {inCard && (
               <span aria-hidden className="text-xs text-muted-foreground">

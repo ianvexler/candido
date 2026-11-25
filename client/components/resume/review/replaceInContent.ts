@@ -10,7 +10,8 @@ import { replaceQuote, SuggestionHighlight } from "./SuggestionHighlight";
 export const contentExtensionsWith = (options: Partial<StarterKitOptions>): Extensions => [
   TextStyleKit,
   // Without the blank line it keeps after a list: Enter twice leaves a list.
-  StarterKit.configure({ ...options, trailingNode: false }),
+  // Pressing a link edits its text.
+  StarterKit.configure({ link: { openOnClick: false }, ...options, trailingNode: false }),
   HiddenMark,
   CvItem,
   SuggestionHighlight,

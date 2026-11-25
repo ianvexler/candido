@@ -118,12 +118,61 @@ describe("PageText", () => {
     expect(element().textContent).toBe("South");
   });
 
-  it("takes an outside value on blur when focused", () => {
+  it("takes an outside value when focused, and keeps the caret", () => {
+    show("North wind");
+    focus();
+    caretAt(2, 5);
+    show("Southern");
+    expect(element().textContent).toBe("Southern");
+    expect([getSelection()!.anchorOffset, getSelection()!.focusOffset]).toEqual([2, 5]);
+    show("Sou");
+    expect([getSelection()!.anchorOffset, getSelection()!.focusOffset]).toEqual([2, 3]);
+    input("Soup");
+    expect(onChange.mock.calls).toEqual([["Soup"]]);
+  });
+
+  it("takes an outside value after its own report was answered", () => {
     show("North");
     focus();
+    input("Norths");
+    show("Norths");
+    show("South");
+    expect(element().textContent).toBe("South");
+  });
+
+  it("takes an outside value after a report its owner had already", () => {
+    show("North");
+    focus();
+    input("North ");
+    show("South");
+    expect(element().textContent).toBe("South");
+  });
+
+  it("keeps typed text over an outside value that comes instead of its answer", () => {
+    show("North");
+    focus();
+    input("Norths");
+    show("South");
+    expect(element().textContent).toBe("Norths");
+    input("Northsi");
+    expect(onChange).toHaveBeenLastCalledWith("Northsi");
+  });
+
+  it("keeps typed spaces when the answer is trimmed", () => {
+    show("North");
+    focus();
+    input("North w ");
+    show("North w");
+    expect(element().textContent).toBe("North w ");
+  });
+
+  it("takes an outside value at the end of a composition that came to nothing", () => {
+    show("North");
+    focus();
+    fire(new CompositionEvent("compositionstart", { bubbles: true }));
     show("South");
     expect(element().textContent).toBe("North");
-    blur();
+    fire(new CompositionEvent("compositionend", { bubbles: true }));
     expect(element().textContent).toBe("South");
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -291,6 +340,16 @@ describe("text that can't be blank", () => {
     expect(onChange.mock.calls.every(([text]) => text.trim())).toBe(true);
   });
 
+  it("goes back to an outside value taken since it was entered", () => {
+    show("Experience", { required: true });
+    focus();
+    show("Work", { required: true });
+    input("");
+    blur();
+    expect(element().textContent).toBe("Work");
+    expect(onChange).not.toHaveBeenCalledWith("Experience");
+  });
+
   it("goes back without an answer from its owner", () => {
     show("Experience", { required: true });
     focus();
@@ -310,6 +369,16 @@ describe("text that falls back when blank", () => {
     blur();
     expect(element().textContent).toBe("Sam");
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't come back while still being cleared", () => {
+    show("Alex", { fallback: "Sam" });
+    focus();
+    input("");
+    show("Sam", { fallback: "Sam" });
+    expect(element().textContent).toBe("");
+    blur();
+    expect(element().textContent).toBe("Sam");
   });
 });
 

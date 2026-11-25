@@ -93,7 +93,11 @@ export const useCv = (id: string) => {
     const printTab = window.open("", "_blank");
     const result = await flushAll([flush, flushHeader, flushLook]);
     if (result === "saving") toast("Your latest changes are still saving, so the PDF may not include them.");
-    if (result === "failed") toast.error("Your latest changes couldn't be saved, so the PDF may not include them.");
+    if (result === "failed") {
+      printTab?.close();
+      toast.error("Your latest changes couldn't be saved, so the PDF wasn't made. Try again.");
+      return;
+    }
     const url = `/resume/${curriculumId}/print`;
     if (printTab) printTab.location.href = url;
     else window.location.assign(url);
