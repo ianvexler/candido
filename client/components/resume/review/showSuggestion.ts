@@ -23,15 +23,26 @@ export const showSuggestion = (s: CvSuggestion) => {
   const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
   const scrollTo = (element: Element | null | undefined) => element?.scrollIntoView({ behavior, block: "center" });
 
+  // The user looks elsewhere.
+  const ended = new AbortController();
+  ["wheel", "pointerdown", "keydown"].forEach((name) =>
+    window.addEventListener(name, () => ended.abort(), { capture: true, passive: true, signal: ended.signal })
+  );
+
   let frames = 0;
   const attempt = () => {
-    if (call !== latest) return;
+    if (call !== latest) ended.abort();
+    if (ended.signal.aborted) return;
     const highlight = highlightOf(s);
-    if (highlight) return scrollTo(highlight);
+    if (highlight) {
+      ended.abort();
+      return scrollTo(highlight);
+    }
     if (frames === 0) scrollTo(placeOf(s));
     frames += 1;
     // A summary has no highlight to wait for.
     if (frames < FRAMES && s.field !== "description") requestAnimationFrame(attempt);
+    else ended.abort();
   };
   // The tab it is on may have to come first.
   requestAnimationFrame(() => requestAnimationFrame(attempt));

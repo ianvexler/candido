@@ -19,10 +19,22 @@ interface PagePanelProps extends CvLook {
   review?: ReactNode;
   onDesignChange: (design: CvLook["design"]) => void;
   onPaperChange: (paper: CvLook["paper"]) => void;
+  designName: string | null;
+  onDesignNameChange: (name: string | null) => void;
 }
 
 /** How a CV looks and, for a tailored one, its review. */
-const PagePanel = ({ tab, onTabChange, review, design, paper, onDesignChange, onPaperChange }: PagePanelProps) => {
+const PagePanel = ({
+  tab,
+  onTabChange,
+  review,
+  design,
+  paper,
+  onDesignChange,
+  onPaperChange,
+  designName,
+  onDesignNameChange,
+}: PagePanelProps) => {
   const designTab = (
     <div className="px-5 py-5">
       {review === undefined && <h2 className="mb-4 text-sm font-semibold">Design</h2>}
@@ -30,11 +42,11 @@ const PagePanel = ({ tab, onTabChange, review, design, paper, onDesignChange, on
         <span className="font-medium">Paper</span>
         <Segmented label="Paper size" options={PAPERS} value={paper} onChange={onPaperChange} />
       </div>
-      <DesignPanel design={design} onChange={onDesignChange} />
+      <DesignPanel design={design} onChange={onDesignChange} newName={designName} onNewNameChange={onDesignNameChange} />
     </div>
   );
 
-  // Hidden rather than unmounted, so reopening keeps the saved designs and any half-typed name.
+  // Hidden rather than unmounted, so reopening keeps the saved designs.
   return (
     <aside
       aria-label={tab === "review" ? "Review" : "Design"}

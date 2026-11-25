@@ -191,6 +191,7 @@ const SectionDocument = ({
             return (
               <SectionEntryEditor
                 key={`${entry.id}:${version}`}
+                sectionId={sectionId}
                 entry={entry}
                 version={version}
                 editors={editors}

@@ -1,11 +1,12 @@
 "use client";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
+import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { organizationLabel } from "@/lib/resume/exportDocument";
 import { endsBeforeStart } from "@/lib/resume/sectionEntries";
 import { SectionEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { formatDateRange, fromMonthInput, hasDetails, toMonthInput } from "./sectionDetails";
 import { ghostInput } from "./styles";
 import { useOpenWhileFocused } from "./useOpenWhileFocused";
@@ -13,8 +14,16 @@ import { useOpenWhileFocused } from "./useOpenWhileFocused";
 export type DetailField = "role" | "organization" | "dates" | "location";
 
 /** An entry's months as typed: a half-typed one isn't a date yet. */
-export const useEntryMonths = (entry: SectionEntry) => {
-  const [typed, setTyped] = useState({ start: toMonthInput(entry.start_date), end: toMonthInput(entry.end_date) });
+export const useEntryMonths = (entry: SectionEntry, sectionId?: number) => {
+  const drafts = useContext(MonthDraftsContext);
+  const entryId = entry.id;
+  const [typed, setTyped] = useState(
+    () =>
+      (sectionId === undefined ? null : drafts?.get({ sectionId, entryId })) ?? {
+        start: toMonthInput(entry.start_date),
+        end: toMonthInput(entry.end_date),
+      }
+  );
   // What the browser's own picker has half of, which its value doesn't tell.
   const [halfPicked, setHalf] = useState({ start: false, end: false });
 
@@ -30,6 +39,11 @@ export const useEntryMonths = (entry: SectionEntry) => {
       end: halfPicked.end && shown.end === typed.end,
     });
   }
+
+  const { start, end } = shown;
+  useEffect(() => {
+    if (sectionId !== undefined) drafts?.set({ sectionId, entryId }, { start, end });
+  }, [drafts, sectionId, entryId, start, end]);
 
   const isHalfTyped = (end: "start" | "end") => shown[end] !== "" && fromMonthInput(shown[end]) === null;
   const isUnfinished = (end: "start" | "end") => halfPicked[end] || isHalfTyped(end);
@@ -162,6 +176,7 @@ export const EntryDetailsFields = ({ entry, onChange, months, warn, warnings }: 
 };
 
 interface EntryDetailsProps {
+  sectionId: number;
   entry: SectionEntry;
   onChange: (changes: Partial<SectionEntry>) => void;
   /** Shows the fields even with nothing filled in, as a new entry does. */
@@ -172,8 +187,8 @@ interface EntryDetailsProps {
 }
 
 /** An entry's role, dates and place: reads as in the CV, and shows all its fields while being edited. */
-const EntryDetails = ({ entry, onChange, offered, openRequested, onOpened }: EntryDetailsProps) => {
-  const months = useEntryMonths(entry);
+const EntryDetails = ({ sectionId, entry, onChange, offered, openRequested, onOpened }: EntryDetailsProps) => {
+  const months = useEntryMonths(entry, sectionId);
   const { open, setOpen, focusProps } = useOpenWhileFocused();
   const rowRef = useRef<HTMLDivElement>(null);
   const focusField = useRef<DetailField | null>(null);

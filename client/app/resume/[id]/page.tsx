@@ -6,6 +6,7 @@ import CvCards from "@/components/resume/CvCards";
 import CvChecklist from "@/components/resume/CvChecklist";
 import CvPageHeader from "@/components/resume/CvPageHeader";
 import CvWorkspace, { CvTab } from "@/components/resume/CvWorkspace";
+import { createHalfPickedGate } from "@/components/resume/halfPicked";
 import { createPageEditors } from "@/components/resume/page/pageEditors";
 import PagePreview from "@/components/resume/page/PagePreview";
 import PageView from "@/components/resume/page/PageView";
@@ -13,11 +14,13 @@ import { useHeaderBinding } from "@/components/resume/page/useHeaderBinding";
 import { deletionNote } from "@/components/resume/removeSection";
 import ReviewPanel from "@/components/resume/review/ReviewPanel";
 import { showSuggestion } from "@/components/resume/review/showSuggestion";
-import { useCvView } from "@/components/resume/useCvView";
+import { CvView, useCvView } from "@/components/resume/useCvView";
+import { useAddedSection } from "@/components/resume/useAddedSection";
 import { useFocusNewSection } from "@/components/resume/useFocusNewSection";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
 import { isLeftOut, sectionColumn } from "@/lib/resume/exportDocument";
+import { createMonthDrafts, MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { useCv } from "@/lib/resume/useCv";
 import { CvSuggestion, MissingSection } from "@/lib/types";
 import NextLink from "next/link";
@@ -39,8 +42,15 @@ const CvPage = ({ id }: { id: string }) => {
   const roomForPage = useMediaQuery(ROOM_FOR_PAGE);
   const [tab, setTab] = useState<CvTab>("cv");
   const [adding, setAdding] = useState(false);
-  // Offers a place to write in a section just added, which has nothing to show yet.
-  const [added, setAdded] = useState<{ sectionId: number; entryId: string } | null>(null);
+  const onPage = view === "page" && roomForPage;
+  const [added, setAdded] = useAddedSection(onPage);
+  // Kept whatever the view.
+  const [query, setQuery] = useState("");
+  const [designName, setDesignName] = useState<string | null>(null);
+  const [monthDrafts] = useState(createMonthDrafts);
+  useEffect(() => monthDrafts.prune(sections), [monthDrafts, sections]);
+  const leaveRef = useRef<(() => boolean) | null>(null);
+  const [mayLeaveCards] = useState(createHalfPickedGate);
   const focusNewSection = useFocusNewSection();
   const [editors] = useState(createPageEditors);
   const headerBinding = useHeaderBinding(header);
@@ -116,7 +126,7 @@ const CvPage = ({ id }: { id: string }) => {
         focusNewSection(section.id);
         // As the drafts have it: with an entry to write in.
         const entry = drafts.current().find((each) => each.id === section.id)?.entries[0];
-        setAdded(entry ? { sectionId: section.id, entryId: entry.id } : null);
+        setAdded(entry && onPage ? { sectionId: section.id, entryId: entry.id } : null);
       }
       setTab("cv");
       return true;
@@ -142,6 +152,8 @@ const CvPage = ({ id }: { id: string }) => {
       libraryLoading={library.loading}
       libraryFailed={library.failed}
       onRetryLibrary={library.refresh}
+      query={query}
+      onQueryChange={setQuery}
     />
   );
 
@@ -201,55 +213,62 @@ const CvPage = ({ id }: { id: string }) => {
     </AddSheetButton>
   );
 
-  const onPage = view === "page" && roomForPage;
+  const changeView = (next: CvView) => {
+    if (onPage ? leaveRef.current?.() !== false : mayLeaveCards()) setView(next);
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <CvPageHeader
-        curriculum={curriculum}
-        onRename={saveTitle}
-        onExport={() => void exportPdf()}
-        view={view}
-        onViewChange={setView}
-        compact={onPage}
-      />
-      {onPage ? (
-        <PageView
-          {...page}
-          {...suggestions}
-          headerBinding={headerBinding}
-          open={added}
-          onDesignChange={look.changeDesign}
-          onPaperChange={look.changePaper}
-          checklist={checklistPanel}
-          review={reviewPanel}
-          notice={emptyHint}
-        >
-          {addButton("min-h-14 max-w-xs flex-row rounded-md border-[#9aa3ab] bg-transparent shadow-none")}
-        </PageView>
-      ) : (
-        <CvWorkspace
-          tab={tab}
-          onTabChange={setTab}
-          checklist={checklistPanel}
-          review={reviewPanel}
-          page={roomForPage ? null : <PagePreview {...page} />}
-        >
-          <CvCards
-            header={header}
-            sections={sections}
-            versions={versions}
-            onChange={change}
-            onRemove={actions.removeSection}
-            describeDeletion={describeDeletion}
-            twoColumn={twoColumn}
+    <MonthDraftsContext value={monthDrafts}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <CvPageHeader
+          curriculum={curriculum}
+          onRename={saveTitle}
+          onExport={() => void exportPdf()}
+          view={view}
+          onViewChange={changeView}
+          compact={onPage}
+        />
+        {onPage ? (
+          <PageView
+            {...page}
             {...suggestions}
-          />
-          {emptyHint}
-          {addButton()}
-        </CvWorkspace>
-      )}
-    </div>
+            headerBinding={headerBinding}
+            open={added}
+            leaveRef={leaveRef}
+            designName={designName}
+            onDesignNameChange={setDesignName}
+            onDesignChange={look.changeDesign}
+            onPaperChange={look.changePaper}
+            checklist={checklistPanel}
+            review={reviewPanel}
+            notice={emptyHint}
+          >
+            {addButton("min-h-14 max-w-xs flex-row rounded-md border-[#9aa3ab] bg-transparent shadow-none")}
+          </PageView>
+        ) : (
+          <CvWorkspace
+            tab={tab}
+            onTabChange={setTab}
+            checklist={checklistPanel}
+            review={reviewPanel}
+            page={roomForPage ? null : <PagePreview {...page} />}
+          >
+            <CvCards
+              header={header}
+              sections={sections}
+              versions={versions}
+              onChange={change}
+              onRemove={actions.removeSection}
+              describeDeletion={describeDeletion}
+              twoColumn={twoColumn}
+              {...suggestions}
+            />
+            {emptyHint}
+            {addButton()}
+          </CvWorkspace>
+        )}
+      </div>
+    </MonthDraftsContext>
   );
 };
 

@@ -4,8 +4,9 @@ import { updateCurriculumSection } from "@/api/resources/curriculums/updateCurri
 import { getLatestCvTailoring } from "@/api/resources/cvTailorings/getLatestCvTailoring";
 import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile";
 import { Curriculum, CurriculumSection, ResumeHeader } from "@/lib/types";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { flushAll } from "./flushAll";
 import type { HeaderValues } from "./headerDraft";
 import { trackSave, waitForSaves } from "./saveTracker";
 import type { SectionPatch } from "./sectionDrafts";
@@ -86,20 +87,13 @@ export const useCv = (id: string) => {
     setCurriculum(response.curriculum);
   };
 
-  /** Saves everything that can be saved soon. Resolves false if there is more. */
-  const flushAll = useCallback(async () => {
-    const flushed = Promise.all([flush(), flushHeader(), flushLook()]);
-    if (!(await waitForSaves())) return false;
-    return (await flushed).every(Boolean);
-  }, [flush, flushHeader, flushLook]);
-
   // Open the tab right away (popup blockers allow it during the click), then point
   // it at the print page, which prints itself, once edits have reached the server.
   const exportPdf = async () => {
     const printTab = window.open("", "_blank");
-    if (!(await flushAll())) {
-      toast("Your latest changes are still saving, so the PDF may not include them.");
-    }
+    const result = await flushAll([flush, flushHeader, flushLook]);
+    if (result === "saving") toast("Your latest changes are still saving, so the PDF may not include them.");
+    if (result === "failed") toast.error("Your latest changes couldn't be saved, so the PDF may not include them.");
     const url = `/resume/${curriculumId}/print`;
     if (printTab) printTab.location.href = url;
     else window.location.assign(url);

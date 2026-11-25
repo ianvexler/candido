@@ -57,7 +57,7 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, comp
     />
   );
 
-  // The switch stays where it is, as it has the focus when it is used.
+  // The name and the switch stay the same elements: either may have the focus.
   return (
     <header
       className={cn(
@@ -75,7 +75,14 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, comp
           {curriculum.job_board_entry_id ? `${curriculum.tailored_for ?? "Job"} application` : "CVs"}
         </span>
       </NextLink>
-      {compact && <div className="min-w-0 flex-1">{name}</div>}
+      <div className={compact ? "min-w-0 flex-1" : "order-last w-full"}>
+        {name}
+        {!compact && (
+          <p className="mt-1 text-base font-light text-muted-foreground">
+            Changes here only affect this CV, unless you send them to your library.
+          </p>
+        )}
+      </div>
       <div className="flex shrink-0 items-center gap-4">
         <NextLink
           href="/resume/sections"
@@ -95,14 +102,6 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, comp
           <TooltipContent side="bottom">Opens the print dialog. Choose Save as PDF.</TooltipContent>
         </Tooltip>
       </div>
-      {!compact && (
-        <div className="w-full">
-          {name}
-          <p className="mt-1 text-base font-light text-muted-foreground">
-            Changes here only affect this CV, unless you send them to your library.
-          </p>
-        </div>
-      )}
     </header>
   );
 };

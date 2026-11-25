@@ -48,6 +48,7 @@ export const createCvDesign = ({
   let waiting = false;
   let savedPaper = paper;
   let paperChanges = 0;
+  let papersOnTheWay = 0;
   let last: Promise<boolean> = Promise.resolve(true);
 
   const show = () => onChange({ design, paper });
@@ -63,6 +64,11 @@ export const createCvDesign = ({
     markSettled(editKey);
   };
 
+  const markSaved = (sent: number) => {
+    savedEdits = Math.max(savedEdits, sent);
+    if (edits === savedEdits) stopWaiting();
+  };
+
   const sendDesign = () => {
     const sent = edits;
     // Numbered when sent, before it waits in the queue.
@@ -71,7 +77,7 @@ export const createCvDesign = ({
       "design",
       queue.run(() => save(payload)).then(
         () => {
-          savedEdits = Math.max(savedEdits, sent);
+          markSaved(sent);
           return true;
         },
         (error) => {
@@ -82,6 +88,33 @@ export const createCvDesign = ({
       )
     );
     stopWaiting();
+  };
+
+  const sendPaper = () => {
+    const [sent, sentPaper, change] = [edits, paper, paperChanges];
+    // Whole, as the server may then skip a design that is still on its way.
+    const payload = numbered({ ...design, paper });
+    papersOnTheWay += 1;
+    last = trackSave(
+      "paper",
+      queue.run(() => save(payload)).then(
+        () => {
+          papersOnTheWay -= 1;
+          savedPaper = sentPaper;
+          markSaved(sent);
+          return true;
+        },
+        (error) => {
+          papersOnTheWay -= 1;
+          if (change === paperChanges) {
+            paper = savedPaper;
+            show();
+          }
+          onError(error, "paper");
+          return false;
+        }
+      )
+    );
   };
 
   return {
@@ -97,30 +130,15 @@ export const createCvDesign = ({
 
     changePaper: (next: PaperSize) => {
       paper = next;
-      const change = ++paperChanges;
+      paperChanges += 1;
       show();
-      last = trackSave(
-        "paper",
-        queue.run(() => save({ styles: { paper: next } })).then(
-          () => {
-            savedPaper = next;
-            return true;
-          },
-          (error) => {
-            if (change === paperChanges) {
-              paper = savedPaper;
-              show();
-            }
-            onError(error, "paper");
-            return false;
-          }
-        )
-      );
+      sendPaper();
     },
 
     /** Saves now. Resolves false if it couldn't. */
     flush: async (): Promise<boolean> => {
       if (waiting) sendDesign();
+      if (paper !== savedPaper && papersOnTheWay === 0) sendPaper();
       // Newer ones sent meanwhile too.
       for (let awaited: typeof last | null = null; awaited !== last; ) {
         awaited = last;
@@ -133,7 +151,8 @@ export const createCvDesign = ({
     leave: () => {
       if (edits === savedEdits && paper === savedPaper) return;
       stopWaiting();
-      // Its answer isn't known if the page comes back.
+      // Its answer isn't known if the page comes back, and a paper it saved stays.
+      paperChanges += 1;
       waiting = edits !== savedEdits;
       // Whole, as the server may then skip what is still on its way.
       saveOnLeave(numbered({ ...design, paper }));

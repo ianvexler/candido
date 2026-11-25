@@ -4,10 +4,11 @@ import "@/components/richEditor/styles.scss";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { cn } from "@/lib/utils";
 import { SUMMARY_ID, SectionEntry } from "@/lib/types";
+import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
-import { memo, RefObject, useCallback, useRef, useState } from "react";
+import { memo, RefObject, useCallback, useContext, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
@@ -20,6 +21,7 @@ import { highlightClasses, SuggestionProps, useEntrySuggestions } from "./useEnt
 import { useOpenWhileFocused } from "./useOpenWhileFocused";
 
 interface SectionEntryEditorProps extends SuggestionProps {
+  sectionId: number;
   entry: SectionEntry;
   sectionType: string;
   /** From useSectionDrafts. The editor is remounted when it changes. */
@@ -43,6 +45,7 @@ interface SectionEntryEditorProps extends SuggestionProps {
  * The text editor is uncontrolled: remount it to load new content.
  */
 const SectionEntryEditor = ({
+  sectionId,
   entry,
   sectionType,
   version,
@@ -65,6 +68,7 @@ const SectionEntryEditor = ({
   const titleRef = useRef<HTMLInputElement>(null);
   const [openDetails, setOpenDetails] = useState(false);
   const onDetailsOpened = useCallback(() => setOpenDetails(false), []);
+  const monthDrafts = useContext(MonthDraftsContext);
   // Remounts the details, which keep half-typed months.
   const [detailsVersion, setDetailsVersion] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -91,6 +95,7 @@ const SectionEntryEditor = ({
   };
 
   const clearDetails = () => {
+    monthDrafts?.clear({ sectionId, entryId: entry.id });
     setDetailsVersion((count) => count + 1);
     onChange({ role: null, organization: null, location: null, start_date: null, end_date: null, current: false });
   };
@@ -187,6 +192,7 @@ const SectionEntryEditor = ({
 
         <EntryDetails
           key={detailsVersion}
+          sectionId={sectionId}
           entry={entry}
           onChange={onChange}
           offered={startedBlank && suggestsDetails(sectionType)}

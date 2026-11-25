@@ -1,5 +1,7 @@
 import type { CurriculumSection } from "@/lib/types";
-import { RefObject, useCallback, useMemo, useRef, useState } from "react";
+import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
+import { RefObject, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { cardAnchor, cardKey, CardPlace, Cards, entryAt } from "./cardPlace";
 import type { CardFocus } from "./PageCard";
 
@@ -8,8 +10,11 @@ type EntryPlace = Extract<CardPlace, { kind: "entry" }>;
 
 /** Which cards a page has open, or keeps for what is unfinished in them. */
 export const usePageCards = (rootRef: RefObject<HTMLElement | null>, sections: CurriculumSection[]) => {
+  const monthDrafts = useContext(MonthDraftsContext);
   const [asked, setAsked] = useState<OpenCard | null>(null);
-  const [unfinished, setUnfinished] = useState<EntryPlace[]>([]);
+  const [unfinished, setUnfinished] = useState<EntryPlace[]>(
+    () => monthDrafts?.places().map((place) => ({ kind: "entry", ...place })) ?? []
+  );
   const gateRef = useRef<(() => boolean) | null>(null);
 
   const exists = (place: CardPlace) => place.kind === "contact" || entryAt(sections, place.sectionId, place.entryId) !== null;
@@ -42,9 +47,25 @@ export const usePageCards = (rootRef: RefObject<HTMLElement | null>, sections: C
     });
   }, []);
 
+  const toldOfRef = useRef(new Set<string>());
+  /** Whether the page may go. A half-picked month would go with it, so the first time its card opens and says so. */
+  const mayLeave = () => {
+    if (gateRef.current && !gateRef.current()) return false;
+    const lost = unfinished.find((place) => {
+      const key = cardKey(place);
+      return key !== openKey && !toldOfRef.current.has(key) && !monthDrafts?.get(place);
+    });
+    if (!lost) return true;
+    const key = cardKey(lost);
+    toldOfRef.current.add(key);
+    flushSync(() => setAsked({ place: lost, key, focus: { field: "dates" } }));
+    gateRef.current?.();
+    return false;
+  };
+
   const context = useMemo<Cards>(() => ({ openKey, openCard }), [openKey, openCard]);
 
-  return { open, unfinished, context, openCard, close, gateRef, reportUnfinished };
+  return { open, unfinished, context, openCard, close, gateRef, reportUnfinished, mayLeave };
 };
 
 /** Where a card's focus goes back to. */

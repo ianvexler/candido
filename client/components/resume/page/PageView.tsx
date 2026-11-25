@@ -9,7 +9,8 @@ import { ReactNode, useState } from "react";
 import type { CvLook } from "@/lib/resume/cvDesign";
 import FitMeter from "./FitMeter";
 import PagedCv, { PagedCvProps } from "./PagedCv";
-import PagePanel, { PagePanelTab } from "./PagePanel";
+import PagePanel from "./PagePanel";
+import { PagePanels, shownPanels, toggleChecklist, togglePanel } from "./pagePanels";
 import type { PagePaging } from "./usePaging";
 
 const ZOOMS = [
@@ -24,6 +25,9 @@ type PageViewProps = Omit<PagedCvProps, "zoom" | "onPaging" | "readOnly" | keyof
   CvLook & {
     onDesignChange: (design: CvLook["design"]) => void;
     onPaperChange: (paper: CvLook["paper"]) => void;
+    /** A design being named; see DesignPanel. */
+    designName: string | null;
+    onDesignNameChange: (name: string | null) => void;
     checklist: ReactNode;
     review?: ReactNode;
     /** Over the sheets. */
@@ -36,6 +40,8 @@ type PageViewProps = Omit<PagedCvProps, "zoom" | "onPaging" | "readOnly" | keyof
 const PageView = ({
   onDesignChange,
   onPaperChange,
+  designName,
+  onDesignNameChange,
   checklist,
   review,
   notice,
@@ -45,19 +51,9 @@ const PageView = ({
   const wide = useMediaQuery(WIDE);
   const [report, setReport] = useState<PagePaging | null>(null);
   const [zoom, setZoom] = useState<PagedCvProps["zoom"]>("fit");
-  // Null until chosen: open where there is room.
-  const [checklistChoice, setChecklistChoice] = useState<boolean | null>(null);
-  const [panel, setPanel] = useState<PagePanelTab | null>(null);
-  const checklistOpen = checklistChoice ?? wide;
+  const [panels, setPanels] = useState<PagePanels>({ checklist: null, panel: null, front: "checklist" });
+  const shown = shownPanels(panels, wide);
 
-  const toggleChecklist = () => {
-    setChecklistChoice(!checklistOpen);
-    if (!checklistOpen && !wide) setPanel(null);
-  };
-  const togglePanel = (tab: PagePanelTab) => {
-    setPanel(panel === tab ? null : tab);
-    if (!wide && panel !== tab) setChecklistChoice(false);
-  };
   const toggle = (active: boolean) => ({
     variant: "ghost" as const,
     size: "sm" as const,
@@ -72,7 +68,7 @@ const PageView = ({
         aria-label="Page tools"
         className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-background px-4"
       >
-        <Button {...toggle(checklistOpen)} onClick={toggleChecklist}>
+        <Button {...toggle(shown.checklist)} onClick={() => setPanels(toggleChecklist(panels, wide))}>
           <ListChecksIcon />
           What to include
         </Button>
@@ -81,12 +77,12 @@ const PageView = ({
         </div>
         <Segmented label="Zoom" options={ZOOMS} value={zoom} onChange={setZoom} />
         {review !== undefined && (
-          <Button {...toggle(panel === "review")} onClick={() => togglePanel("review")}>
+          <Button {...toggle(shown.panel === "review")} onClick={() => setPanels(togglePanel(panels, wide, "review"))}>
             <SparklesIcon />
             Review
           </Button>
         )}
-        <Button {...toggle(panel === "design")} onClick={() => togglePanel("design")}>
+        <Button {...toggle(shown.panel === "design")} onClick={() => setPanels(togglePanel(panels, wide, "design"))}>
           <PaletteIcon />
           Design
         </Button>
@@ -96,7 +92,7 @@ const PageView = ({
         {/* Hidden rather than unmounted, so that reopening keeps the search. */}
         <aside
           aria-label="What to include"
-          hidden={!checklistOpen}
+          hidden={!shown.checklist}
           className="w-80 shrink-0 overflow-y-auto border-r border-border bg-background"
         >
           {checklist}
@@ -109,13 +105,15 @@ const PageView = ({
           <div className="mx-auto max-w-md pt-6 pb-10">{children}</div>
         </div>
         <PagePanel
-          tab={panel}
-          onTabChange={setPanel}
+          tab={shown.panel}
+          onTabChange={(panel) => setPanels({ ...panels, panel })}
           review={review}
           design={page.design}
           paper={page.paper}
           onDesignChange={onDesignChange}
           onPaperChange={onPaperChange}
+          designName={designName}
+          onDesignNameChange={onDesignNameChange}
         />
       </div>
     </div>

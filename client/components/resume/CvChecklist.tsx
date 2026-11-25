@@ -28,11 +28,23 @@ interface CvChecklistProps {
   libraryLoading: boolean;
   libraryFailed: boolean;
   onRetryLibrary: () => Promise<void>;
+  /** What is searched for. */
+  query: string;
+  onQueryChange: (query: string) => void;
 }
 
 /** Everything the CV could show, to tick and put in order. */
-const CvChecklist = memo(({ sections, pending, actions, columns, libraryLoading, libraryFailed, onRetryLibrary }: CvChecklistProps) => {
-  const [query, setQuery] = useState("");
+const CvChecklist = memo(({
+    sections,
+    pending,
+    actions,
+    columns,
+    libraryLoading,
+    libraryFailed,
+    onRetryLibrary,
+    query,
+    onQueryChange,
+}: CvChecklistProps) => {
   const [removing, setRemoving] = useState<number | null>(null);
   const [retrying, setRetrying] = useState(false);
 
@@ -100,7 +112,7 @@ const CvChecklist = memo(({ sections, pending, actions, columns, libraryLoading,
         <Input
           type="search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Search"
           aria-label="Search what to include"
         />

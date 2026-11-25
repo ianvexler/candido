@@ -40,6 +40,9 @@ const MIN_ACCENT_CONTRAST = 3;
 interface DesignPanelProps {
   design: DesignSettings;
   onChange: (next: DesignSettings) => void;
+  /** What a design being saved is called so far, or null. */
+  newName: string | null;
+  onNewNameChange: (name: string | null) => void;
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -48,9 +51,8 @@ const errorMessage = (error: unknown, fallback: string) =>
 const sameDesign = (a: DesignSettings, b: DesignSettings) => DESIGN_KEYS.every((key) => a[key] === b[key]);
 
 /** Controls for a resume's look, and the user's saved designs. */
-const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
+const DesignPanel = ({ design, onChange, newName, onNewNameChange }: DesignPanelProps) => {
   const [saved, setSaved] = useState<ResumeDesign[] | null>(null);
-  const [newName, setNewName] = useState<string | null>(null);
   const set = <K extends keyof DesignSettings>(key: K, value: DesignSettings[K]) => onChange({ ...design, [key]: value });
 
   useEffect(() => {
@@ -69,7 +71,7 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
     try {
       const { resume_design } = await createResumeDesign({ name, settings: design });
       setSaved((current) => [...(current ?? []), resume_design]);
-      setNewName(null);
+      onNewNameChange(null);
       toast.success(`Saved "${resume_design.name}"`);
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't save this design. Try again."));
@@ -145,7 +147,7 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
         )}
 
         {newName === null ? (
-          <Button type="button" variant="outline" size="sm" className="mt-2 w-full" onClick={() => setNewName("")}>
+          <Button type="button" variant="outline" size="sm" className="mt-2 w-full" onClick={() => onNewNameChange("")}>
             Save this design
           </Button>
         ) : (
@@ -154,8 +156,8 @@ const DesignPanel = ({ design, onChange }: DesignPanelProps) => {
               autoFocus
               value={newName}
               maxLength={60}
-              onChange={(event) => setNewName(event.target.value)}
-              onKeyDown={(event) => event.key === "Escape" && setNewName(null)}
+              onChange={(event) => onNewNameChange(event.target.value)}
+              onKeyDown={(event) => event.key === "Escape" && onNewNameChange(null)}
               placeholder="Name, e.g. Corporate"
               aria-label="Design name"
               className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 outline-none focus:border-foreground/40"

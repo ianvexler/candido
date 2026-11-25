@@ -8,9 +8,11 @@ import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@
 import {
   FocusEvent,
   memo,
+  RefObject,
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -54,6 +56,8 @@ export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** An entry to offer even with nothing in it. */
   open?: { sectionId: number; entryId: string } | null;
   suggestionsBySection?: Map<number, CvSuggestion[]>;
+  /** Set to what says whether the page may go now. */
+  leaveRef?: RefObject<(() => boolean) | null>;
   /** Only shown, as it prints. */
   readOnly?: boolean;
 }
@@ -73,6 +77,7 @@ const Page = ({
   onPaging,
   open = null,
   suggestionsBySection,
+  leaveRef,
   readOnly = false,
   activeSuggestionId,
   onSuggestionClick,
@@ -100,6 +105,7 @@ const Page = ({
   const [focusedIn, setFocusedIn] = useState<KeptPlace | null>(null);
   const cards = usePageCards(rootRef, sections);
   const { openCard, unfinished } = cards;
+  useImperativeHandle(leaveRef, () => cards.mayLeave);
   const cardPlace = cards.open?.place;
   const cardIn = cardPlace?.kind === "entry" ? cardPlace : null;
   const [buildSections] = useState(createPageSections);

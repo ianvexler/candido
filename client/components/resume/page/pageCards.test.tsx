@@ -194,6 +194,41 @@ it("leaves a handled Escape alone", async () => {
   expect(cards.open).not.toBeNull();
 });
 
+describe("leaving the page", () => {
+  const leave = async () => {
+    let may = false;
+    await run(() => (may = cards.mayLeave()));
+    return may;
+  };
+
+  it("is refused once while a month is half picked in the open card", async () => {
+    await open("a");
+    start().focus();
+    half(true);
+    expect(await leave()).toBe(false);
+    expect(alerts()).toBe(1);
+    expect(await leave()).toBe(true);
+  });
+
+  it("is refused once for one in a closed card, which opens and says so", async () => {
+    await open("a");
+    start().focus();
+    half(true);
+    await escape();
+    await escape();
+    expect(cards.open).toBeNull();
+    expect(await leave()).toBe(false);
+    expect(cards.open?.key).toBe("1:a");
+    expect(alerts()).toBe(1);
+    expect(await leave()).toBe(true);
+  });
+
+  it("isn't refused without one", async () => {
+    await open("a");
+    expect(await leave()).toBe(true);
+  });
+});
+
 describe("useEntryMonths", () => {
   it("keeps what is typed until the date is changed elsewhere", async () => {
     let months: ReturnType<typeof useEntryMonths>;

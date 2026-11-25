@@ -170,7 +170,7 @@ describe("createCvDesign", () => {
     owner.changePaper("letter");
     owner.leave();
     expect(left).toHaveLength(1);
-    expect(left[0]).toMatchObject({ styles: { accent: "#222222", paper: "letter" }, styles_seq: 2 });
+    expect(left[0]).toMatchObject({ styles: { accent: "#222222", paper: "letter" }, styles_seq: 3 });
     await vi.advanceTimersByTimeAsync(1000);
     expect(requests).toHaveLength(1);
     // Back from the browser's cache.
@@ -179,7 +179,7 @@ describe("createCvDesign", () => {
     await vi.advanceTimersByTimeAsync(0);
     requests[1].resolve();
     await vi.advanceTimersByTimeAsync(0);
-    expect(requests[2].payload).toMatchObject({ styles: { accent: "#222222" }, styles_seq: 3 });
+    expect(requests[2].payload).toMatchObject({ styles: { accent: "#222222" }, styles_seq: 4 });
     requests[2].resolve();
   });
 
@@ -193,5 +193,37 @@ describe("createCvDesign", () => {
     requests[0].resolve();
     await settle();
     expect(requests).toHaveLength(1);
+  });
+
+  it("numbers paper saves, with the design as it is", async () => {
+    const { owner, requests, settle } = setUp();
+    owner.changeDesign(look("#111111"));
+    owner.changePaper("letter");
+    await settle();
+    expect(requests[0].payload).toMatchObject({ styles: { accent: "#111111", paper: "letter" }, styles_seq: 1 });
+    expect(requests[0].payload.styles_writer).toBeTruthy();
+    requests[0].resolve();
+    await vi.advanceTimersByTimeAsync(1000);
+    // It had the design too.
+    expect(requests).toHaveLength(1);
+    expect(await owner.flush()).toBe(true);
+  });
+
+  it("doesn't put back a paper that leaving has sent, and sends it again on a flush", async () => {
+    const { owner, requests, shown, left, settle } = setUp();
+    owner.changePaper("letter");
+    await settle();
+    owner.leave();
+    expect(left[0].styles?.paper).toBe("letter");
+    requests[0].reject();
+    await settle();
+    expect(shown.at(-1)?.paper).toBe("letter");
+    let result: boolean | null = null;
+    void owner.flush().then((each) => (result = each));
+    await settle();
+    expect(requests[1].payload).toMatchObject({ styles: { paper: "letter" }, styles_seq: 3 });
+    requests[1].resolve();
+    await settle();
+    expect(result).toBe(true);
   });
 });

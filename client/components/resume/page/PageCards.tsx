@@ -32,7 +32,7 @@ interface EntryCardProps {
 }
 
 const EntryCard = ({ place, entry, version, focus, rootRef, gateRef, onSectionChange, onClose, onUnfinished }: EntryCardProps) => {
-  const months = useEntryMonths(entry);
+  const months = useEntryMonths(entry, place.sectionId);
   const { unfinished, halfTyped, endBeforeStart } = months;
   // Each shows the warning anew, so that it is read out again.
   const [warnings, setWarnings] = useState(0);
