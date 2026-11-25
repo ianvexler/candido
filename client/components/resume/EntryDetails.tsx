@@ -31,13 +31,14 @@ export const useEntryMonths = (entry: SectionEntry) => {
     });
   }
 
-  const isUnfinished = (end: "start" | "end") =>
-    halfPicked[end] || (shown[end] !== "" && fromMonthInput(shown[end]) === null);
+  const isHalfTyped = (end: "start" | "end") => shown[end] !== "" && fromMonthInput(shown[end]) === null;
+  const isUnfinished = (end: "start" | "end") => halfPicked[end] || isHalfTyped(end);
 
   return {
     ...shown,
     set: (end: "start" | "end", month: string) => setTyped((now) => ({ ...now, [end]: month })),
     setHalfPicked: (end: "start" | "end", half: boolean) => setHalf((now) => ({ ...now, [end]: half })),
+    halfTyped: isHalfTyped("start") || (!entry.current && isHalfTyped("end")),
     unfinished: isUnfinished("start") || (!entry.current && isUnfinished("end")),
     endBeforeStart: endsBeforeStart(entry),
   };
@@ -86,6 +87,7 @@ export const EntryDetailsFields = ({ entry, onChange, months, warn, warnings }: 
           value={months.start}
           onChange={(event) => {
             months.set("start", event.target.value);
+            months.setHalfPicked("start", event.target.validity.badInput);
             onChange({ start_date: fromMonthInput(event.target.value) });
           }}
           onBlur={({ target }) => months.setHalfPicked("start", target.validity.badInput)}
@@ -102,6 +104,7 @@ export const EntryDetailsFields = ({ entry, onChange, months, warn, warnings }: 
             min={months.start || undefined}
             onChange={(event) => {
               months.set("end", event.target.value);
+              months.setHalfPicked("end", event.target.validity.badInput);
               onChange({ end_date: fromMonthInput(event.target.value) });
             }}
             onBlur={({ target }) => months.setHalfPicked("end", target.validity.badInput)}

@@ -33,15 +33,17 @@ interface EntryCardProps {
 
 const EntryCard = ({ place, entry, version, focus, rootRef, gateRef, onSectionChange, onClose, onUnfinished }: EntryCardProps) => {
   const months = useEntryMonths(entry);
-  const { unfinished, endBeforeStart } = months;
+  const { unfinished, halfTyped, endBeforeStart } = months;
   // Each shows the warning anew, so that it is read out again.
   const [warnings, setWarnings] = useState(0);
   const fieldsRef = useRef<HTMLDivElement>(null);
   const { sectionId, entryId } = place;
   const key = cardKey(place);
-  const isHalfPicked = () =>
+  if (!focus && warnings > 0) setWarnings(0);
+  // As its fields are now: one tells that it is half picked only when it is left.
+  const isUnfinished = () =>
+    halfTyped ||
     [...(fieldsRef.current?.querySelectorAll("input") ?? [])].some(({ validity }) => validity.badInput);
-  // A month tells that it is half picked only then.
   const leaveField = () => {
     if (fieldsRef.current?.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
   };
@@ -57,16 +59,15 @@ const EntryCard = ({ place, entry, version, focus, rootRef, gateRef, onSectionCh
       hidden={!focus}
       focus={focus ?? NO_FOCUS}
       gateRef={gateRef}
-      isBlocked={() => unfinished || endBeforeStart || isHalfPicked()}
+      isBlocked={() => isUnfinished() || endBeforeStart}
       onBlocked={() => {
         leaveField();
         setWarnings((count) => count + 1);
       }}
       onClose={(byKey) => {
         // So that it is kept.
-        if (unfinished || isHalfPicked()) onUnfinished(place, true);
+        if (isUnfinished()) onUnfinished(place, true);
         leaveField();
-        setWarnings(0);
         onClose(key, byKey);
       }}
     >

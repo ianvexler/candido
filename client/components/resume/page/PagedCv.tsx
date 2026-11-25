@@ -110,8 +110,8 @@ const Page = ({
   const cardIn = cardPlace?.kind === "entry" ? cardPlace : null;
   const [buildSections] = useState(createPageSections);
   const shownSections = useMemo(
-    () => buildSections(sections, versions, [focusedIn, open, cardIn].filter((place) => place !== null)),
-    [buildSections, sections, versions, focusedIn, open, cardIn]
+    () => buildSections(sections, versions, [focusedIn, open, cardIn, ...unfinished].filter((place) => place !== null)),
+    [buildSections, sections, versions, focusedIn, open, cardIn, unfinished]
   );
   const shownHeader = useMemo(() => buildResumeDocument({ title: "", header, sections: [] }).header, [header]);
   const shown: ResumeDocument = useMemo(

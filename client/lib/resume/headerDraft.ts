@@ -60,8 +60,7 @@ export const createHeaderDraft = <T extends HeaderValues>({
       "header",
       save(current).then(
         () => {
-          // Not if it was loaded anew meanwhile.
-          savedEdits = Math.max(savedEdits, sent);
+          savedEdits = sent;
           return true;
         },
         (error) => {
@@ -113,8 +112,12 @@ export const createHeaderDraft = <T extends HeaderValues>({
       stopWaiting();
       markSettled(editKey);
       edits += 1;
-      savedEdits = edits;
       current = next;
+      if (request) {
+        // It would undo what was loaded, so that is sent after it.
+        due = true;
+        markPending(editKey);
+      } else savedEdits = edits;
       onChange(current);
     },
 

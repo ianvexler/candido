@@ -33,7 +33,8 @@ interface PagingOptions {
 type Result = { paging: Paging; ready: boolean };
 
 // What the proof confirmed.
-const isExact = () => / Chrome\/\d/.test(navigator.userAgent) && !/Mobile/.test(navigator.userAgent);
+export const printsAsShown = (userAgent: string) =>
+  /Chrome\/\d/.test(userAgent) && !/Mobile|Android/.test(userAgent);
 
 const ROUNDING = 0.01;
 
@@ -214,7 +215,7 @@ export const usePaging = (rootRef: RefObject<HTMLElement | null>, { pageId, desi
   // The template's attributes aren't all watched.
   useLayoutEffect(() => queueRef.current(), [designKey, metrics, scale, onLaidOut]);
 
-  const [exact] = useState(isExact);
+  const [exact] = useState(() => printsAsShown(navigator.userAgent));
   const line = lineHeight(design);
   return useMemo(() => ({ ...result, metrics, lineHeight: line, exact }), [result, metrics, line, exact]);
 };

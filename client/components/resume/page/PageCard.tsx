@@ -2,9 +2,12 @@
 
 import { cn } from "@/lib/utils";
 import { autoUpdate, flip, FloatingPortal, offset, shift, size, useFloating } from "@floating-ui/react";
-import { KeyboardEvent, ReactNode, RefObject, useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
+import { KeyboardEvent, ReactNode, RefObject, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 
 const FOCUSABLE = 'input, button:not([disabled]), textarea, select, a[href], [tabindex]:not([tabindex="-1"])';
+
+// Touch sends a press's click later.
+const NO_CLICK_MS = 400;
 
 const focusablesIn = (element: Element) =>
   [...element.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((each) => each.getClientRects().length > 0);
@@ -13,7 +16,7 @@ const focusablesIn = (element: Element) =>
 export type CardFocus = { field: string };
 
 interface PageCardProps {
-  /** What it belongs to, if that is on the page now. A press on it isn't one outside. */
+  /** What it opens from, or the nearest thing to that. A press on the first isn't one outside. */
   anchor: () => Element | null;
   label: string;
   focus: CardFocus;
@@ -68,6 +71,15 @@ const Card = ({
     whileElementsMounted: hidden ? undefined : autoUpdate,
   });
 
+  const { setFloating } = refs;
+  const setCard = useCallback(
+    (element: HTMLDivElement | null) => {
+      cardRef.current = element;
+      setFloating(element);
+    },
+    [setFloating]
+  );
+
   // What it belongs to may be replaced, or go, as its fields change.
   useLayoutEffect(() => {
     const next = anchor();
@@ -87,9 +99,12 @@ const Card = ({
   const blocked = useEffectEvent(() => isBlocked?.() ?? false);
   const warn = useEffectEvent(() => onBlocked?.());
   const close = useEffectEvent((byKey: boolean) => onClose(byKey));
-  const isInside = useEffectEvent((target: EventTarget | null) =>
-    target instanceof Node && Boolean(cardRef.current?.contains(target) || anchor()?.contains(target))
-  );
+  const isInside = useEffectEvent((target: EventTarget | null) => {
+    if (!(target instanceof Node)) return false;
+    const opener = anchor();
+    const isOpener = opener?.getAttribute("aria-haspopup") === "dialog";
+    return Boolean(cardRef.current?.contains(target) || (isOpener && opener?.contains(target)));
+  });
 
   useEffect(() => {
     if (hidden) return;
@@ -100,30 +115,34 @@ const Card = ({
       warn();
       return false;
     };
-    // What a press outside, still going on, was told.
+    // What a press outside was told, until its click.
     let told: boolean | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const onDown = (event: PointerEvent) => {
       told = isInside(event.target) || onScrollbar(event) ? null : mayClose();
     };
+    const end = () => {
+      clearTimeout(timer);
+      if (told) close(false);
+      told = null;
+    };
+    // Closing may move the page, so the press ends first, with its click. A drag may have none.
     const onUp = () => {
-      if (told === null) return;
-      // Closing may move the page, so the press ends where it began: after the click that follows.
-      timer = setTimeout(() => {
-        if (told) close(false);
-        told = null;
-      });
+      clearTimeout(timer);
+      if (told !== null) timer = setTimeout(end, NO_CLICK_MS);
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       if (mayClose()) close(true);
       // Once it shows.
-      else requestAnimationFrame(() => cardRef.current?.querySelector<HTMLElement>('[role="alert"]')?.focus());
+      else requestAnimationFrame(() => (cardRef.current?.querySelector<HTMLElement>('[role="alert"]') ?? cardRef.current)?.focus());
     };
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("pointerup", onUp, true);
-    document.addEventListener("pointercancel", onUp, true);
+    document.addEventListener("pointercancel", end, true);
+    // After what was pressed has had it.
+    window.addEventListener("click", end);
     document.addEventListener("keydown", onKey);
     const gate = () => told ?? mayClose();
     if (gateRef) gateRef.current = gate;
@@ -131,7 +150,8 @@ const Card = ({
       clearTimeout(timer);
       document.removeEventListener("pointerdown", onDown, true);
       document.removeEventListener("pointerup", onUp, true);
-      document.removeEventListener("pointercancel", onUp, true);
+      document.removeEventListener("pointercancel", end, true);
+      window.removeEventListener("click", end);
       document.removeEventListener("keydown", onKey);
       if (gateRef?.current === gate) gateRef.current = null;
     };
@@ -156,10 +176,7 @@ const Card = ({
 
   return (
     <div
-      ref={(element) => {
-        cardRef.current = element;
-        refs.setFloating(element);
-      }}
+      ref={setCard}
       role="dialog"
       aria-label={label}
       tabIndex={-1}

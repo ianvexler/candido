@@ -136,4 +136,15 @@ describe("createHeaderDraft", () => {
     expect(saves).toHaveLength(0);
     expect(await isIdle()).toBe(true);
   });
+
+  it("sends a loaded value after a save on its way, which would undo it", async () => {
+    const { draft, saves } = setup();
+    draft.change(() => ({ name: "A" }));
+    vi.advanceTimersByTime(600);
+    draft.load({ name: "Imported" });
+    expect(saves).toHaveLength(1);
+    saves[0].resolve();
+    await settled();
+    expect(saves.map(({ values }) => values.name)).toEqual(["A", "Imported"]);
+  });
 });
