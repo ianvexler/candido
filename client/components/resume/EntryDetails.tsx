@@ -45,6 +45,11 @@ export const useEntryMonths = (entry: SectionEntry, sectionId?: number) => {
     if (sectionId !== undefined) drafts?.set({ sectionId, entryId }, { start, end });
   }, [drafts, sectionId, entryId, start, end]);
 
+  const anyHalfPicked = halfPicked.start || halfPicked.end;
+  useEffect(() => {
+    if (anyHalfPicked && sectionId !== undefined) return drafts?.holdHalfPicked({ sectionId, entryId });
+  }, [drafts, sectionId, entryId, anyHalfPicked]);
+
   const isHalfTyped = (end: "start" | "end") => shown[end] !== "" && fromMonthInput(shown[end]) === null;
   const isUnfinished = (end: "start" | "end") => halfPicked[end] || isHalfTyped(end);
 

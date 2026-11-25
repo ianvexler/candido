@@ -124,13 +124,13 @@ const SectionDocument = ({
     [onChange]
   );
   const changeEntry = useCallback(
-    (id: string, changes: EntryChange, version?: number) =>
+    (id: string, changes: EntryChange, version?: number, gone?: boolean) =>
       changeEntries(
         (list) =>
           list.map((entry) =>
             entry.id === id ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
           ),
-        version === undefined ? undefined : { entryId: id, version }
+        version === undefined ? undefined : { entryId: id, version, gone }
       ),
     [changeEntries]
   );

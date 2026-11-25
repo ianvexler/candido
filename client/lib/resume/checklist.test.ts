@@ -696,17 +696,20 @@ describe("adding", () => {
   it("puts ticks back if nothing was written", () => {
     const before = cv([entry("a", ul(li("x")))], { hidden: true });
     const after = apply(before, showForBullet(before, "a"));
-    expect(ticks(apply(after, putBack(before, after)(after)))).toBe("a(x)");
+    expect(ticks(apply(after, putBack(before, after, "a")(after)))).toBe("a(x)");
 
     const written = { ...after, entries: [{ ...after.entries[0], title: "New" }] };
-    expect(putBack(before, after)(written)).toEqual({});
-    expect(putBack(before, after)({ ...after, hidden: true })).toEqual({});
+    expect(putBack(before, after, "a")(written)).toEqual({});
+    expect(putBack(before, after, "a")({ ...after, hidden: true })).toEqual({});
+
+    const withBlank = { ...after, entries: [{ ...after.entries[0], content: after.entries[0].content.replace("</ul>", "<li><p></p></li></ul>") }] };
+    expect(putBack(before, after, "a")(withBlank)).toMatchObject({ hidden: true });
   });
 
   it("puts a new entry that stayed blank away again", () => {
     const before = cv([entry("a")], { hidden: true });
     const after = apply(before, addEntry(before, blank));
-    expect(ticks(apply(after, putBack(before, after)(after)))).toBe("a()");
+    expect(ticks(apply(after, putBack(before, after, "new")(after)))).toBe("a()");
   });
 
   it("says what an entry has of its own", () => {

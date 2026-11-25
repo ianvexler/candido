@@ -22,13 +22,17 @@ export const emptyEntry = (): SectionEntry => ({
 
 export const cleanLine = (value: string | null) => value?.replace(/\s+/g, " ").trim() || null;
 
+/** As the server does, so that storing it isn't a change: an empty bullet alone is no content. */
+const cleanContent = (html: string) =>
+  html.replace(/<[^>]+>|&nbsp;/g, " ").trim() ? normalizeContent(html) : "";
+
 /** The entry as the server stores it, with its fields in a fixed order. */
 const cleanEntry = (entry: SectionEntry): SectionEntry => ({
   id: entry.id,
   title: cleanLine(entry.title) ?? "",
   description: entry.description?.trim() || null,
   description_off: Boolean(entry.description_off && entry.description?.trim()),
-  content: normalizeContent(entry.content),
+  content: cleanContent(entry.content),
   hidden: entry.hidden,
   role: cleanLine(entry.role),
   organization: cleanLine(entry.organization),

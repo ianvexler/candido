@@ -5,12 +5,12 @@ import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { cn } from "@/lib/utils";
 import { SUMMARY_ID, SectionEntry } from "@/lib/types";
 import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
+import { withoutBlankEnd } from "@/lib/resume/items";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
 import { memo, RefObject, useCallback, useContext, useEffect, useEffectEvent, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { withoutBlankEnd } from "./addBullet";
 import { EditChannelContext, EditTarget } from "./editChannel";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
@@ -141,9 +141,8 @@ const SectionEntryEditor = ({
       return field.current !== null;
     }
     if (!editor || editor.isDestroyed) return false;
-    // Without its version, so that an editor that has it loads anew.
     const drop = (latest: SectionEntry) => ({ content: withoutBlankEnd(latest.content) });
-    return editInEditor(editor, target, () => onEntryChange(entry.id, drop));
+    return editInEditor(editor, target, () => onEntryChange(entry.id, drop, version, true));
   };
   const onTarget = useEffectEvent(goTo);
   const channel = useContext(EditChannelContext);

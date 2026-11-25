@@ -53,12 +53,16 @@ const KIND_STYLES = {
 
 const CONTROL = "size-[28px] [@media(hover:none)]:size-[40px]";
 
-// Room for the row's controls, whether they show or not, so nothing moves.
+// Room for the row's controls, whether they show or not, beside a button they would
+// cover. Otherwise only its count has room, and they cover the end of the label.
 const CONTROLS_WIDTH = {
-  one: "w-[28px] [@media(hover:none)]:w-[40px]",
-  two: "w-[56px] [@media(hover:none)]:w-[80px]",
-  three: "w-[84px] [@media(hover:none)]:w-[120px]",
+  one: "min-w-[28px]",
+  two: "min-w-[56px]",
+  three: "min-w-[84px]",
 };
+
+const OVER_LABEL =
+  "absolute top-0 right-0 rounded-md bg-background group-hover/row:bg-[color-mix(in_oklab,var(--muted)_60%,var(--background))] [@media(hover:none)]:static [@media(hover:none)]:bg-transparent";
 
 // For the pointer, or the keyboard, or with the row's menu open; always for touch.
 const WITH_CONTROLS = {
@@ -172,12 +176,12 @@ const ChecklistRow = ({
         )}
       </label>
       {change}
-      <div className={cn("relative shrink-0", CONTROLS_WIDTH[width])}>
+      <div className={cn("relative min-h-[28px] shrink-0", change && hasControls && CONTROLS_WIDTH[width])}>
         {total > 0 && (
           <span
             id={countId}
             className={cn(
-              "absolute top-1 right-1 text-xs leading-5 font-normal whitespace-nowrap text-muted-foreground",
+              "block py-1 pr-1 text-right text-xs leading-5 font-normal whitespace-nowrap text-muted-foreground",
               hasControls && WITH_CONTROLS.hide
             )}
           >
@@ -185,7 +189,7 @@ const ChecklistRow = ({
           </span>
         )}
         {hasControls && (
-          <div className={cn("relative flex justify-end", WITH_CONTROLS.show)}>
+          <div className={cn("flex justify-end", OVER_LABEL, WITH_CONTROLS.show)}>
             {edit && <RowButton tip={edit.tip} label={edit.label} icon="edit" onClick={onEdit} />}
             {add && <RowButton tip={add.tip} label={add.label} icon="add" onClick={onAdd} />}
             {menu}
@@ -227,7 +231,7 @@ export const ChecklistItemRow = memo(
     transferring: boolean;
     onTransferItem: (itemId: string, direction: TransferDirection) => void;
     /** Without it, it can't be edited. */
-    onEditItem: ((itemId: string, ticked: boolean) => void) | null;
+    onEditItem: ((itemId: string) => void) | null;
   }) => {
     const { add, change } = changeControls(offer, {
       label: row.label,
@@ -244,7 +248,7 @@ export const ChecklistItemRow = memo(
         disabled={itemId === ""}
         onTick={(on) => onTickItem(itemId, inCv, on)}
         change={change}
-        edit={onEditItem ? { tip: "Edit", label: `Edit: ${textStart(row.label)}`, onClick: () => onEditItem(itemId, ticked) } : undefined}
+        edit={onEditItem ? { tip: "Edit", label: `Edit: ${textStart(row.label)}`, onClick: () => onEditItem(itemId) } : undefined}
         menu={add && <RowMenu label={row.label}>{add}</RowMenu>}
       />
     );

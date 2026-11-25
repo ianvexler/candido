@@ -11,25 +11,20 @@ export const isBare = ({ entries }: ChecklistSection): boolean => {
   );
 };
 
-/** Where a row's pencil goes, and whether what it goes to is in the CV. */
-export type RowEdit = { target: EditTarget; ticked: boolean };
-
-/** Null for what the CV has no copy of, or can't find. */
+/** Where an item's pencil goes. Null for what the CV has no copy of, or can't find. */
 export const itemEdit = (
   sectionId: number | null,
   entryId: string,
-  { id, inCv, ticked }: Pick<ChecklistItem, "id" | "inCv" | "ticked">
-): RowEdit | null => {
+  { id, inCv }: Pick<ChecklistItem, "id" | "inCv">
+): EditTarget | null => {
   if (sectionId === null || !inCv || id === "") return null;
-  const target: EditTarget =
-    id === SUMMARY_ID ? { sectionId, entryId, what: "summary" } : { sectionId, entryId, what: "item", itemId: id };
-  return { target, ticked };
+  return id === SUMMARY_ID ? { sectionId, entryId, what: "summary" } : { sectionId, entryId, what: "item", itemId: id };
 };
 
 /** To its title, or without one to its first text: the details, or a ticked item first. */
-export const entryEdit = (sectionId: number | null, { id, inCv, ticked, has, items }: ChecklistEntry): RowEdit | null => {
+export const entryEdit = (sectionId: number | null, { id, inCv, has, items }: ChecklistEntry): EditTarget | null => {
   if (sectionId === null || !inCv) return null;
-  const to = (what: "title" | "details"): RowEdit => ({ target: { sectionId, entryId: id, what }, ticked });
+  const to = (what: "title" | "details"): EditTarget => ({ sectionId, entryId: id, what });
   if (has.title) return to("title");
   if (has.details) return to("details");
   const item = items.find((each) => each.ticked) ?? items.find((each) => each.inCv && each.id !== "");

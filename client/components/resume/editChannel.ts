@@ -23,8 +23,10 @@ export const createEditChannel = () => {
 
   const stop = () => asked?.abort();
 
-  const ask = (target: EditTarget) => {
+  const ask = (place: EditTarget) => {
     stop();
+    // An object of this ask's own, for what is done once for each.
+    const target = { ...place };
     const attempt = () => [...handlers].some((handler) => handler(target));
     if (attempt()) return;
 

@@ -131,21 +131,21 @@ const EntryRows = memo(({
   );
 
   const editItem = useCallback(
-    (itemId: string, ticked: boolean) => {
-      const edit = itemEdit(sectionId, entry.id, { id: itemId, inCv: true, ticked });
-      if (edit) edits.edit(edit.target, edit.ticked);
+    (itemId: string) => {
+      const target = itemEdit(sectionId, entry.id, { id: itemId, inCv: true });
+      if (target) edits.edit(target);
     },
     [edits, sectionId, entry.id]
   );
 
   const edit = entryEdit(sectionId, entry);
   const editTip = entry.has.title ? "Edit title" : "Edit";
-  const goEdit = () => edit && edits.edit(edit.target, edit.ticked);
+  const goEdit = () => edit && edits.edit(edit);
   const addBullet = () => sectionId !== null && edits.addBullet(sectionId, entry.id);
   const missing = (what: "title" | "summary" | "details", label: string, icon: RowMenuAction["icon"]): RowMenuAction[] =>
     sectionId === null || entry.has[what]
       ? []
-      : [{ label, icon, onSelect: () => edits.edit({ sectionId, entryId: entry.id, what }, entry.ticked) }];
+      : [{ label, icon, onSelect: () => edits.edit({ sectionId, entryId: entry.id, what }) }];
 
   const rowId = sectionId === null ? undefined : rowIdOf({ sectionId, entryId: entry.id });
   const { add, change } = entryControls({ entry, sectionId, offerChanges, pending, actions }, entry.title, rowId ?? "");
@@ -278,7 +278,7 @@ const ChecklistSection = ({
     ? entryControls({ entry: only, sectionId, offerChanges, pending, actions }, label, rowId)
     : {};
 
-  const editHeading = () => inCv && edits.edit({ sectionId, what: "heading" }, section.ticked);
+  const editHeading = () => inCv && edits.edit({ sectionId, what: "heading" });
   const addEntry = () => inCv && edits.addEntry(sectionId);
   const addBullet = () => inCv && edits.addBullet(sectionId, only.id);
 

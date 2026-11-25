@@ -2,7 +2,7 @@
 
 import { DesignSettings, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, KeptPlace, ResumeDocument } from "@/lib/resume/exportDocument";
-import { showHiddenText } from "@/lib/resume/items";
+import { showHiddenText, withoutBlankEnd } from "@/lib/resume/items";
 import type { EntryVersions } from "@/lib/resume/sectionDrafts";
 import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@/lib/types";
 import {
@@ -21,7 +21,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { withoutBlankEnd } from "../addBullet";
 import { EditChannelContext, EditTarget } from "../editChannel";
 import { ResumeTemplate } from "../templates/ResumeTemplate";
 import type { Added } from "../useAdded";
@@ -157,7 +156,14 @@ const Page = ({
       openCard,
       hasEntry: (sectionId, entryId) => entryAt(sections, sectionId, entryId) !== null,
       onLost: (sectionId, entryId) =>
-        changeEntry(onSectionChange, sectionId, entryId, ({ content }) => ({ content: withoutBlankEnd(content) })),
+        changeEntry(
+          onSectionChange,
+          sectionId,
+          entryId,
+          ({ content }) => ({ content: withoutBlankEnd(content) }),
+          versions[sectionId]?.[entryId] ?? 0,
+          true
+        ),
     })
   );
   useEffect(() => (readOnly ? undefined : channel?.handle((target) => onTarget(target))), [channel, readOnly]);

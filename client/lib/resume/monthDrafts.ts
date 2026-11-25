@@ -11,6 +11,7 @@ const isHalf = (month: string) => month !== "" && fromMonthInput(month) === null
 /** Holds half-typed months, which aren't dates yet, while what shows them changes. */
 export const createMonthDrafts = () => {
   const held = new Map<string, Place & { months: TypedMonths }>();
+  const halfPicked = new Set<string>();
   const keyOf = ({ sectionId, entryId }: Place) => `${sectionId}:${entryId}`;
 
   return {
@@ -22,6 +23,14 @@ export const createMonthDrafts = () => {
     },
     clear: (place: Place) => void held.delete(keyOf(place)),
     places: (): Place[] => [...held.values()].map(({ sectionId, entryId }) => ({ sectionId, entryId })),
+    /** What the browser's own picker has half of, until released: it isn't kept. */
+    holdHalfPicked: (place: Place) => {
+      const key = keyOf(place);
+      halfPicked.add(key);
+      return () => void halfPicked.delete(key);
+    },
+    /** One of its months is half written. */
+    isUnfinished: (place: Place) => held.has(keyOf(place)) || halfPicked.has(keyOf(place)),
     /** Drops those of entries that aren't in the CV any more. */
     prune: (sections: Pick<CurriculumSection, "id" | "hidden" | "entries">[]) =>
       held.forEach(({ sectionId, entryId }, key) => {

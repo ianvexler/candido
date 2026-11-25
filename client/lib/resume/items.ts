@@ -262,3 +262,18 @@ export const mergeEdited = (full: string, visible: string, hidden: string[]): st
   const merged = mergeVisible(setItemsOff(full, tickedSince, true), visible);
   return setItemsOff(setItemsOff(merged, tickedSince, false), untickedSince, true);
 };
+
+/** Content without a blank bullet at the end of its last list, or of the list nested there. */
+export const withoutBlankEnd = (html: string): string => {
+  const content = parseHtml(html);
+  let list = content.querySelector(":scope > :is(ul, ol):not(:has(~ ul, ~ ol))");
+  while (list?.lastElementChild && textOf(list.lastElementChild)) {
+    const { lastElementChild: inner }: Element = list.lastElementChild;
+    list = isList(inner) ? inner : null;
+  }
+  const last = list?.lastElementChild;
+  if (!list || !last) return html;
+  last.remove();
+  if (list.children.length === 0) list.remove();
+  return content.innerHTML;
+};

@@ -4,6 +4,7 @@ import { markPending, markSettled, trackSave } from "./saveTracker";
 import { cleanFields, emptyEntry, endsBeforeStart } from "./sectionEntries";
 
 const SAVE_DELAY_MS = 600;
+const BUSY_DELAY_MS = 100;
 // Only someone typing on without a pause gets this far.
 const MAX_FLUSHES = 20;
 
@@ -14,7 +15,12 @@ export type SectionPatch = Partial<SectionFields & { hidden: boolean; placement:
 export type SectionChange = SectionPatch | ((current: SectionDraft) => SectionPatch);
 
 /** The entry editor a change comes from, and the version it shows. */
-export type EntryEditor = { entryId: string; version: number };
+export type EntryEditor = {
+  entryId: string;
+  version: number;
+  /** It left, so one that shows the entry since doesn't have the change. */
+  gone?: boolean;
+};
 /** By entry id. Goes up (from 0) when an entry's editor has to be remounted to show its text. */
 export type EntryVersions = Record<string, number>;
 
@@ -384,9 +390,15 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
       notify();
     },
 
-    change: (id: number, change: SectionChange, editor?: EntryEditor) => {
+    change: function takeChange(id: number, change: SectionChange, editor?: EntryEditor): void {
       const draft = find(id);
       if (!draft) return;
+      if (editor?.gone) {
+        // About text that was replaced since.
+        if (editor.version < (draft.replacedAt[editor.entryId] ?? 0)) return;
+        // It remounts what shows the entry now.
+        if (!disposed && busy()) return void setTimeout(() => takeChange(id, change, editor), BUSY_DELAY_MS);
+      }
       const { current } = draft;
       const patch = typeof change === "function" ? change(current) : change;
       const next: T = { ...current, ...patch };
@@ -396,7 +408,7 @@ export const createDrafts = <T extends SectionDraft & { id: number }>({
           return entry.id === editor.entryId && shown ? { ...entry, content: shown.content } : entry;
         });
       }
-      show(draft, next, { editor });
+      show(draft, next, { editor: editor?.gone ? undefined : editor });
       edited(draft);
       notify();
     },

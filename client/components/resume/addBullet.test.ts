@@ -1,7 +1,8 @@
 import { Editor } from "@tiptap/core";
 import { redo, undo, undoDepth } from "@tiptap/pm/history";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { addBullet, caretAtItem, withoutBlankEnd } from "./addBullet";
+import { withoutBlankEnd } from "@/lib/resume/items";
+import { addBullet, caretAtItem } from "./addBullet";
 import { contentExtensions } from "./review/replaceInContent";
 
 let editor: Editor;
@@ -123,6 +124,33 @@ describe("a bullet left empty", () => {
     expect(editor.state.doc.firstChild!.childCount).toBe(4);
   });
 
+  it("goes too if it was there already, in a step of its own", () => {
+    open(`<ul><li data-cv-item="a"><p>A</p></li><li data-cv-item="b"><p></p></li></ul>`);
+    const before = html();
+    type("x");
+    const typed = html();
+    add();
+    leave();
+    expect(html()).not.toContain("<p></p></li>");
+    expect(editor.state.doc.firstChild!.childCount).toBe(1);
+    undo(editor.state, editor.view.dispatch);
+    expect(html()).toBe(typed);
+    undo(editor.state, editor.view.dispatch);
+    expect(html()).toBe(before);
+  });
+
+  it("is undone as one if it is asked for twice", () => {
+    open(`<ul><li data-cv-item="a"><p>A</p></li></ul>`);
+    const before = html();
+    const depth = undoDepth(editor.state);
+    add();
+    outside.focus();
+    add();
+    leave();
+    expect(html()).toBe(before);
+    expect(undoDepth(editor.state)).toBe(depth);
+  });
+
   it("stays while another window has the focus, or a toolbar", () => {
     open(`<ul><li data-cv-item="a"><p>A</p></li></ul>`);
     add();
@@ -163,6 +191,8 @@ it.each([
   ["<p>A</p><ul><li><p></p></li></ul>", "<p>A</p>"],
   ["<ul><li><p></p></li></ul>", ""],
   ["<ul><li><p>A</p></li></ul>", "<ul><li><p>A</p></li></ul>"],
+  ["<ul><li><p>A</p><ul><li><p></p></li></ul></li></ul>", "<ul><li><p>A</p></li></ul>"],
+  ["<ul><li><p>A</p><ul><li><p>B</p></li><li><p></p></li></ul></li></ul>", "<ul><li><p>A</p><ul><li><p>B</p></li></ul></li></ul>"],
 ])("withoutBlankEnd(%s)", (content, wanted) => expect(withoutBlankEnd(content)).toBe(wanted));
 
 describe("caretAtItem", () => {

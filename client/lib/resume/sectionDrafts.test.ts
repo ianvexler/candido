@@ -703,3 +703,45 @@ describe("setRecord", () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+describe("a change from an editor that is gone", () => {
+  const drop = { entries: [entry("a", { content: "<p>A</p>" })] };
+  const setUp = (busy = () => false) => setup([section({ entries: [entry("a", { content: "<p>A</p><p>B</p>" })] })], busy);
+
+  it("is put into the editor that came after it", () => {
+    const { drafts, shown, version } = setUp();
+    const before = version("a");
+    drafts.change(1, drop, { entryId: "a", version: 0, gone: true });
+    expect(shown().entries[0].content).toBe("<p>A</p>");
+    expect(version("a")).toBeGreaterThan(before);
+  });
+
+  it("is not made to text that was replaced since", () => {
+    const { drafts, shown } = setUp();
+    drafts.change(1, { entries: [entry("a", { content: "<p>New</p>" })] });
+    drafts.change(1, drop, { entryId: "a", version: 0, gone: true });
+    expect(shown().entries[0].content).toBe("<p>New</p>");
+  });
+
+  it("waits while text is being composed", async () => {
+    let composing = true;
+    const { drafts, shown } = setUp(() => composing);
+    drafts.change(1, drop, { entryId: "a", version: 0, gone: true });
+    expect(shown().entries[0].content).toBe("<p>A</p><p>B</p>");
+    composing = false;
+    await vi.advanceTimersByTimeAsync(200);
+    expect(shown().entries[0].content).toBe("<p>A</p>");
+  });
+});
+
+it("keeps an empty bullet on screen that the server stores as nothing", async () => {
+  const { drafts, calls, shown, version } = setup([section({ entries: [entry("a", { title: "A", content: "" })] })]);
+  const blank = "<ul><li><p></p></li></ul>";
+  drafts.change(1, { entries: [entry("a", { title: "B", content: blank })] }, { entryId: "a", version: 0 });
+  await pause();
+  expect(calls[0].patch.entries![0].content).toBe("");
+  calls[0].resolve();
+  await settle();
+  expect(shown().entries[0].content).toBe(blank);
+  expect(version("a")).toBe(0);
+});

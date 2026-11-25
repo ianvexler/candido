@@ -4,7 +4,7 @@ import { whenLeft } from "./whenLeft";
 
 /** What was just added, or a field asked for that was missing. */
 export type Added = {
-  what: "section" | "entry" | "bullet" | "title" | "summary";
+  what: "section" | "entry" | "bullet" | "title" | "summary" | "details";
   sectionId: number;
   entryId: string;
   /** The entry's items when it was added. */
@@ -13,8 +13,11 @@ export type Added = {
   putBack?: () => void;
 };
 
-const placeOf = ({ what, sectionId, entryId }: Added) =>
-  `[data-section-id="${sectionId}"]` + (what === "section" ? "" : ` [data-entry-id="${CSS.escape(entryId)}"]`);
+const isInPlace = ({ what, sectionId, entryId }: Added) => {
+  const place =
+    `[data-section-id="${sectionId}"]` + (what === "section" ? "" : ` [data-entry-id="${CSS.escape(entryId)}"]`);
+  return (element: Element) => element.closest(what === "details" ? `${place}, [role=dialog]` : place) !== null;
+};
 
 /**
  * What was just added in a CV: it offers a place to write, and stays in a search,
@@ -22,24 +25,50 @@ const placeOf = ({ what, sectionId, entryId }: Added) =>
  */
 export const useAdded = (view: CvView) => {
   const [added, setAdded] = useState<Added | null>(null);
-  const latest = useRef(added);
+  const latest = useRef<Added | null>(null);
+  // Left, and not put back yet.
+  const leaving = useRef<{ added: Added; timer: ReturnType<typeof setTimeout> } | null>(null);
+
+  const putBackLeft = useCallback(() => {
+    if (!leaving.current) return;
+    const left = leaving.current;
+    leaving.current = null;
+    clearTimeout(left.timer);
+    left.added.putBack?.();
+  }, []);
 
   const end = useCallback(() => {
+    putBackLeft();
     const ended = latest.current;
     latest.current = null;
     setAdded(null);
     // After a bullet left empty in it is gone.
-    if (ended?.putBack) setTimeout(ended.putBack);
+    if (ended?.putBack) leaving.current = { added: ended, timer: setTimeout(putBackLeft) };
+  }, [putBackLeft]);
+
+  /** Gives what was added last, if it isn't put back yet, to the caller: to put back, or to go on with. */
+  const take = useCallback((): Added | null => {
+    const now = latest.current;
+    latest.current = null;
+    if (now) {
+      putBackLeft();
+      return now;
+    }
+    const left = leaving.current;
+    leaving.current = null;
+    clearTimeout(left?.timer);
+    return left?.added ?? null;
+  }, [putBackLeft]);
+
+  /** After taking what came before. */
+  const start = useCallback((next: Added | null) => {
+    latest.current = next;
+    setAdded(next);
   }, []);
 
-  useEffect(() => {
-    latest.current = added;
-    if (!added) return;
-    const place = placeOf(added);
-    return whenLeft((element) => element.closest(place) !== null, end);
-  }, [added, end]);
+  useEffect(() => (added ? whenLeft(isInPlace(added), end) : undefined), [added, end]);
 
   useEffect(() => end, [view, end]);
 
-  return [added, setAdded, end] as const;
+  return { added, start, take };
 };

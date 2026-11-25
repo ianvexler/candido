@@ -24,12 +24,7 @@ describe("where a row's pencil goes", () => {
     ["its summary", entry({ items: [item(SUMMARY_ID)] }), { what: "summary" }],
     ["its title to write one", entry(), { what: "title" }],
   ])("an entry's to %s", (_, row, wanted) => {
-    expect(entryEdit(1, row)).toEqual({ target: { sectionId: 1, entryId: "a", ...wanted }, ticked: true });
-  });
-
-  it("asks for a tick first", () => {
-    expect(entryEdit(1, entry({ items: [item("x", { ticked: false })] }))).toMatchObject({ ticked: false, target: { itemId: "x" } });
-    expect(entryEdit(1, entry({ ticked: false, has: has({ title: true }) }))).toMatchObject({ ticked: false });
+    expect(entryEdit(1, row)).toEqual({ sectionId: 1, entryId: "a", ...wanted });
   });
 
   it("isn't there for what the CV has no copy of, or has no id", () => {

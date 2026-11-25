@@ -70,7 +70,7 @@ it("only goes to what was asked for last, and not to a view that left", () => {
   channel.ask(other);
   handler.mockClear();
   vi.advanceTimersByTime(100);
-  expect(handler.mock.calls.every(([asked]) => asked === other)).toBe(true);
+  expect(handler.mock.calls.every(([asked]) => asked.what === other.what)).toBe(true);
   leave();
   handler.mockClear();
   vi.advanceTimersByTime(100);

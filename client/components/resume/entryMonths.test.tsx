@@ -74,3 +74,16 @@ it("drops it with its entry", () => {
   drafts.prune([{ id: 1, hidden: false, entries: [{ ...ENTRY, hidden: true }] }]);
   expect(drafts.places()).toEqual([]);
 });
+
+it("counts a half-picked month as unfinished until it is completed or gone", () => {
+  expect(drafts.isUnfinished(PLACE)).toBe(false);
+  act(() => months.setHalfPicked("end", true));
+  expect(drafts.isUnfinished(PLACE)).toBe(true);
+  act(() => months.setHalfPicked("end", false));
+  expect(drafts.isUnfinished(PLACE)).toBe(false);
+  act(() => months.setHalfPicked("end", true));
+  showAnew();
+  expect(drafts.isUnfinished(PLACE)).toBe(false);
+  type("2021-");
+  expect(drafts.isUnfinished(PLACE)).toBe(true);
+});

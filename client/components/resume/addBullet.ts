@@ -1,4 +1,3 @@
-import { parseHtml, textOf } from "@/lib/resume/items";
 import type { Editor } from "@tiptap/core";
 import { closeHistory, undoNoScroll } from "@tiptap/pm/history";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -18,11 +17,15 @@ const lastList = (doc: PMNode) => {
   return found as { node: PMNode; pos: number } | null;
 };
 
-/** Watches an empty bullet until the editor is left: it goes then, if still empty. */
-const dropIfLeftEmpty = (editor: Editor, caret: number, onLost: () => void) => {
+// Where the bullet is that each editor's is watched for, while it is empty.
+const watched = new WeakMap<Editor, () => number | null>();
+
+/** Watches an empty bullet, new or there before, until the editor is left: it goes then, if still empty. */
+const dropIfLeftEmpty = (editor: Editor, caret: number, isNew: boolean, onLost: () => void) => {
   // In its text: the bullet itself may be indented.
   let pos = caret;
   let touched = false;
+  const startOf = () => bullet()?.start ?? null;
   const onTransaction = ({ transaction }: { transaction: Transaction }) => {
     if (!transaction.docChanged) return;
     touched = true;
@@ -39,7 +42,7 @@ const dropIfLeftEmpty = (editor: Editor, caret: number, onLost: () => void) => {
     const found = bullet();
     if (!found) return;
     // As if it had never been added.
-    if (!touched) return void undoNoScroll(state, view.dispatch);
+    if (isNew && !touched) return void undoNoScroll(state, view.dispatch);
     const { tr, schema } = state;
     const { node, start } = found;
     const list = state.doc.resolve(start);
@@ -47,11 +50,12 @@ const dropIfLeftEmpty = (editor: Editor, caret: number, onLost: () => void) => {
     else if (list.depth > 1 || state.doc.childCount > 1) tr.delete(list.before(), list.after());
     else tr.replaceWith(0, state.doc.content.size, schema.nodes.paragraph.create());
     // One undo step with what emptied it.
-    view.dispatch(tr.setMeta("appendedTransaction", state.tr));
+    view.dispatch(touched ? tr.setMeta("appendedTransaction", state.tr) : closeHistory(tr));
   };
 
   const stop = () => {
     stopWatching();
+    if (watched.get(editor) === startOf) watched.delete(editor);
     editor.off("transaction", onTransaction);
     editor.off("destroy", onDestroy);
   };
@@ -67,13 +71,15 @@ const dropIfLeftEmpty = (editor: Editor, caret: number, onLost: () => void) => {
     stop();
     if (bullet()) setTimeout(onLost);
   };
+  watched.set(editor, startOf);
   editor.on("transaction", onTransaction);
   editor.on("destroy", onDestroy);
 };
 
 /**
  * Puts the caret in an empty bullet at the end of the last list, or of a new one.
- * One left empty goes, or if the editor goes first is reported: see withoutBlankEnd.
+ * One left empty goes, also one that was there, or if the editor goes first is
+ * reported: see withoutBlankEnd.
  */
 export const addBullet = (editor: Editor, onLost: () => void) => {
   const { view, state } = editor;
@@ -84,6 +90,7 @@ export const addBullet = (editor: Editor, onLost: () => void) => {
     const end = list.pos + list.node.nodeSize - 2;
     view.dispatch(state.tr.setSelection(Selection.near(doc.resolve(end), -1)));
     view.focus();
+    if (watched.get(editor)?.() !== end - last.nodeSize + 1) dropIfLeftEmpty(editor, view.state.selection.head, false, onLost);
     return;
   }
 
@@ -104,18 +111,7 @@ export const addBullet = (editor: Editor, onLost: () => void) => {
   view.dispatch(tr.setSelection(TextSelection.create(tr.doc, at + 2)));
   view.dispatch(closeHistory(view.state.tr));
   view.focus();
-  dropIfLeftEmpty(editor, at + 2, onLost);
-};
-
-/** Content without a blank bullet at the end of its last list. */
-export const withoutBlankEnd = (html: string): string => {
-  const content = parseHtml(html);
-  const list = content.querySelector(":scope > :is(ul, ol):not(:has(~ ul, ~ ol))");
-  const last = list?.lastElementChild;
-  if (!list || !last || textOf(last)) return html;
-  last.remove();
-  if (list.children.length === 0) list.remove();
-  return content.innerHTML;
+  dropIfLeftEmpty(editor, at + 2, true, onLost);
 };
 
 /** After the last text of an item that shows, or null without the item. */

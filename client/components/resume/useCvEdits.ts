@@ -1,4 +1,4 @@
-import { addEntry, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
+import { addEntry, isIn, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
 import { isLeftOut } from "@/lib/resume/exportDocument";
 import { listItems } from "@/lib/resume/items";
 import { emptyEntry } from "@/lib/resume/sectionEntries";
@@ -13,15 +13,18 @@ import type { CvView } from "./useCvView";
 /** What the checklist adds and edits. The functions stay the same. */
 export type CvEdits = {
   /** Ticks what isn't in the CV first. */
-  edit: (target: EditTarget, ticked: boolean) => void;
+  edit: (target: EditTarget) => void;
   addEntry: (sectionId: number) => void;
   addBullet: (sectionId: number, entryId: string) => void;
 };
 
+const itemOf = (target: EditTarget) =>
+  target.what === "item" ? target.itemId : target.what === "summary" ? SUMMARY_ID : "";
+
 const tick = (target: EditTarget) => (section: SectionDraft): SectionPatch => {
+  const itemId = itemOf(target);
   if (target.what === "heading") return tickSection(section, true);
   const { entryId } = target;
-  const itemId = target.what === "item" ? target.itemId : target.what === "summary" ? SUMMARY_ID : "";
   const item = tickItem(section, entryId, itemId, true);
   return Object.keys(item).length > 0 ? item : tickEntry(section, entryId, true);
 };
@@ -33,12 +36,28 @@ interface CvEditsOptions {
   view: CvView;
   /** Brings the CV to the screen, where it is one of several tabs. */
   showCv: () => void;
+  /** A month of the entry is half written, which its draft doesn't have. */
+  isUnfinished: (sectionId: number, entryId: string) => boolean;
 }
 
+/** What to keep offering while a target is gone to. `last` is what was added there just before, if it may be put back. */
+const addedFor = (target: EditTarget, last: Added | null, known: string[]): Added | null => {
+  const { sectionId, what } = target;
+  const back = last?.putBack && { putBack: last.putBack };
+  if (what === "heading") return last && { what: "section", sectionId, entryId: last.entryId, known: last.known, ...back };
+  const { entryId } = target;
+  const offered = { sectionId, entryId, known: last?.known ?? known, ...back };
+  // A new entry goes on offering its text too.
+  if (what === "title") return { ...offered, what: last?.what === "entry" ? "entry" : "title" };
+  // Offered even while empty.
+  if (what === "summary" || what === "bullet") return { ...offered, what };
+  return last && { ...offered, what: what === "details" ? "details" : "bullet" };
+};
+
 /** Adding to a CV and going to what is edited, in the view that is on the screen. */
-export const useCvEdits = ({ current, change, view, showCv }: CvEditsOptions) => {
+export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEditsOptions) => {
   const [channel] = useState(createEditChannel);
-  const [added, setAdded, endAdded] = useAdded(view);
+  const { added, start, take } = useAdded(view);
   useEffect(() => channel.stop, [channel, view]);
   const latestShow = useRef(showCv);
   useEffect(() => {
@@ -50,15 +69,31 @@ export const useCvEdits = ({ current, change, view, showCv }: CvEditsOptions) =>
   /** On the screen at once, so a place that is there has the focus within the press. */
   const go = useCallback(
     (target: EditTarget, next: Added | null, patch?: (section: SectionDraft) => SectionPatch) => {
-      endAdded();
       flushSync(() => {
         latestShow.current();
         if (patch) change(target.sectionId, patch);
-        setAdded(next);
+        start(next);
       });
       channel.ask(target);
     },
-    [change, channel, endAdded, setAdded]
+    [change, channel, start]
+  );
+
+  /**
+   * What was added last, if the target goes on with it: what it ticked is put back
+   * only once that is left too. Otherwise that is done here and now.
+   */
+  const goOn = useCallback(
+    (target: EditTarget): Added | null => {
+      const last = take();
+      if (!last?.putBack) return null;
+      const same =
+        last.sectionId === target.sectionId && (target.what === "heading" || target.entryId === last.entryId);
+      if (same) return last;
+      last.putBack();
+      return null;
+    },
+    [take]
   );
 
   const edits = useMemo<CvEdits>(() => {
@@ -72,10 +107,14 @@ export const useCvEdits = ({ current, change, view, showCv }: CvEditsOptions) =>
       patch: (section: SectionDraft) => SectionPatch
     ) => {
       const { sectionId, entryId } = target;
+      const last = goOn(target);
       const before = find(sectionId);
       if (!before) return;
       const after = { ...before, ...patch(before) };
       const wasOut = isLeftOut(before) || before.entries.some(({ id, hidden }) => id === entryId && hidden);
+      const back = () => {
+        if (!isUnfinished(sectionId, entryId)) change(sectionId, putBack(before, after, entryId));
+      };
       go(
         target,
         {
@@ -83,21 +122,21 @@ export const useCvEdits = ({ current, change, view, showCv }: CvEditsOptions) =>
           sectionId,
           entryId,
           known: known(sectionId, entryId),
-          putBack: wasOut ? () => change(sectionId, putBack(before, after)) : undefined,
+          putBack: wasOut ? back : last?.putBack,
         },
         patch
       );
     };
 
     return {
-      edit: (target, ticked) => {
-        const { sectionId, what } = target;
-        // Offered even while empty.
-        const next: Added | null =
-          what === "title" || what === "summary"
-            ? { what, sectionId, entryId: target.entryId, known: known(sectionId, target.entryId) }
-            : null;
-        go(target, next, ticked ? undefined : tick(target));
+      edit: (target) => {
+        const last = goOn(target);
+        // As it is now: what a row showed may just have been put back.
+        const section = find(target.sectionId);
+        if (!section) return;
+        const entryId = target.what === "heading" ? undefined : target.entryId;
+        const next = addedFor(target, last, entryId === undefined ? [] : known(target.sectionId, entryId));
+        go(target, next, isIn(section, entryId, itemOf(target)) ? undefined : tick(target));
       },
       addEntry: (sectionId) => {
         const entry = emptyEntry();
@@ -106,19 +145,18 @@ export const useCvEdits = ({ current, change, view, showCv }: CvEditsOptions) =>
       addBullet: (sectionId, entryId) =>
         add({ sectionId, entryId, what: "bullet" }, "bullet", (section) => showForBullet(section, entryId)),
     };
-  }, [change, find, go]);
+  }, [change, find, go, goOn, isUnfinished]);
 
   /** Goes to a section that was just added. */
   const goToNew = useCallback(
     (sectionId: number) => {
+      const target: EditTarget = { sectionId, what: "heading", selected: true };
+      goOn(target);
       // As the drafts have it: with an entry to write in.
       const entry = find(sectionId)?.entries[0];
-      go(
-        { sectionId, what: "heading", selected: true },
-        entry ? { what: "section", sectionId, entryId: entry.id, known: [] } : null
-      );
+      go(target, entry ? { what: "section", sectionId, entryId: entry.id, known: [] } : null);
     },
-    [find, go]
+    [find, go, goOn]
   );
 
   return { channel, added, edits, goToNew };

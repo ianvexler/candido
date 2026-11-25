@@ -52,11 +52,16 @@ const CvPage = ({ id }: { id: string }) => {
   const [mayLeaveCards] = useState(createHalfPickedGate);
   const [editors] = useState(createPageEditors);
   const headerBinding = useHeaderBinding(header);
+  const isUnfinished = useCallback(
+    (sectionId: number, entryId: string) => monthDrafts.isUnfinished({ sectionId, entryId }),
+    [monthDrafts]
+  );
   const { channel, added, edits, goToNew } = useCvEdits({
     current: drafts.current,
     change,
     view: onPage ? "page" : "cards",
     showCv: () => setTab("cv"),
+    isUnfinished,
   });
 
   // Stays the same, for the checklist's memo.

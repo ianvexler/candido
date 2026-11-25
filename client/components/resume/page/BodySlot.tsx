@@ -32,7 +32,8 @@ export const changeEntry = (
   sectionId: number,
   entryId: string,
   changes: EntryChange,
-  version?: number
+  version?: number,
+  gone?: boolean
 ) =>
   onSectionChange(
     sectionId,
@@ -41,7 +42,7 @@ export const changeEntry = (
         entry.id === entryId ? { ...entry, ...(typeof changes === "function" ? changes(entry) : changes) } : entry
       ),
     }),
-    version === undefined ? undefined : { entryId, version }
+    version === undefined ? undefined : { entryId, version, gone }
   );
 
 interface SummaryCardProps extends SuggestionProps {
@@ -83,7 +84,8 @@ const BodySlot = ({ sectionId, isFirst, entry, version }: BodySlotProps) => {
   const subscribe = useCallback((listener: () => void) => near.subscribe(key, listener), [near, key]);
   const isNear = useSyncExternalStore(subscribe, () => near.has(key));
   const onEntryChange = useCallback(
-    (id: string, changes: EntryChange, from?: number) => changeEntry(onSectionChange, sectionId, id, changes, from),
+    (id: string, changes: EntryChange, from?: number, gone?: boolean) =>
+      changeEntry(onSectionChange, sectionId, id, changes, from, gone),
     [onSectionChange, sectionId]
   );
   const ofSection = suggestionsBySection?.get(sectionId);

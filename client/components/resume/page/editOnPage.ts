@@ -13,6 +13,9 @@ interface EditOnPageOptions {
   onLost: (sectionId: number, entryId: string) => void;
 }
 
+// The asks that focused the text an editor takes the place of.
+const loading = new WeakSet<EditTarget>();
+
 /** Goes to a place on the page. False while it isn't there. */
 export const editOnPage = (target: EditTarget, { root, editors, openCard, hasEntry, onLost }: EditOnPageOptions): boolean => {
   const { sectionId } = target;
@@ -42,7 +45,11 @@ export const editOnPage = (target: EditTarget, { root, editors, openCard, hasEnt
   if (editor && !editor.isDestroyed && entry?.contains(editor.view.dom)) {
     return editInEditor(editor, target, () => onLost(sectionId, entryId));
   }
-  // Loads the editor.
-  find(entry, '.page-entry-body > [role="textbox"]')?.focus({ preventScroll: true });
+  // Loads the editor. Once: the focus may go on before that is there.
+  const text = loading.has(target) ? null : find(entry, '.page-entry-body > [role="textbox"]');
+  if (text) {
+    loading.add(target);
+    text.focus({ preventScroll: true });
+  }
   return false;
 };

@@ -11,9 +11,10 @@ export type EntryChange = Partial<SectionEntry> | ((latest: SectionEntry) => Par
 
 /**
  * A function gets the latest entry, which may be newer than the one shown. Without
- * a version the change isn't the editor's, and is put into it.
+ * a version the change isn't the editor's, and is put into it, as is that of one
+ * that is gone.
  */
-export type OnEntryChange = (id: string, changes: EntryChange, version?: number) => void;
+export type OnEntryChange = (id: string, changes: EntryChange, version?: number, gone?: boolean) => void;
 
 interface EntryEditorOptions {
   entry: SectionEntry;

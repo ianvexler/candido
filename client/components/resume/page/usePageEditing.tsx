@@ -49,7 +49,7 @@ export const usePageEditing = (
     };
   }, [rootRef, headerBinding, readOnly]);
 
-  const opened = open && open.what !== "section" && open.what !== "bullet" ? open : null;
+  const opened = open && ["entry", "title", "summary"].includes(open.what) ? open : null;
   const openField = opened?.what === "entry" ? "title" : opened?.what;
   const openIn = opened && entryKey(opened.sectionId, opened.entryId);
   const sections = useMemo<PageEditing>(() => {

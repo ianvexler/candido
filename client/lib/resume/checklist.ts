@@ -1,10 +1,11 @@
 import { CurriculumSection, CvSuggestion, EntryFieldKeys, SUMMARY_ID, SectionEntry, SectionTemplate } from "@/lib/types";
-import { Item, isSeparator, listItems, parseHtml, setItemsOff } from "./items";
+import { Item, isSeparator, listItems, parseHtml, setItemsOff, withoutBlankEnd } from "./items";
 import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState, shownText, summaryState } from "./itemState";
 import { hasVisibleText } from "@/components/resume/documentContent";
 import { hasDetails } from "@/components/resume/sectionDetails";
 import { isEmptyEntry, moveAt } from "./sectionEntries";
 import { sameFields, type SectionDraft, type SectionPatch } from "./sectionDrafts";
+import { isLeftOut } from "./exportDocument";
 import { findQuote } from "./suggestions";
 
 /** "partial": some of it, or only an entry's title line. */
@@ -421,9 +422,27 @@ export const showForBullet = (section: SectionDraft, entryId: string): SectionPa
   return showOnly(section, entryId, (entry) => setOff(entry, allIds(entry), true));
 };
 
-/** Ticks as they were before adding, if nothing else changed since. */
-export const putBack = (before: SectionDraft, after: SectionDraft) => (section: SectionDraft): SectionPatch =>
-  section.hidden === after.hidden && sameFields(section, after) ? { hidden: before.hidden, entries: before.entries } : {};
+/** Without an empty bullet in an entry, which goes once it is left. */
+const withoutBlank = (section: SectionDraft, entryId: string): SectionDraft => ({
+  ...section,
+  entries: section.entries.map((entry) =>
+    entry.id === entryId ? { ...entry, content: withoutBlankEnd(entry.content) } : entry
+  ),
+});
+
+/** Ticks as they were before adding to an entry, if nothing else changed since. */
+export const putBack = (before: SectionDraft, after: SectionDraft, entryId: string) => (section: SectionDraft): SectionPatch =>
+  section.hidden === after.hidden && sameFields(withoutBlank(section, entryId), withoutBlank(after, entryId))
+    ? { hidden: before.hidden, entries: before.entries }
+    : {};
+
+/** Whether a section's heading, or an entry, or an item of it, is in the CV. What isn't there at all is as its entry. */
+export const isIn = (section: SectionDraft, entryId?: string, itemId?: string): boolean => {
+  if (entryId === undefined) return !isLeftOut({ ...section, hidden: Boolean(section.hidden) });
+  const entry = section.entries.find(({ id }) => id === entryId);
+  if (!entry || section.hidden || entry.hidden) return false;
+  return !tickable(entry).some(({ id, off }) => id === itemId && off);
+};
 
 /** Section ids in their new order; entries move with moveEntry. */
 export const moveSection = (ids: number[], id: number, by: -1 | 1): number[] => moveAt(ids, ids.indexOf(id), by);

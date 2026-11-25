@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import { ArrowDownIcon, ArrowUpIcon, EllipsisIcon } from "lucide-react";
-import { ReactNode, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 
 export type RowMenuAction = { label: string; icon: ReactNode; onSelect: () => void };
 
@@ -19,6 +19,18 @@ interface RowMenuProps {
 /** A checklist row's options. Not modal: one that opens a dialog would leave the page ignoring the mouse. */
 const RowMenu = ({ label, actions = [], move, children }: RowMenuProps) => {
   const chosen = useRef<(() => void) | null>(null);
+  const run = () => {
+    const action = chosen.current;
+    chosen.current = null;
+    action?.();
+  };
+  // Its row may go as it closes, as with what was being added.
+  useEffect(
+    () => () => {
+      setTimeout(run);
+    },
+    []
+  );
 
   return (
     <DropdownMenu modal={false}>
@@ -36,9 +48,7 @@ const RowMenu = ({ label, actions = [], move, children }: RowMenuProps) => {
       <DropdownMenuContent
         align="end"
         onCloseAutoFocus={(event) => {
-          const run = chosen.current;
-          if (!run) return;
-          chosen.current = null;
+          if (!chosen.current) return;
           // Only now that the menu is done with the focus.
           event.preventDefault();
           run();
