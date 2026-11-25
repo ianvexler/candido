@@ -144,7 +144,7 @@ const signIn = async (browser) => {
   await context.addInitScript(() => {
     window.print = () => {};
     try {
-      localStorage.setItem("candido:cv-view", "page");
+      localStorage.setItem("candido:cv-view-2", "page");
     } catch {
       // No storage, no choice.
     }

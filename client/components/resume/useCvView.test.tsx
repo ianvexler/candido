@@ -31,20 +31,31 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("starts with the cards and remembers the choice", () => {
-  show();
-  expect(host.textContent).toBe("cards");
-  press();
-  expect(host.textContent).toBe("page");
-  act(() => root.unmount());
+it("starts on the page when nothing is stored", () => {
   show();
   expect(host.textContent).toBe("page");
 });
 
-it("takes anything else stored for the cards", () => {
-  localStorage.setItem("candido:cv-view", "other");
+it("ignores the first stage's stored choice", () => {
+  localStorage.setItem("candido:cv-view", "cards");
+  show();
+  expect(host.textContent).toBe("page");
+});
+
+it("remembers cards once chosen", () => {
+  show();
+  press();
+  expect(host.textContent).toBe("cards");
+  expect(localStorage.getItem("candido:cv-view-2")).toBe("cards");
+  act(() => root.unmount());
   show();
   expect(host.textContent).toBe("cards");
+});
+
+it("takes anything else stored for the page", () => {
+  localStorage.setItem("candido:cv-view-2", "other");
+  show();
+  expect(host.textContent).toBe("page");
 });
 
 it("works with storage blocked", () => {
@@ -54,5 +65,5 @@ it("works with storage blocked", () => {
   vi.stubGlobal("localStorage", { getItem: blocked, setItem: blocked });
   show();
   press();
-  expect(host.textContent).toBe("page");
+  expect(host.textContent).toBe("cards");
 });
