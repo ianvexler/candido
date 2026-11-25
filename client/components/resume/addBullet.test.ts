@@ -2,7 +2,8 @@ import { Editor } from "@tiptap/core";
 import { redo, undo, undoDepth } from "@tiptap/pm/history";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withoutBlankEnd } from "@/lib/resume/items";
-import { addBullet, caretAtItem } from "./addBullet";
+import { addBullet, caretAtItem, insertBlock } from "./addBullet";
+import { editInEditor } from "./placeCaret";
 import { contentExtensions } from "./review/replaceInContent";
 
 let editor: Editor;
@@ -194,6 +195,100 @@ it.each([
   ["<ul><li><p>A</p><ul><li><p></p></li></ul></li></ul>", "<ul><li><p>A</p></li></ul>"],
   ["<ul><li><p>A</p><ul><li><p>B</p></li><li><p></p></li></ul></li></ul>", "<ul><li><p>A</p><ul><li><p>B</p></li></ul></li></ul>"],
 ])("withoutBlankEnd(%s)", (content, wanted) => expect(withoutBlankEnd(content)).toBe(wanted));
+
+describe("a block put at a place", () => {
+  const LIST = '<ul><li data-cv-item="b1"><p>One</p></li><li data-cv-item="b2"><p>Two</p></li></ul>';
+  const insert = (after: string | null, kind: "bullet" | "paragraph") => insertBlock(editor, after, kind, onLost);
+  /** Where the caret is, without the server's ids. */
+  const plain = () => html().replace(/ data-cv-item="[^"]*"/g, "");
+  const caretIn = () => editor.state.selection.$head.node(editor.state.selection.$head.depth - 1).type.name;
+
+  it("is a bullet right after a bullet, in its list", () => {
+    open(LIST);
+    expect(insert("b1", "bullet")).toBe(true);
+    expect(editor.view.hasFocus()).toBe(true);
+    expect(caretIn()).toBe("listItem");
+    type("new");
+    expect(plain()).toBe("<ul><li><p>One</p></li><li><p>new</p></li><li><p>Two</p></li></ul>");
+  });
+
+  it("is a paragraph that splits the list around it", () => {
+    open(LIST);
+    expect(insert("b1", "paragraph")).toBe(true);
+    expect(editor.state.selection.$head.parent.type.name).toBe("paragraph");
+    expect(caretIn()).toBe("doc");
+    type("new");
+    expect(plain()).toBe("<ul><li><p>One</p></li></ul><p>new</p><ul><li><p>Two</p></li></ul>");
+  });
+
+  it("is a paragraph after the list, after its last bullet", () => {
+    open(LIST);
+    insert("b2", "paragraph");
+    type("new");
+    expect(plain()).toBe("<ul><li><p>One</p></li><li><p>Two</p></li></ul><p>new</p>");
+  });
+
+  it.each([
+    ["a bullet in a new list after a paragraph", "p1", "bullet", "<p>Intro</p><ul><li><p>new</p></li></ul>"],
+    ["a bullet in a new list at the top", null, "bullet", "<ul><li><p>new</p></li></ul><p>Intro</p>"],
+    ["a paragraph at the top", null, "paragraph", "<p>new</p><p>Intro</p>"],
+    ["a paragraph after a paragraph", "p1", "paragraph", "<p>Intro</p><p>new</p>"],
+  ] as const)("is %s", (_, after, kind, wanted) => {
+    open('<p data-cv-item="p1">Intro</p>');
+    expect(insert(after, kind)).toBe(true);
+    type("new");
+    expect(plain()).toBe(wanted);
+  });
+
+  it("is a bullet in place of an empty body", () => {
+    open("<p></p>");
+    insert(null, "bullet");
+    type("new");
+    expect(plain()).toBe("<ul><li><p>new</p></li></ul>");
+  });
+
+  it("is nowhere without the item, which leaves the text as it is", () => {
+    open(LIST);
+    const before = html();
+    expect(insert("missing", "bullet")).toBe(false);
+    expect(html()).toBe(before);
+  });
+
+  it.each(["bullet", "paragraph"] as const)("goes as a %s when the editor is left with it empty", (kind) => {
+    open(LIST);
+    const before = html();
+    insert("b1", kind);
+    leave();
+    expect(html()).toBe(before);
+  });
+
+  it("goes after it was written in and emptied, with the list it split joined again", () => {
+    open(LIST);
+    const before = html();
+    insert("b1", "paragraph");
+    type("x");
+    editor.commands.deleteRange({ from: editor.state.selection.from - 1, to: editor.state.selection.from });
+    leave();
+    expect(html()).toBe(before);
+  });
+
+  it("stays with text", () => {
+    open(LIST);
+    insert("b1", "paragraph");
+    type("x");
+    leave();
+    expect(plain()).toContain("<p>x</p>");
+  });
+
+  it("is asked for as a place to edit", () => {
+    open(LIST);
+    const target = { sectionId: 1, what: "insert", entryId: "a", after: "b2", kind: "bullet" } as const;
+    expect(editInEditor(editor, target, onLost)).toBe(true);
+    type("new");
+    expect(plain()).toBe("<ul><li><p>One</p></li><li><p>Two</p></li><li><p>new</p></li></ul>");
+    expect(editInEditor(editor, { ...target, after: "gone" }, onLost)).toBe(false);
+  });
+});
 
 describe("caretAtItem", () => {
   it.each([

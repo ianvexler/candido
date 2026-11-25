@@ -415,6 +415,15 @@ export const addEntry = (section: SectionDraft, entry: SectionEntry): SectionPat
   entries: [...(section.hidden ? section.entries.map(hideEntry) : section.entries), entry],
 });
 
+/** Puts an entry after another, or first for null, as addEntry does. */
+export const insertEntry = (section: SectionDraft, afterEntryId: string | null, entry: SectionEntry): SectionPatch => {
+  const entries = section.hidden ? section.entries.map(hideEntry) : section.entries;
+  const index = afterEntryId === null ? -1 : entries.findIndex(({ id }) => id === afterEntryId);
+  // One that is gone since goes last.
+  const at = afterEntryId !== null && index < 0 ? entries.length : index + 1;
+  return { hidden: false, entries: [...entries.slice(0, at), entry, ...entries.slice(at)] };
+};
+
 /** Shows an entry for a bullet that is added to it. */
 export const showForBullet = (section: SectionDraft, entryId: string): SectionPatch => {
   const target = section.entries.find(({ id }) => id === entryId);

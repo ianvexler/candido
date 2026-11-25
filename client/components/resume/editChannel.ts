@@ -5,6 +5,8 @@ export type EditTarget = { sectionId: number } & (
   | { what: "heading"; /** Selects its text. */ selected?: boolean }
   | { what: "title" | "summary" | "details" | "bullet"; entryId: string }
   | { what: "item"; entryId: string; itemId: string }
+  /** A new block after an item, or at the top of the entry's body for null. */
+  | { what: "insert"; entryId: string; after: string | null; kind: "bullet" | "paragraph" }
 );
 
 /** Goes there and says so, or says it isn't there (yet). */

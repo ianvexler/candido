@@ -1,4 +1,4 @@
-import { addEntry, isIn, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
+import { addEntry, insertEntry, isIn, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
 import { isLeftOut } from "@/lib/resume/exportDocument";
 import { listItems } from "@/lib/resume/items";
 import { emptyEntry } from "@/lib/resume/sectionEntries";
@@ -10,12 +10,17 @@ import { createEditChannel, EditTarget } from "./editChannel";
 import { Added, useAdded } from "./useAdded";
 import type { CvView } from "./useCvView";
 
+/** A place to add at: after an item of an entry, or its top for null; under a section's heading for a null entry. */
+export type AddPlace = { sectionId: number; entryId: string | null; after: string | null };
+
 /** What the checklist adds and edits. The functions stay the same. */
 export type CvEdits = {
   /** Ticks what isn't in the CV first. */
   edit: (target: EditTarget) => void;
   addEntry: (sectionId: number) => void;
   addBullet: (sectionId: number, entryId: string) => void;
+  /** An entry goes after the place's entry, or first; a bullet or paragraph after its item. */
+  addAt: (place: AddPlace, what: "bullet" | "paragraph" | "entry") => void;
 };
 
 const itemOf = (target: EditTarget) =>
@@ -144,6 +149,21 @@ export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEd
       },
       addBullet: (sectionId, entryId) =>
         add({ sectionId, entryId, what: "bullet" }, "bullet", (section) => showForBullet(section, entryId)),
+      addAt: ({ sectionId, entryId, after }, what) => {
+        if (what === "entry") {
+          const entry = emptyEntry();
+          add({ sectionId, entryId: entry.id, what: "title" }, "entry", (section) => insertEntry(section, entryId, entry));
+          return;
+        }
+        const section = find(sectionId);
+        // Under the heading: the top of the first entry.
+        const into = entryId ?? section?.entries[0]?.id;
+        if (!section || into === undefined) return;
+        // One that is left out shows with none of its items, so at its top.
+        const at = entryId !== null && isIn(section, into) ? after : null;
+        const target: EditTarget = { sectionId, what: "insert", entryId: into, after: at, kind: what };
+        add(target, "bullet", (section) => showForBullet(section, into));
+      },
     };
   }, [change, find, go, goOn, isUnfinished]);
 
