@@ -83,10 +83,10 @@ cd client
 npm install --no-save playwright   # or PLAYWRIGHT_PATH=/path/to/node_modules/playwright
 PARITY_EMAIL=... PARITY_PASSWORD=... node scripts/page-parity.mjs --url http://localhost:3000 --api http://localhost:8000
 node scripts/page-parity.mjs --state auth.json    # a Playwright storage state, instead of the password
-node scripts/page-parity.mjs --typing             # typing with 40 sections and 400 items: median and p95 per key
+node scripts/page-parity.mjs --typing             # typing with 40 sections and 400 items: median and p95 per key; fails over 50ms at p95 (a development build)
 ```
 
-It prints the differences and a summary, and exits 1 if there are any. Which page each block is on needs `pdftotext` (poppler) or a command in `PARITY_PDF_TEXT` that prints a PDF's text with a form feed after each page; without either, only the page counts are compared. Blocks taller than a page are not covered.
+It prints the differences and a summary, and exits 1 if there are any. Which page each block is on needs `pdftotext` (poppler) or a command in `PARITY_PDF_TEXT` that prints a PDF's text with a form feed after each page; without either it stops, unless `--no-pdf-text` is passed, when only the page counts are compared. Blocks taller than a page are not covered. It refuses a `--url` or `--api` that isn't on this machine unless `--allow-remote` is passed.
 
 ## Production
 

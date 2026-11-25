@@ -31,7 +31,12 @@ const USAGE = `Usage: node scripts/page-parity.mjs [options]
                      values is covered at least once
   --only <text>      Only the cases whose name contains this, such as
                      "classic/a4/lora" or "/3p"
-  --typing           Measure typing with 40 sections and 400 items
+  --typing           Measure typing with 40 sections and 400 items. Fails
+                     if the 95th percentile of a key to its paint is over
+                     50ms, which is for a development build
+  --no-pdf-text      Go on without a PDF text reader, comparing only the
+                     number of pages with the PDF (else that is an error)
+  --allow-remote     Allow a --url or --api that isn't on this machine
   --yes-this-is-a-throwaway-account
                      Run although the account has CVs not titled "Parity ..."
   --help
@@ -40,7 +45,7 @@ PLAYWRIGHT_PATH names a Playwright install if "playwright" can't be imported.
 PARITY_PDF_TEXT names a command that prints a PDF's text, a form feed after
 each page, when pdftotext isn't installed.`;
 
-const FLAGS = new Set(["all", "typing", "help", "yes-this-is-a-throwaway-account"]);
+const FLAGS = new Set(["all", "typing", "help", "no-pdf-text", "allow-remote", "yes-this-is-a-throwaway-account"]);
 const OPTIONS = new Set(["url", "api", "state", "only"]);
 
 const args = (() => {
@@ -69,6 +74,22 @@ if (args.help) {
 const CLIENT = (args.url ?? "http://localhost:3000").replace(/\/+$/, "");
 const API = `${(args.api ?? "http://localhost:8000").replace(/\/+$/, "").replace(/\/api\/v1$/, "")}/api/v1`;
 const TOLERANCE = 0.5;
+
+// Makes and deletes CVs, signed in: not for anyone's real site.
+const isLocal = (origin) => {
+  try {
+    const host = new URL(origin).hostname;
+    return ["localhost", "127.0.0.1", "[::1]"].includes(host) || host.endsWith(".localhost");
+  } catch {
+    return false;
+  }
+};
+for (const origin of [CLIENT, API]) {
+  if (!isLocal(origin) && !args["allow-remote"]) {
+    console.error(`${origin} isn't on this machine. This makes and deletes CVs; pass --allow-remote if you mean it.`);
+    process.exit(2);
+  }
+}
 const TYPING_LIMIT = 50;
 
 const stop = (message) => {
@@ -217,7 +238,7 @@ const buildFixture = (units) => {
   const long = (seed) => item(text(true, seed));
   const rich = (seed) =>
     item(`${label()} ${words(5, seed)} <strong>${words(3, seed + 1)}</strong> and <a href="https://example.com/x">${words(2, seed + 2)}</a> ${words(12, seed + 3)}`);
-  const partlyHidden = (seed) => item(`${label()} ${words(8, seed)} ${hidden(words(14, seed + 1))}`);
+  const partlyHidden = (seed) => item(`${label()} ${words(8, seed)} ${hidden(`${label(false)} ${words(14, seed + 1)}`)}`);
   const goneHidden = (seed) => item(hidden(words(10, seed)));
   const unticked = (seed) => item(`${label(false)} ${words(10, seed)}`, { off: true });
   const nested = (seed) => item(`<p>${label()} ${words(6, seed)}</p><ul>${short(seed + 1)}${short(seed + 2)}</ul>`, { raw: true });
@@ -474,7 +495,10 @@ const runCase = async (page, api, id, sectionIds, chosen, hint) => {
   let worst = 0;
   for (const [label, was] of Object.entries(print.labels)) {
     const now = flowing.labels[label];
-    if (!now) continue;
+    if (!now) {
+      fail(name, "not in the Page view without breaks", label);
+      continue;
+    }
     const off = Math.max(Math.abs(now.top - was.top), Math.abs(now.left - was.left), Math.abs(now.height - was.height));
     worst = Math.max(worst, off);
     if (off > TOLERANCE) fail(name, `place without breaks differs by ${off.toFixed(2)}px`, `${label}: top ${was.top.toFixed(1)} on the print page, ${now.top.toFixed(1)} here`);
@@ -533,8 +557,9 @@ const measureTyping = async (page, api, id) => {
     window.__keys = [];
     addEventListener(
       "keydown",
-      () => {
-        const start = performance.now();
+      (event) => {
+        // From when the key was pressed, not when this ran.
+        const start = event.timeStamp;
         // After the paint that follows the key.
         requestAnimationFrame(() => {
           const channel = new MessageChannel();
@@ -546,19 +571,27 @@ const measureTyping = async (page, api, id) => {
     );
   });
   const results = [];
+  const problems = [];
+  if (sizes.items < 400) problems.push(`only ${sizes.items} items on the page, not 400`);
   for (const [where, at] of [["first item", 2], ["middle item", 200], ["last item", 395]]) {
     const target = page.locator(".paged-cv .rc-body li").nth(at);
     await target.scrollIntoViewIfNeeded();
     await target.click();
     await page.waitForTimeout(800);
+    const typed = "the quick brown fox jumps over lazy dogs";
+    const focused = await page.evaluate(() => Boolean(document.activeElement?.closest(".ProseMirror")));
     await page.evaluate(() => (window.__keys.length = 0));
-    await page.keyboard.type("the quick brown fox jumps over lazy dogs", { delay: 60 });
+    await page.keyboard.type(typed, { delay: 60 });
     await page.waitForTimeout(500);
+    const landed = await page.evaluate((typed) => getSelection()?.anchorNode?.parentElement?.closest("li")?.textContent.includes(typed) ?? false, typed);
+    if (!focused) problems.push(`${where}: the click didn't focus an editor`);
+    if (!landed) problems.push(`${where}: the typed text isn't in the item`);
     const keys = await page.evaluate(() => window.__keys.slice().sort((a, b) => a - b));
     const share = (part) => keys[Math.min(keys.length - 1, Math.floor(keys.length * part))];
+    if (keys.length === 0 || keys.length !== typed.length) problems.push(`${where}: ${keys.length} keys timed, ${typed.length} sent`);
     results.push({ where, keys: keys.length, median: share(0.5), p95: share(0.95), max: keys.at(-1) });
   }
-  return { sizes, results };
+  return { sizes, results, problems };
 };
 
 // --- Main -------------------------------------------------------------------
@@ -575,6 +608,7 @@ const main = async () => {
   let interrupted = false;
   process.on("SIGINT", () => {
     interrupted = true;
+    fail("run", "interrupted", "SIGINT");
     void cleanup().finally(() => process.exit(130));
   });
 
@@ -599,21 +633,32 @@ const main = async () => {
     if (args.typing) {
       const { curriculum } = await api("POST", "/curriculums", { title: "Parity typing" });
       made.push(curriculum.id);
-      const { sizes, results } = await measureTyping(page, api, curriculum.id);
+      const { sizes, results, problems } = await measureTyping(page, api, curriculum.id);
       console.log(`Typing in ${browserName}: ${sizes.sections} sections, ${sizes.items} items, ${sizes.editors} editors on the page`);
       console.table(
         results.map((each) => ({ where: each.where, keys: each.keys, "median ms": +each.median.toFixed(1), "p95 ms": +each.p95.toFixed(1), "max ms": +each.max.toFixed(1) }))
       );
       const slow = results.filter((each) => each.p95 > TYPING_LIMIT);
       console.log(slow.length > 0 ? `FAIL: p95 over ${TYPING_LIMIT}ms at ${slow.map((each) => each.where).join(", ")}` : `ok: p95 within ${TYPING_LIMIT}ms`);
-      process.exitCode = slow.length > 0 ? 1 : 0;
+      problems.forEach((problem) => console.log(`FAIL: ${problem}`));
+      process.exitCode = slow.length > 0 || problems.length > 0 ? 1 : 0;
       return;
     }
 
+    const cases = (args.all ? everyCase() : sampledCases()).filter((chosen) => nameOf(chosen).includes(args.only ?? ""));
+    if (cases.length === 0) {
+      console.error(`No case has "${args.only}" in its name, such as classic/a4/lora/medium/2p`);
+      process.exitCode = 2;
+      return;
+    }
+    if (!args["no-pdf-text"] && pdfTexts(await page.pdf()) === null) {
+      console.error("No PDF text reader: install pdftotext (poppler) or set PARITY_PDF_TEXT, or pass --no-pdf-text to compare only the number of pages.");
+      process.exitCode = 2;
+      return;
+    }
     const { curriculum } = await api("POST", "/curriculums", { title: "Parity check" });
     made.push(curriculum.id);
     const sectionIds = await addSections(api, curriculum.id);
-    const cases = (args.all ? everyCase() : sampledCases()).filter((chosen) => nameOf(chosen).includes(args.only ?? ""));
     console.log(`${cases.length} cases in ${browserName}${args.all ? "" : " (a sample: each pair of values at least once; --all for every one)"}`);
 
     const rows = [];
@@ -651,7 +696,7 @@ const main = async () => {
     if (!read) {
       console.log("No PDF text reader (pdftotext, or PARITY_PDF_TEXT): only the number of pages was compared with the PDF, not which page each block is on.");
     }
-    process.exitCode = bad > 0 ? 1 : 0;
+    process.exitCode = bad > 0 || rows.length === 0 ? 1 : 0;
   } finally {
     await cleanup();
     await browser.close().catch(() => {});
