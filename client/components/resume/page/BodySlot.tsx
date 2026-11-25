@@ -3,8 +3,8 @@
 import type { EntryEditor, SectionChange } from "@/lib/resume/sectionDrafts";
 import type { CvSuggestion, SectionEntry } from "@/lib/types";
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import type { EntryChange } from "../useEntryEditor";
-import type { SuggestionProps } from "../useEntrySuggestions";
+import type { EntryChange, OnEntryChange } from "../useEntryEditor";
+import { fieldOf, SuggestionProps, useEntrySuggestions } from "../useEntrySuggestions";
 import { entryKey, NearStore } from "./nearStore";
 import type { PageEditors } from "./pageEditors";
 import PageEntryBody from "./PageEntryBody";
@@ -39,6 +39,30 @@ export const changeEntry = (
     version === undefined ? undefined : { entryId, version }
   );
 
+interface SummaryCardProps extends SuggestionProps {
+  sectionId: number;
+  entry: SectionEntry;
+  version: number;
+  onEntryChange: OnEntryChange;
+  editors: ReturnType<PageEditors["of"]>;
+}
+
+/** A summary's suggestion, under its line. Nothing in the page. */
+const SummaryCard = ({ sectionId, ...body }: SummaryCardProps) => {
+  const entryId = body.entry.id;
+  const descriptionRef = useMemo(
+    () => ({
+      get current() {
+        return document.querySelector<HTMLElement>(
+          `[data-section-id="${sectionId}"] [data-entry-id="${CSS.escape(entryId)}"] .rc-summary`
+        );
+      },
+    }),
+    [sectionId, entryId]
+  );
+  return useEntrySuggestions({ ...body, editor: null, summaryOff: false, descriptionRef }).card;
+};
+
 interface BodySlotProps {
   sectionId: number;
   /** Reviews from before sections had entries are about this one. */
@@ -63,17 +87,23 @@ const BodySlot = ({ sectionId, isFirst, entry, version }: BodySlotProps) => {
     [ofSection, isFirst, entry.id]
   );
 
+  const summarySuggestion = suggestions?.find(
+    (s) => s.id === suggestionProps.activeSuggestionId && fieldOf(s) === "description"
+  );
+  const body = { entry, version, onEntryChange, editors: editors.of(sectionId), ...suggestionProps };
+
   return (
-    <PageEntryBody
-      entry={entry}
-      version={version}
-      onEntryChange={onEntryChange}
-      editors={editors.of(sectionId)}
-      near={isNear}
-      open={open?.sectionId === sectionId && open.entryId === entry.id}
-      suggestions={suggestions}
-      {...suggestionProps}
-    />
+    <>
+      <PageEntryBody
+        {...body}
+        near={isNear}
+        open={open?.sectionId === sectionId && open.entryId === entry.id}
+        suggestions={suggestions}
+      />
+      {summarySuggestion && !entry.description_off && (
+        <SummaryCard {...body} sectionId={sectionId} suggestions={[summarySuggestion]} />
+      )}
+    </>
   );
 };
 

@@ -1,12 +1,13 @@
 "use client";
 
 import { DesignSettings, sheetPadding } from "@/lib/resume/design";
-import { buildResumeDocument, ExportEntry, KeptPlace, ResumeDocument } from "@/lib/resume/exportDocument";
+import { buildResumeDocument, KeptPlace, ResumeDocument } from "@/lib/resume/exportDocument";
 import { showHiddenText } from "@/lib/resume/items";
 import type { EntryVersions } from "@/lib/resume/sectionDrafts";
 import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@/lib/types";
 import {
   FocusEvent,
+  memo,
   useCallback,
   useEffect,
   useId,
@@ -18,24 +19,24 @@ import {
 } from "react";
 import { ResumeTemplate } from "../templates/ResumeTemplate";
 import type { SuggestionProps } from "../useEntrySuggestions";
-import BodySlot, { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
+import { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
 import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, MARK_SIZE } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
 import { CardsContext } from "./cardPlace";
-import { createPageSections, sourceOfEntry, sourceOfSection } from "./pageDocument";
-import { PageEditing, PageEditingContext, TextBinding } from "./PageEditing";
+import { createPageSections } from "./pageDocument";
+import { PageEditingContext, PageHeaderContext } from "./PageEditing";
 import type { PageEditors } from "./pageEditors";
 import { pageWidth, SHEETS, sheetsHeight } from "./pageSize";
 import { placeOf } from "./pagePlace";
-import PageContact, { hasContact } from "./PageContact";
+import { hasContact } from "./PageContact";
 import { CardMarks, DatesMarkAt, findDatesMarks, PageCards } from "./PageCards";
-import PageLine from "./PageLine";
 import type { HeaderBinding } from "./useHeaderBinding";
 import { useNearEntries } from "./useNearEntries";
 import { usePageCards } from "./usePageCards";
+import { usePageEditing } from "./usePageEditing";
 import { PagePaging, usePaging } from "./usePaging";
 
-interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
+export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** The drafts. */
   sections: CurriculumSection[];
   versions: Record<number, EntryVersions>;
@@ -53,17 +54,9 @@ interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** An entry to offer even with nothing in it. */
   open?: { sectionId: number; entryId: string } | null;
   suggestionsBySection?: Map<number, CvSuggestion[]>;
+  /** Only shown, as it prints. */
+  readOnly?: boolean;
 }
-
-const FIELDS = '.page-text, .ProseMirror, .page-entry-body > [role="textbox"]';
-
-/** Enter in a one-line field. */
-const moveOn = (root: HTMLElement | null) => {
-  const fields = [...(root?.querySelectorAll<HTMLElement>(FIELDS) ?? [])].filter((field) => field.getClientRects().length > 0);
-  const next = fields[fields.findIndex((field) => field === document.activeElement) + 1];
-  if (next) next.focus();
-  else (document.activeElement as HTMLElement | null)?.blur();
-};
 
 const samePlace = (a: KeptPlace | null, b: KeptPlace | null) => a?.sectionId === b?.sectionId && a?.entryId === b?.entryId;
 
@@ -80,6 +73,7 @@ const Page = ({
   onPaging,
   open = null,
   suggestionsBySection,
+  readOnly = false,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
@@ -141,53 +135,7 @@ const Page = ({
 
   // --- Editing --------------------------------------------------------------
   const near = useNearEntries(rootRef, shown, design.template);
-  const editing = useMemo<PageEditing>(() => {
-    const onEnter = () => moveOn(rootRef.current);
-    return {
-      text: (slot, of) => {
-        if (!("sectionId" in slot)) {
-          const binding = headerBinding?.text(slot.kind);
-          return binding ? { ...binding, onEnter } : null;
-        }
-        if (!of) return null;
-        if (slot.kind === "heading") {
-          const section = "entries" in of ? sourceOfSection(of) : undefined;
-          if (!section) return null;
-          return {
-            value: section.section_type,
-            label: "Section heading",
-            required: true,
-            onEnter,
-            onChange: (section_type) => onSectionChange(slot.sectionId, { section_type }),
-          };
-        }
-        const { sectionId, entryId } = slot;
-        const entry = "entries" in of ? undefined : sourceOfEntry(of)?.entry;
-        if (!entry) return null;
-        const bind = (field: "title" | "description", label: string): TextBinding => ({
-          value: entry[field] ?? "",
-          label,
-          onEnter,
-          onChange: (text) => changeEntry(onSectionChange, sectionId, entryId, { [field]: text }),
-        });
-        if (slot.kind === "title") return bind("title", "Title");
-        // Left out, so it isn't on the page at all.
-        return entry.description_off ? null : bind("description", "Summary");
-      },
-      line: (entryShown) => {
-        const source = sourceOfEntry(entryShown);
-        return source ? <PageLine entry={entryShown} sectionId={source.section.id} source={source.entry} /> : null;
-      },
-      body: (entryShown: ExportEntry) => {
-        const source = sourceOfEntry(entryShown);
-        if (!source) return null;
-        const { section, entry, version } = source;
-        return <BodySlot sectionId={section.id} isFirst={section.entries[0]?.id === entry.id} entry={entry} version={version} />;
-      },
-      contact: (headerShown, stacked) =>
-        headerBinding ? <PageContact header={headerShown} stacked={stacked} /> : null,
-    };
-  }, [headerBinding, onSectionChange]);
+  const editing = usePageEditing(rootRef, { headerBinding, onSectionChange, readOnly });
 
   const bodies = useMemo<Bodies>(
     () => ({
@@ -285,20 +233,26 @@ const Page = ({
           >
             <BodiesContext value={bodies}>
               <CardsContext value={cards.context}>
-                <PageEditingContext value={editing}>
-                  <ResumeTemplate document={shown} paper={paper} design={design} />
+                <PageEditingContext value={editing.sections}>
+                  <PageHeaderContext value={editing.header}>
+                    <ResumeTemplate document={shown} paper={paper} design={design} />
+                  </PageHeaderContext>
                 </PageEditingContext>
               </CardsContext>
             </BodiesContext>
           </div>
-          <HiddenTextMarks marks={marks} inside={marksInside} onShow={showHidden} />
-          <CardMarks
-            marks={datesMarks}
-            inside={marksInside}
-            openKey={cards.context.openKey}
-            openCard={openCard}
-            addContact={headerBinding && !hasContact(shownHeader) ? headerTop + MARK_SIZE / 2 : null}
-          />
+          {!readOnly && (
+            <>
+              <HiddenTextMarks marks={marks} inside={marksInside} onShow={showHidden} />
+              <CardMarks
+                marks={datesMarks}
+                inside={marksInside}
+                openKey={cards.context.openKey}
+                openCard={openCard}
+                addContact={headerBinding && !hasContact(shownHeader) ? headerTop + MARK_SIZE / 2 : null}
+              />
+            </>
+          )}
         </div>
       </div>
       <PageCards
@@ -316,10 +270,11 @@ const Page = ({
 const noChanges = () => () => {};
 
 /** A CV on its sheets of paper, as it prints, edited in place. */
-const PagedCv = (props: PagedCvProps) => {
+const PagedCv = memo((props: PagedCvProps) => {
   // Its editors and its measures need a browser.
   const inBrowser = useSyncExternalStore(noChanges, () => true, () => false);
   return inBrowser ? <Page {...props} /> : null;
-};
+});
+PagedCv.displayName = "PagedCv";
 
 export default PagedCv;

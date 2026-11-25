@@ -1,4 +1,4 @@
-import { PageEditing, PageEditingContext, TextSlot } from "@/components/resume/page/PageEditing";
+import { PageEditing, PageEditingContext, PageHeaderContext, TextSlot } from "@/components/resume/page/PageEditing";
 import { PageText } from "@/components/resume/page/PageText";
 import { DesignSettings, designStyle } from "@/lib/resume/design";
 import { ExportEntry, ExportSection, ResumeDocument } from "@/lib/resume/exportDocument";
@@ -85,7 +85,8 @@ export const ContactLines = ({ header, stacked = false, inert = false }: Contact
 
 /** Name, headline, contact details and links. `stacked` puts each detail on its own line. */
 export const ResumeHeaderBlock = ({ header, stacked = false }: { header: ResumeHeader; stacked?: boolean }) => {
-  const editing = useContext(PageEditingContext);
+  const ofPage = useContext(PageEditingContext);
+  const editing = useContext(PageHeaderContext) ?? ofPage;
   return (
     <header className="rc-header" data-stacked={stacked || undefined} data-block={editing ? "header" : undefined}>
       {slotText(editing, { kind: "name" }, null, { as: "h1", className: "rc-name", text: header.name })}

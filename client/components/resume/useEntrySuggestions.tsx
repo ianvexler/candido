@@ -18,7 +18,7 @@ export const highlightClasses =
   "[&_.cv-suggestion]:cursor-pointer [&_.cv-suggestion]:rounded-sm [&_.cv-suggestion]:bg-amber-100/70 [&_.cv-suggestion]:underline [&_.cv-suggestion]:decoration-amber-500 [&_.cv-suggestion]:decoration-dotted [&_.cv-suggestion]:underline-offset-4 [&_.cv-suggestion-active]:bg-amber-100 [&_.cv-suggestion-active]:decoration-solid";
 
 /** A suggestion's target field; older ones without a field are about the content. */
-const fieldOf = (s: CvSuggestion) => s.field ?? "content";
+export const fieldOf = (s: CvSuggestion) => s.field ?? "content";
 
 export interface SuggestionProps {
   /** Review suggestions to show. Pending ones are highlighted. */
@@ -98,10 +98,10 @@ export const useEntrySuggestions = ({
   }, [editor, contentItemsKey, cardId]);
 
   const cardAnchor = useMemo(() => {
-    if (!cardSuggestion || !editor) return null;
-    const editorDom = editor.view.dom;
-    const fallback = () => (descriptionRef?.current ?? editorDom).getBoundingClientRect();
-    if (fieldOf(cardSuggestion) === "description") {
+    const editorDom = editor?.view.dom;
+    if (!cardSuggestion || !(editorDom ?? descriptionRef)) return null;
+    const fallback = () => (descriptionRef?.current ?? editorDom)?.getBoundingClientRect() ?? new DOMRect();
+    if (!editorDom || fieldOf(cardSuggestion) === "description") {
       return { getBoundingClientRect: fallback, contextElement: descriptionRef?.current ?? undefined };
     }
     const id = cardSuggestion.id;

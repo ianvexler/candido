@@ -10,7 +10,7 @@ import { arrayMove } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import NextLink from "next/link";
-import { ComponentProps, useRef, useState } from "react";
+import { ComponentProps, memo, useCallback, useEffect, useRef, useState } from "react";
 import { rowBox } from "./ChecklistRow";
 import ChecklistSection, { DragData } from "./ChecklistSection";
 import { deletionNote, REMOVE_SECTION } from "./removeSection";
@@ -31,7 +31,7 @@ interface CvChecklistProps {
 }
 
 /** Everything the CV could show, to tick and put in order. */
-const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libraryFailed, onRetryLibrary }: CvChecklistProps) => {
+const CvChecklist = memo(({ sections, pending, actions, columns, libraryLoading, libraryFailed, onRetryLibrary }: CvChecklistProps) => {
   const [query, setQuery] = useState("");
   const [removing, setRemoving] = useState<number | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -67,10 +67,15 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
   };
 
   const asked = useRef<{ id: number; index: number } | null>(null);
-  const askRemove = (id: number) => {
-    asked.current = { id, index: ours.indexOf(id) };
+  const latestOurs = useRef(ours);
+  useEffect(() => {
+    latestOurs.current = ours;
+  });
+  // Stays the same, for the rows' memo.
+  const askRemove = useCallback((id: number) => {
+    asked.current = { id, index: latestOurs.current.indexOf(id) };
     setRemoving(id);
-  };
+  }, []);
   // The menu item that opened the dialog is gone: back to its menu's button, or
   // to the row that took the section's place.
   const restoreFocus = (event: Event) => {
@@ -163,6 +168,7 @@ const CvChecklist = ({ sections, pending, actions, columns, libraryLoading, libr
       />
     </div>
   );
-};
+});
+CvChecklist.displayName = "CvChecklist";
 
 export default CvChecklist;

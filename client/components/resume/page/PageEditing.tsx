@@ -44,3 +44,6 @@ export type PageEditing = {
 
 /** Null wherever a CV is only shown or printed. */
 export const PageEditingContext = createContext<PageEditing | null>(null);
+
+/** For the header alone, which then changes without the sections. */
+export const PageHeaderContext = createContext<PageEditing | null>(null);
