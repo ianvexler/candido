@@ -141,15 +141,15 @@ const JobApplicationView = ({
         </header>
 
         {/* Side by side, each scrolls on its own; on a phone they stack, the application first. */}
-        <div className="grid shrink-0 grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="grid shrink-0 grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[clamp(21rem,31%,34rem)_minmax(0,1fr)]">
           <section
             className={cn(
-              "order-last flex min-h-0 flex-col gap-6 border-t border-border lg:order-none lg:overflow-y-auto lg:border-t-0 lg:border-r",
-              areaPadding
+              areaPadding,
+              "order-last flex min-h-0 flex-col gap-6 border-t border-border lg:order-none lg:overflow-y-auto lg:border-t-0 lg:border-r lg:pr-6 min-[90rem]:pr-8 min-[106rem]:pr-10"
             )}
           >
             <h2 className="flex min-h-9 items-center text-xl font-semibold tracking-tight">Job details</h2>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-5 min-[90rem]:gap-x-10">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-5">
               {fact("Company", "company", { placeholder: "Required", "aria-invalid": !fields.company.trim() || undefined })}
               <Fact label="Status" htmlFor="status">
                 <StatusSelect
