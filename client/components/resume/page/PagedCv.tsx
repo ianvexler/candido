@@ -10,7 +10,9 @@ import {
   memo,
   RefObject,
   useCallback,
+  useContext,
   useEffect,
+  useEffectEvent,
   useId,
   useImperativeHandle,
   useLayoutEffect,
@@ -19,12 +21,16 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { withoutBlankEnd } from "../addBullet";
+import { EditChannelContext, EditTarget } from "../editChannel";
 import { ResumeTemplate } from "../templates/ResumeTemplate";
+import type { Added } from "../useAdded";
 import type { SuggestionProps } from "../useEntrySuggestions";
 import { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
 import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, MARK_SIZE } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
-import { CardsContext } from "./cardPlace";
+import { CardsContext, entryAt } from "./cardPlace";
+import { editOnPage } from "./editOnPage";
 import { createPageSections } from "./pageDocument";
 import { PageEditingContext, PageHeaderContext } from "./PageEditing";
 import type { PageEditors } from "./pageEditors";
@@ -53,8 +59,8 @@ export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   zoom: "fit" | "full";
   /** Must stay the same function. */
   onPaging: (paging: PagePaging) => void;
-  /** An entry to offer even with nothing in it. */
-  open?: { sectionId: number; entryId: string } | null;
+  /** What to offer a place to write in, even with nothing there. */
+  open?: Added | null;
   suggestionsBySection?: Map<number, CvSuggestion[]>;
   /** Set to what says whether the page may go now. */
   leaveRef?: RefObject<(() => boolean) | null>;
@@ -141,7 +147,20 @@ const Page = ({
 
   // --- Editing --------------------------------------------------------------
   const near = useNearEntries(rootRef, shown, design.template);
-  const editing = usePageEditing(rootRef, { headerBinding, onSectionChange, readOnly });
+  const editing = usePageEditing(rootRef, { headerBinding, onSectionChange, readOnly, open });
+
+  const channel = useContext(EditChannelContext);
+  const onTarget = useEffectEvent((target: EditTarget) =>
+    editOnPage(target, {
+      root: rootRef.current,
+      editors,
+      openCard,
+      hasEntry: (sectionId, entryId) => entryAt(sections, sectionId, entryId) !== null,
+      onLost: (sectionId, entryId) =>
+        changeEntry(onSectionChange, sectionId, entryId, ({ content }) => ({ content: withoutBlankEnd(content) })),
+    })
+  );
+  useEffect(() => (readOnly ? undefined : channel?.handle((target) => onTarget(target))), [channel, readOnly]);
 
   const bodies = useMemo<Bodies>(
     () => ({

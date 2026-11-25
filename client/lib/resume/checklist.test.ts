@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CurriculumSection, CvSuggestion, ResumeHeader, ResumeHeaderTextFields, SectionEntry, SectionTemplate } from "@/lib/types";
 import {
+  addEntry,
   buildChecklist,
   entryOffer,
   filterChecklist,
   itemOffer,
   moveSection,
+  putBack,
+  showForBullet,
   suggestionPlace,
   tickEntry,
   tickItem,
@@ -657,5 +660,81 @@ describe("an entry's summary", () => {
     const suggestion = { entry_id: "a", field: "description", quote: "Sum" } as CvSuggestion;
     expect(suggestionPlace(section, suggestion)).toBe("left_out");
     expect(tickSuggestion(section, suggestion).entries![0].description_off).toBe(false);
+  });
+});
+
+describe("adding", () => {
+  const blank = { ...emptyEntry(), id: "n" };
+
+  it("adds an entry after the CV's others", () => {
+    const section = cv([entry("a", ul(li("x"))), entry("b", "", { hidden: true })]);
+    expect(ticks(apply(section, addEntry(section, blank)))).toBe("A(x) b() N()");
+  });
+
+  it("shows only the new entry of a left out section", () => {
+    const section = cv([entry("a", ul(li("x"))), entry("b")], { hidden: true });
+    expect(ticks(apply(section, addEntry(section, blank)))).toBe("a(x) b() N()");
+  });
+
+  it("shows only the entry a bullet goes to, with none of its items", () => {
+    const summary = { description: "Sums up" };
+    const hidden = cv([entry("a", ul(li("x"), li("y", true)), summary), entry("b")], { hidden: true });
+    const shown = apply(hidden, showForBullet(hidden, "a"));
+    expect(ticks(shown)).toBe("A(--) b()");
+    expect(shown.entries[0].description_off).toBe(true);
+
+    const off = cv([entry("a", ul(li("x")), { hidden: true }), entry("b", ul(li("z")))]);
+    expect(ticks(apply(off, showForBullet(off, "a")))).toBe("A(-) B(z)");
+  });
+
+  it("leaves ticks as they are where a bullet shows anyway", () => {
+    const section = cv([entry("a", ul(li("x"), li("y", true)))]);
+    expect(showForBullet(section, "a")).toEqual({});
+    expect(showForBullet(section, "gone")).toEqual({});
+  });
+
+  it("puts ticks back if nothing was written", () => {
+    const before = cv([entry("a", ul(li("x")))], { hidden: true });
+    const after = apply(before, showForBullet(before, "a"));
+    expect(ticks(apply(after, putBack(before, after)(after)))).toBe("a(x)");
+
+    const written = { ...after, entries: [{ ...after.entries[0], title: "New" }] };
+    expect(putBack(before, after)(written)).toEqual({});
+    expect(putBack(before, after)({ ...after, hidden: true })).toEqual({});
+  });
+
+  it("puts a new entry that stayed blank away again", () => {
+    const before = cv([entry("a")], { hidden: true });
+    const after = apply(before, addEntry(before, blank));
+    expect(ticks(apply(after, putBack(before, after)(after)))).toBe("a()");
+  });
+
+  it("says what an entry has of its own", () => {
+    const section = first([cv([entry("a", "", { description: "S", role: "R" }), entry("b", "", { title: " " })])]);
+    expect(section.entries.map(({ has }) => has)).toEqual([
+      { title: true, summary: true, details: true },
+      { title: false, summary: false, details: false },
+    ]);
+  });
+});
+
+describe("searching while adding", () => {
+  const list = () =>
+    build([cv([entry("a", ul(li("x", false, "Ruby"), li("y", false, "Go"), li("new", false, "Rust"))), entry("n", "", { title: "" })])]);
+  const found = (keep?: Parameters<typeof filterChecklist>[2]) =>
+    filterChecklist(list(), "ruby", keep).flatMap(({ entries }) => entries.map((each) => each.id + ":" + ids(each.items)));
+
+  it("keeps a new entry", () => {
+    expect(found()).toEqual(["a:x"]);
+    expect(found({ sectionId: 1, entryId: "n", known: [] })).toEqual(["a:x", "n:"]);
+  });
+
+  it("keeps new items only", () => {
+    expect(found({ sectionId: 1, entryId: "a", known: ["x", "y"] })).toEqual(["a:xnew"]);
+  });
+
+  it("keeps a new section", () => {
+    const sections = build([cv([entry("a")], { id: 1 }), cv([emptyEntry()], { id: 2, section_type: "Section" })]);
+    expect(filterChecklist(sections, "zzz", { sectionId: 2, entryId: null, known: [] }).map(({ sectionId }) => sectionId)).toEqual([2]);
   });
 });

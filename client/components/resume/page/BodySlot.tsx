@@ -4,10 +4,14 @@ import type { EntryEditor, SectionChange } from "@/lib/resume/sectionDrafts";
 import type { CvSuggestion, SectionEntry } from "@/lib/types";
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import type { EntryChange, OnEntryChange } from "../useEntryEditor";
+import type { Added } from "../useAdded";
 import { fieldOf, SuggestionProps, useEntrySuggestions } from "../useEntrySuggestions";
 import { entryKey, NearStore } from "./nearStore";
 import type { PageEditors } from "./pageEditors";
 import PageEntryBody from "./PageEntryBody";
+
+// What is added to write the content in.
+const BODY: Added["what"][] = ["section", "entry", "bullet"];
 
 /** The drafts' change. */
 export type OnSectionChange = (id: number, change: SectionChange, editor?: EntryEditor) => void;
@@ -16,7 +20,8 @@ export type Bodies = SuggestionProps & {
   onSectionChange: OnSectionChange;
   editors: PageEditors;
   near: NearStore;
-  open: { sectionId: number; entryId: string } | null;
+  /** See PagedCv. */
+  open: Added | null;
   suggestionsBySection?: Map<number, CvSuggestion[]>;
 };
 
@@ -97,7 +102,7 @@ const BodySlot = ({ sectionId, isFirst, entry, version }: BodySlotProps) => {
       <PageEntryBody
         {...body}
         near={isNear}
-        open={open?.sectionId === sectionId && open.entryId === entry.id}
+        open={open !== null && BODY.includes(open.what) && open.sectionId === sectionId && open.entryId === entry.id}
         suggestions={suggestions}
       />
       {summarySuggestion && !entry.description_off && (

@@ -9,11 +9,16 @@ import type { SectionPlacement } from "@/lib/types";
 import { arrayMove } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
+import { PlusIcon } from "lucide-react";
 import NextLink from "next/link";
 import { ComponentProps, memo, useCallback, useEffect, useRef, useState } from "react";
 import { rowBox } from "./ChecklistRow";
 import ChecklistSection, { DragData } from "./ChecklistSection";
+import IconAction from "./IconAction";
+import { isBare } from "./rowEdits";
 import { deletionNote, REMOVE_SECTION } from "./removeSection";
+import type { Added } from "./useAdded";
+import type { CvEdits } from "./useCvEdits";
 
 type DragEndEvent = Parameters<NonNullable<ComponentProps<typeof DragDropProvider>["onDragEnd"]>>[0];
 
@@ -31,6 +36,12 @@ interface CvChecklistProps {
   /** What is searched for. */
   query: string;
   onQueryChange: (query: string) => void;
+  edits: CvEdits;
+  /** Stays in a search. */
+  added: Added | null;
+  onAddSection: () => void;
+  /** One is being added. */
+  adding: boolean;
 }
 
 /** Everything the CV could show, to tick and put in order. */
@@ -44,13 +55,19 @@ const CvChecklist = memo(({
     onRetryLibrary,
     query,
     onQueryChange,
+    edits,
+    added,
+    onAddSection,
+    adding,
 }: CvChecklistProps) => {
   const [removing, setRemoving] = useState<number | null>(null);
   const [retrying, setRetrying] = useState(false);
 
   const searching = query.trim() !== "";
   const removingSection = sections.find(({ sectionId }) => removing !== null && sectionId === removing);
-  const shown = filterChecklist(sections, query);
+  const kept = added && { ...added, entryId: added.what === "section" ? null : added.entryId };
+  const shown = filterChecklist(sections, query, kept);
+  const bareKeys = new Set(sections.filter(isBare).map(({ key }) => key));
   const ours = sections.flatMap(({ sectionId }) => sectionId ?? []);
 
   // The first copy of a library section keeps its row when it's copied in.
@@ -105,9 +122,54 @@ const CvChecklist = memo(({
     setRetrying(false);
   };
 
+  // Not disabled, which would lose the focus.
+  const addProps = { "aria-disabled": adding || undefined, onClick: () => !adding && onAddSection() };
+  const row = (section: Section) => (
+    <ChecklistSection
+      key={keys.get(section.key)}
+      section={section}
+      index={section.sectionId === null ? ours.length : ours.indexOf(section.sectionId)}
+      count={ours.length}
+      pending={[...pending].filter(
+        (key) => key.startsWith(`${section.templateId}:`) || key.startsWith(`transfer:${section.sectionId}:`)
+      )}
+      offerChanges={!libraryLoading && !libraryFailed}
+      column={(section.sectionId !== null && columns?.get(section.sectionId)) || null}
+      canReorder={!searching}
+      actions={actions}
+      onAskRemove={askRemove}
+      bare={bareKeys.has(section.key)}
+      edits={edits}
+    />
+  );
+
+  // One list, so that a library section copied in keeps its row as it passes the button.
+  const shownRows = shown.map(row);
+  const firstOther = shown.findIndex(({ sectionId }) => sectionId === null);
+  shownRows.splice(
+    firstOther < 0 ? shown.length : firstOther,
+    0,
+    <Button
+      key="add"
+      type="button"
+      variant="ghost"
+      size="sm"
+      {...addProps}
+      className="mt-2 -ml-1.5 text-muted-foreground aria-disabled:opacity-50 [@media(hover:none)]:h-[40px]"
+    >
+      <PlusIcon />
+      Add section
+    </Button>
+  );
+
   return (
     <div className="px-5 pt-5 pb-16">
-      <h2 className="mb-3 text-sm font-semibold">What to include</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold">What to include</h2>
+        <IconAction label="Add section" {...addProps} className="-my-1.5 [@media(hover:none)]:size-[40px]">
+          <PlusIcon />
+        </IconAction>
+      </div>
       {sections.length > 0 && (
         <Input
           type="search"
@@ -148,22 +210,7 @@ const CvChecklist = memo(({
       {searching && shown.length === 0 && <p className="mt-4 text-sm text-muted-foreground">Nothing matches.</p>}
 
       <DragDropProvider onDragEnd={onDragEnd}>
-        {shown.map((section) => (
-          <ChecklistSection
-            key={keys.get(section.key)}
-            section={section}
-            index={section.sectionId === null ? ours.length : ours.indexOf(section.sectionId)}
-            count={ours.length}
-            pending={[...pending].filter(
-              (key) => key.startsWith(`${section.templateId}:`) || key.startsWith(`transfer:${section.sectionId}:`)
-            )}
-            offerChanges={!libraryLoading && !libraryFailed}
-            column={(section.sectionId !== null && columns?.get(section.sectionId)) || null}
-            canReorder={!searching}
-            actions={actions}
-            onAskRemove={askRemove}
-          />
-        ))}
+        {shownRows}
       </DragDropProvider>
 
       <ConfirmationModal

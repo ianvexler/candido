@@ -6,12 +6,14 @@ import { ChecklistEntry, ChecklistSection as Section, entryOffer, itemOffer } fr
 import type { TransferTarget } from "@/lib/resume/transfer";
 import { ChecklistActions, ChecklistTarget, targetKey, transferKey } from "@/lib/resume/useCvChecklist";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { PanelLeftIcon, Trash2Icon } from "lucide-react";
+import { CalendarPlusIcon, HeadingIcon, ListPlusIcon, PanelLeftIcon, PencilIcon, PlusIcon, TextIcon, Trash2Icon } from "lucide-react";
 import { memo, useCallback } from "react";
-import ChecklistRow, { ChecklistItemRow, rowBox, rowIdOf } from "./ChecklistRow";
+import ChecklistRow, { ChecklistItemRow, rowBox, rowIdOf, textStart } from "./ChecklistRow";
 import { changeControls } from "./ItemChangeMenu";
 import { REMOVE_SECTION } from "./removeSection";
-import RowMenu from "./RowMenu";
+import { entryEdit, itemEdit } from "./rowEdits";
+import RowMenu, { RowMenuAction } from "./RowMenu";
+import type { CvEdits } from "./useCvEdits";
 
 /** What dragging a row gives the drop handler. */
 export type DragData = { sectionId: number; entryId?: string };
@@ -58,7 +60,10 @@ const entryControls = (
 };
 
 interface EntryRowsProps {
-  section: Section;
+  sectionId: number | null;
+  templateId: number | null;
+  sectionKey: string;
+  sectionIsNew: boolean;
   entry: ChecklistEntry;
   /** Among the CV's entries of the section, and how many there are. */
   index: number;
@@ -70,17 +75,39 @@ interface EntryRowsProps {
   /** The library is known. */
   offerChanges: boolean;
   actions: ChecklistActions;
+  edits: CvEdits;
 }
 
-const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, offerChanges, actions }: EntryRowsProps) => {
-  const { sectionId, templateId } = section;
+/** The checklist is rebuilt on every edit, so rows are compared by what's in them. */
+const sameRows = <P extends object>(before: P, after: P) =>
+  (Object.keys(after) as (keyof P)[]).every(
+    (key) =>
+      Object.is(before[key], after[key]) ||
+      (["section", "entry", "pending"].includes(String(key)) && JSON.stringify(before[key]) === JSON.stringify(after[key]))
+  );
+
+const EntryRows = memo(({
+  sectionId,
+  templateId,
+  sectionKey,
+  sectionIsNew,
+  entry,
+  index,
+  count,
+  bare,
+  pending,
+  canReorder,
+  offerChanges,
+  actions,
+  edits,
+}: EntryRowsProps) => {
   const sortable = entry.inCv && sectionId !== null && canReorder && count > 1;
   const { ref, targetRef, handleRef } = useSortable({
-    id: sortableId(sectionId, section.key, entry.id),
-    type: `entries-${section.key}`,
-    accept: `entries-${section.key}`,
+    id: sortableId(sectionId, sectionKey, entry.id),
+    type: `entries-${sectionKey}`,
+    accept: `entries-${sectionKey}`,
     // dnd-kit needs each group's indexes to be complete, so what can't move is on its own.
-    group: sortable ? section.key : `${section.key}/${entry.id}`,
+    group: sortable ? sectionKey : `${sectionKey}/${entry.id}`,
     index: sortable ? index : 0,
     collisionDetector: overRow,
     disabled: !sortable,
@@ -103,6 +130,23 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, of
     [actions, sectionId, entry.id]
   );
 
+  const editItem = useCallback(
+    (itemId: string, ticked: boolean) => {
+      const edit = itemEdit(sectionId, entry.id, { id: itemId, inCv: true, ticked });
+      if (edit) edits.edit(edit.target, edit.ticked);
+    },
+    [edits, sectionId, entry.id]
+  );
+
+  const edit = entryEdit(sectionId, entry);
+  const editTip = entry.has.title ? "Edit title" : "Edit";
+  const goEdit = () => edit && edits.edit(edit.target, edit.ticked);
+  const addBullet = () => sectionId !== null && edits.addBullet(sectionId, entry.id);
+  const missing = (what: "title" | "summary" | "details", label: string, icon: RowMenuAction["icon"]): RowMenuAction[] =>
+    sectionId === null || entry.has[what]
+      ? []
+      : [{ label, icon, onSelect: () => edits.edit({ sectionId, entryId: entry.id, what }, entry.ticked) }];
+
   const rowId = sectionId === null ? undefined : rowIdOf({ sectionId, entryId: entry.id });
   const { add, change } = entryControls({ entry, sectionId, offerChanges, pending, actions }, entry.title, rowId ?? "");
 
@@ -116,17 +160,26 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, of
           state={entry.state}
           included={entry.included}
           total={entry.items.length > 0 ? entry.total : 0}
-          isNew={entry.isNew && !section.isNew}
+          isNew={entry.isNew && !sectionIsNew}
           busy={pending.includes(targetKey(target))}
           onTick={(on) => actions.tick(target, on)}
           rowRef={sortable ? targetRef : undefined}
           handleRef={sortable ? handleRef : undefined}
           rowId={rowId}
           change={change}
+          edit={edit ? { tip: editTip, label: `Edit: ${textStart(entry.title)}`, onClick: goEdit } : undefined}
+          add={edit ? { tip: "Add bullet", label: `Add a bullet to ${textStart(entry.title)}`, onClick: addBullet } : undefined}
           menu={
-            sortable || add ? (
+            edit ? (
               <RowMenu
                 label={entry.title}
+                actions={[
+                  { label: editTip, icon: <PencilIcon />, onSelect: goEdit },
+                  { label: "Add bullet", icon: <ListPlusIcon />, onSelect: addBullet },
+                  ...missing("title", "Add title", <HeadingIcon />),
+                  ...missing("summary", "Add summary", <TextIcon />),
+                  ...missing("details", "Add role and dates", <CalendarPlusIcon />),
+                ]}
                 move={
                   sortable
                     ? {
@@ -151,7 +204,7 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, of
           inCv={item.inCv}
           label={item.text}
           ticked={item.ticked}
-          isNew={item.isNew && !entry.isNew && !section.isNew}
+          isNew={item.isNew && !entry.isNew && !sectionIsNew}
           busy={pending.includes(targetKey({ ...target, itemId: item.id }))}
           onTickItem={tickItem}
           rowId={sectionId === null || item.id === "" ? undefined : rowIdOf({ sectionId, entryId: entry.id, itemId: item.id })}
@@ -160,11 +213,13 @@ const EntryRows = ({ section, entry, index, count, bare, pending, canReorder, of
           shownText={item.shownText}
           transferring={sectionId !== null && pending.includes(transferKey({ sectionId, entryId: entry.id, itemId: item.id }))}
           onTransferItem={transferItem}
+          onEditItem={itemEdit(sectionId, entry.id, item) ? editItem : null}
         />
       ))}
     </div>
   );
-};
+}, sameRows);
+EntryRows.displayName = "EntryRows";
 
 interface ChecklistSectionProps {
   section: Section;
@@ -179,7 +234,10 @@ interface ChecklistSectionProps {
   canReorder: boolean;
   /** The library is known. */
   offerChanges: boolean;
+  /** See isBare; of all its entries, not only those that were found. */
+  bare: boolean;
   actions: ChecklistActions;
+  edits: CvEdits;
   onAskRemove: (id: number) => void;
 }
 
@@ -192,7 +250,9 @@ const ChecklistSection = ({
   column,
   canReorder,
   offerChanges,
+  bare,
   actions,
+  edits,
   onAskRemove,
 }: ChecklistSectionProps) => {
   const { sectionId, templateId, entries } = section;
@@ -213,13 +273,14 @@ const ChecklistSection = ({
   const target: ChecklistTarget = { sectionId, templateId, inCv };
   const ours = entries.filter((entry) => entry.inCv);
   const [only] = entries;
-  const bare =
-    entries.length === 1 &&
-    (only.items.length === 0 ? only.title === "Untitled" : only.items.some(({ text }) => text === only.title));
   const rowId = `section-${sectionId}`;
   const { add, change }: ReturnType<typeof entryControls> = bare
     ? entryControls({ entry: only, sectionId, offerChanges, pending, actions }, label, rowId)
     : {};
+
+  const editHeading = () => inCv && edits.edit({ sectionId, what: "heading" }, section.ticked);
+  const addEntry = () => inCv && edits.addEntry(sectionId);
+  const addBullet = () => inCv && edits.addBullet(sectionId, only.id);
 
   return (
     <div ref={sortable ? ref : undefined} className="bg-background">
@@ -236,10 +297,21 @@ const ChecklistSection = ({
         handleRef={sortable ? handleRef : undefined}
         rowId={rowId}
         change={change}
+        edit={inCv ? { tip: "Edit heading", label: `Edit: ${textStart(label)}`, onClick: editHeading } : undefined}
+        add={
+          inCv
+            ? { tip: bare ? "Add bullet" : "Add entry", label: `Add to ${textStart(label)}`, onClick: bare ? addBullet : addEntry }
+            : undefined
+        }
         menu={
           inCv ? (
             <RowMenu
               label={label}
+              actions={[
+                { label: "Edit heading", icon: <PencilIcon />, onSelect: editHeading },
+                ...(bare ? [{ label: "Add bullet", icon: <ListPlusIcon />, onSelect: addBullet }] : []),
+                { label: "Add entry", icon: <PlusIcon />, onSelect: addEntry },
+              ]}
               move={{
                 canMoveUp: canReorder && index > 0,
                 canMoveDown: canReorder && index < count - 1,
@@ -265,7 +337,10 @@ const ChecklistSection = ({
       {entries.map((entry) => (
         <EntryRows
           key={entry.id}
-          section={section}
+          sectionId={sectionId}
+          templateId={templateId}
+          sectionKey={section.key}
+          sectionIsNew={section.isNew}
           entry={entry}
           index={ours.indexOf(entry)}
           count={ours.length}
@@ -274,17 +349,11 @@ const ChecklistSection = ({
           canReorder={canReorder}
           offerChanges={offerChanges}
           actions={actions}
+          edits={edits}
         />
       ))}
     </div>
   );
 };
 
-// The checklist is rebuilt on every edit, so rows are compared by what's in them.
-export default memo(ChecklistSection, (before, after) =>
-  (Object.keys(after) as (keyof ChecklistSectionProps)[]).every(
-    (key) =>
-      Object.is(before[key], after[key]) ||
-      ((key === "section" || key === "pending") && JSON.stringify(before[key]) === JSON.stringify(after[key]))
-  )
-);
+export default memo(ChecklistSection, sameRows);

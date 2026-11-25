@@ -11,12 +11,12 @@ import { createPageEditors } from "@/components/resume/page/pageEditors";
 import PagePreview from "@/components/resume/page/PagePreview";
 import PageView from "@/components/resume/page/PageView";
 import { useHeaderBinding } from "@/components/resume/page/useHeaderBinding";
+import { EditChannelContext } from "@/components/resume/editChannel";
 import { deletionNote } from "@/components/resume/removeSection";
 import ReviewPanel from "@/components/resume/review/ReviewPanel";
 import { showSuggestion } from "@/components/resume/review/showSuggestion";
 import { CvView, useCvView } from "@/components/resume/useCvView";
-import { useAddedSection } from "@/components/resume/useAddedSection";
-import { useFocusNewSection } from "@/components/resume/useFocusNewSection";
+import { useCvEdits } from "@/components/resume/useCvEdits";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
 import { isLeftOut, sectionColumn } from "@/lib/resume/exportDocument";
@@ -43,7 +43,6 @@ const CvPage = ({ id }: { id: string }) => {
   const [tab, setTab] = useState<CvTab>("cv");
   const [adding, setAdding] = useState(false);
   const onPage = view === "page" && roomForPage;
-  const [added, setAdded] = useAddedSection(onPage);
   // Kept whatever the view.
   const [query, setQuery] = useState("");
   const [designName, setDesignName] = useState<string | null>(null);
@@ -51,9 +50,31 @@ const CvPage = ({ id }: { id: string }) => {
   useEffect(() => monthDrafts.prune(sections), [monthDrafts, sections]);
   const leaveRef = useRef<(() => boolean) | null>(null);
   const [mayLeaveCards] = useState(createHalfPickedGate);
-  const focusNewSection = useFocusNewSection();
   const [editors] = useState(createPageEditors);
   const headerBinding = useHeaderBinding(header);
+  const { channel, added, edits, goToNew } = useCvEdits({
+    current: drafts.current,
+    change,
+    view: onPage ? "page" : "cards",
+    showCv: () => setTab("cv"),
+  });
+
+  // Stays the same, for the checklist's memo.
+  const addNamedSection = useCallback(async (name: string) => {
+    setAdding(true);
+    try {
+      const section = await addSection(name);
+      if (section) goToNew(section.id);
+      return true;
+    } catch (error) {
+      console.error(error);
+      toast.error(`Couldn't add the ${name.toLowerCase()} section. Try again.`);
+      return false;
+    } finally {
+      setAdding(false);
+    }
+  }, [addSection, goToNew]);
+  const addPlainSection = useCallback(() => void addNamedSection("Section"), [addNamedSection]);
 
   const libraryLoaded = !library.loading && !library.failed;
   const createdAt = curriculum?.created_at;
@@ -118,27 +139,6 @@ const CvPage = ({ id }: { id: string }) => {
     openSuggestion(s);
   };
 
-  const addNamedSection = async (name: string) => {
-    setAdding(true);
-    try {
-      const section = await addSection(name);
-      if (section) {
-        focusNewSection(section.id);
-        // As the drafts have it: with an entry to write in.
-        const entry = drafts.current().find((each) => each.id === section.id)?.entries[0];
-        setAdded(entry && onPage ? { sectionId: section.id, entryId: entry.id } : null);
-      }
-      setTab("cv");
-      return true;
-    } catch (error) {
-      console.error(error);
-      toast.error(`Couldn't add the ${name.toLowerCase()} section. Try again.`);
-      return false;
-    } finally {
-      setAdding(false);
-    }
-  };
-
   const addMissingSection = async (name: MissingSection) => {
     if (await addNamedSection(name)) toast.success(`${name} section added`);
   };
@@ -154,6 +154,10 @@ const CvPage = ({ id }: { id: string }) => {
       onRetryLibrary={library.refresh}
       query={query}
       onQueryChange={setQuery}
+      edits={edits}
+      added={added}
+      onAddSection={addPlainSection}
+      adding={adding}
     />
   );
 
@@ -208,7 +212,7 @@ const CvPage = ({ id }: { id: string }) => {
   );
 
   const addButton = (className?: string) => (
-    <AddSheetButton onClick={() => void addNamedSection("Section")} disabled={adding} className={className}>
+    <AddSheetButton onClick={addPlainSection} disabled={adding} className={className}>
       Add section
     </AddSheetButton>
   );
@@ -218,57 +222,59 @@ const CvPage = ({ id }: { id: string }) => {
   };
 
   return (
-    <MonthDraftsContext value={monthDrafts}>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <CvPageHeader
-          curriculum={curriculum}
-          onRename={saveTitle}
-          onExport={() => void exportPdf()}
-          view={view}
-          onViewChange={changeView}
-          compact={onPage}
-        />
-        {onPage ? (
-          <PageView
-            {...page}
-            {...suggestions}
-            headerBinding={headerBinding}
-            open={added}
-            leaveRef={leaveRef}
-            designName={designName}
-            onDesignNameChange={setDesignName}
-            onDesignChange={look.changeDesign}
-            onPaperChange={look.changePaper}
-            checklist={checklistPanel}
-            review={reviewPanel}
-            notice={emptyHint}
-          >
-            {addButton("min-h-14 max-w-xs flex-row rounded-md border-[#9aa3ab] bg-transparent shadow-none")}
-          </PageView>
-        ) : (
-          <CvWorkspace
-            tab={tab}
-            onTabChange={setTab}
-            checklist={checklistPanel}
-            review={reviewPanel}
-            page={roomForPage ? null : <PagePreview {...page} />}
-          >
-            <CvCards
-              header={header}
-              sections={sections}
-              versions={versions}
-              onChange={change}
-              onRemove={actions.removeSection}
-              describeDeletion={describeDeletion}
-              twoColumn={twoColumn}
+    <EditChannelContext value={channel}>
+      <MonthDraftsContext value={monthDrafts}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <CvPageHeader
+            curriculum={curriculum}
+            onRename={saveTitle}
+            onExport={() => void exportPdf()}
+            view={view}
+            onViewChange={changeView}
+            compact={onPage}
+          />
+          {onPage ? (
+            <PageView
+              {...page}
               {...suggestions}
-            />
-            {emptyHint}
-            {addButton()}
-          </CvWorkspace>
-        )}
-      </div>
-    </MonthDraftsContext>
+              headerBinding={headerBinding}
+              open={added}
+              leaveRef={leaveRef}
+              designName={designName}
+              onDesignNameChange={setDesignName}
+              onDesignChange={look.changeDesign}
+              onPaperChange={look.changePaper}
+              checklist={checklistPanel}
+              review={reviewPanel}
+              notice={emptyHint}
+            >
+              {addButton("min-h-14 max-w-xs flex-row rounded-md border-[#9aa3ab] bg-transparent shadow-none")}
+            </PageView>
+          ) : (
+            <CvWorkspace
+              tab={tab}
+              onTabChange={setTab}
+              checklist={checklistPanel}
+              review={reviewPanel}
+              page={roomForPage ? null : <PagePreview {...page} />}
+            >
+              <CvCards
+                header={header}
+                sections={sections}
+                versions={versions}
+                onChange={change}
+                onRemove={actions.removeSection}
+                describeDeletion={describeDeletion}
+                twoColumn={twoColumn}
+                {...suggestions}
+              />
+              {emptyHint}
+              {addButton()}
+            </CvWorkspace>
+          )}
+        </div>
+      </MonthDraftsContext>
+    </EditChannelContext>
   );
 };
 

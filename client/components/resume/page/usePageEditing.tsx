@@ -2,7 +2,9 @@
 
 import type { ExportEntry } from "@/lib/resume/exportDocument";
 import { RefObject, useMemo } from "react";
+import type { Added } from "../useAdded";
 import BodySlot, { changeEntry, OnSectionChange } from "./BodySlot";
+import { entryKey } from "./nearStore";
 import { sourceOfEntry, sourceOfSection } from "./pageDocument";
 import PageContact from "./PageContact";
 import type { PageEditing, TextBinding } from "./PageEditing";
@@ -26,12 +28,14 @@ interface PageEditingOptions {
   headerBinding: HeaderBinding | null;
   onSectionChange: OnSectionChange;
   readOnly: boolean;
+  /** See PagedCv. */
+  open: Added | null;
 }
 
-/** What makes the template on a page editable. Its sections' stays the same. */
+/** What makes the template on a page editable. Its sections' only changes as an empty field is opened. */
 export const usePageEditing = (
   rootRef: RefObject<HTMLElement | null>,
-  { headerBinding, onSectionChange, readOnly }: PageEditingOptions
+  { headerBinding, onSectionChange, readOnly, open }: PageEditingOptions
 ): { sections: PageEditing; header: PageEditing } => {
   const header = useMemo<PageEditing>(() => {
     if (readOnly || !headerBinding) return NOTHING_EDITED;
@@ -45,6 +49,9 @@ export const usePageEditing = (
     };
   }, [rootRef, headerBinding, readOnly]);
 
+  const opened = open && open.what !== "section" && open.what !== "bullet" ? open : null;
+  const openField = opened?.what === "entry" ? "title" : opened?.what;
+  const openIn = opened && entryKey(opened.sectionId, opened.entryId);
   const sections = useMemo<PageEditing>(() => {
     if (readOnly) return NOTHING_EDITED;
     const onEnter = () => moveOn(rootRef.current);
@@ -69,6 +76,8 @@ export const usePageEditing = (
         const bind = (field: "title" | "description", label: string): TextBinding => ({
           value: entry[field] ?? "",
           label,
+          open: field === (openField === "summary" ? "description" : openField) && openIn === entryKey(sectionId, entryId),
+          placeholder: label,
           onEnter,
           onChange: (text) => changeEntry(onSectionChange, sectionId, entryId, { [field]: text }),
         });
@@ -87,7 +96,7 @@ export const usePageEditing = (
         return <BodySlot sectionId={section.id} isFirst={section.entries[0]?.id === entry.id} entry={entry} version={version} />;
       },
     };
-  }, [rootRef, onSectionChange, readOnly]);
+  }, [rootRef, onSectionChange, readOnly, openField, openIn]);
 
   return { sections, header };
 };

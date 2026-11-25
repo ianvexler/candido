@@ -8,12 +8,15 @@ import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
-import { memo, RefObject, useCallback, useContext, useRef, useState } from "react";
+import { memo, RefObject, useCallback, useContext, useEffect, useEffectEvent, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { withoutBlankEnd } from "./addBullet";
+import { EditChannelContext, EditTarget } from "./editChannel";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
 import LeaveOutArea from "./LeaveOutArea";
+import { editInEditor, focusText } from "./placeCaret";
 import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
 import { hasDetails, suggestsDetails } from "./sectionDetails";
 import { EntryChange, OnEntryChange, useEntryEditor } from "./useEntryEditor";
@@ -122,6 +125,29 @@ const SectionEntryEditor = ({
     descriptionRef,
     ...suggestionProps,
   });
+
+  const goTo = (target: EditTarget): boolean => {
+    if (target.what === "heading" || target.sectionId !== sectionId || target.entryId !== entry.id) return false;
+    if (target.what === "details") {
+      setOpenDetails(true);
+      return true;
+    }
+    if (target.what === "title" || target.what === "summary") {
+      if (target.what === "summary" && summaryOff) return false;
+      const isTitle = target.what === "title";
+      const field = isTitle ? titleRef : descriptionRef;
+      if (!field.current) flushSync(() => (isTitle ? title : summary).setOpen(true));
+      if (field.current) focusText(field.current);
+      return field.current !== null;
+    }
+    if (!editor || editor.isDestroyed) return false;
+    // Without its version, so that an editor that has it loads anew.
+    const drop = (latest: SectionEntry) => ({ content: withoutBlankEnd(latest.content) });
+    return editInEditor(editor, target, () => onEntryChange(entry.id, drop));
+  };
+  const onTarget = useEffectEvent(goTo);
+  const channel = useContext(EditChannelContext);
+  useEffect(() => channel?.handle((target) => onTarget(target)), [channel]);
 
   const content = (
     <EditorContent editor={editor} className="cv-document-body" onClick={onEditorClick} />

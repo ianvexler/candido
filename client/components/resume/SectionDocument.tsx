@@ -11,9 +11,11 @@ import { cn } from "@/lib/utils";
 import { Selection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { rowBox, rowIdOf } from "./ChecklistRow";
+import { EditChannelContext } from "./editChannel";
 import IconAction from "./IconAction";
+import { focusText } from "./placeCaret";
 import SectionEntryEditor from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
 import type { EntryChange } from "./useEntryEditor";
@@ -103,6 +105,18 @@ const SectionDocument = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
   const editors = useRef(new Map<string, Editor>());
+  const headingRef = useRef<HTMLInputElement>(null);
+  const channel = useContext(EditChannelContext);
+
+  useEffect(
+    () =>
+      channel?.handle((target) => {
+        if (target.what !== "heading" || target.sectionId !== sectionId || !headingRef.current) return false;
+        focusText(headingRef.current, target.selected);
+        return true;
+      }),
+    [channel, sectionId]
+  );
 
   const changeEntries = useCallback(
     (change: (entries: SectionEntry[]) => SectionEntry[], editor?: EntryEditor) =>
@@ -177,6 +191,7 @@ const SectionDocument = ({
         {notice}
 
         <input
+          ref={headingRef}
           value={sectionType}
           onChange={(event) => onChange({ section_type: event.target.value })}
           placeholder="Section heading, e.g. Experience"

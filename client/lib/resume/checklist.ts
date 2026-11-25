@@ -2,8 +2,9 @@ import { CurriculumSection, CvSuggestion, EntryFieldKeys, SUMMARY_ID, SectionEnt
 import { Item, isSeparator, listItems, parseHtml, setItemsOff } from "./items";
 import { FieldDifference, ItemState, actionsFor, differingFields, fieldsState, itemState, shownText, summaryState } from "./itemState";
 import { hasVisibleText } from "@/components/resume/documentContent";
+import { hasDetails } from "@/components/resume/sectionDetails";
 import { isEmptyEntry, moveAt } from "./sectionEntries";
-import type { SectionDraft, SectionPatch } from "./sectionDrafts";
+import { sameFields, type SectionDraft, type SectionPatch } from "./sectionDrafts";
 import { findQuote } from "./suggestions";
 
 /** "partial": some of it, or only an entry's title line. */
@@ -47,6 +48,8 @@ export type ChecklistEntry = Counts & {
   differences: FieldDifference[];
   /** Nothing is written in it. */
   blank: boolean;
+  /** Which of its fields are filled in. */
+  has: { title: boolean; summary: boolean; details: boolean };
   items: ChecklistItem[];
 };
 
@@ -233,6 +236,11 @@ const buildEntry = (
     fieldsState: fieldsState(inCv ? entry : null, libraryEntry ?? null, section?.base_fields[entry.id] ?? null),
     differences: inCv && libraryEntry ? differingFields(entry, libraryEntry) : [],
     blank,
+    has: {
+      title: Boolean(entry.title.trim()),
+      summary: summaryOf(entry) !== null,
+      details: hasDetails(entry),
+    },
     items,
   };
 };
@@ -398,21 +406,45 @@ export const tickItem = (section: SectionDraft, entryId: string, itemId: string,
   });
 };
 
+// Adding. As with ticking, only what is added shows of a left out section or entry.
+
+/** A new entry, after the CV's others. */
+export const addEntry = (section: SectionDraft, entry: SectionEntry): SectionPatch => ({
+  hidden: false,
+  entries: [...(section.hidden ? section.entries.map(hideEntry) : section.entries), entry],
+});
+
+/** Shows an entry for a bullet that is added to it. */
+export const showForBullet = (section: SectionDraft, entryId: string): SectionPatch => {
+  const target = section.entries.find(({ id }) => id === entryId);
+  if (!target || (!section.hidden && !target.hidden)) return {};
+  return showOnly(section, entryId, (entry) => setOff(entry, allIds(entry), true));
+};
+
+/** Ticks as they were before adding, if nothing else changed since. */
+export const putBack = (before: SectionDraft, after: SectionDraft) => (section: SectionDraft): SectionPatch =>
+  section.hidden === after.hidden && sameFields(section, after) ? { hidden: before.hidden, entries: before.entries } : {};
+
 /** Section ids in their new order; entries move with moveEntry. */
 export const moveSection = (ids: number[], id: number, by: -1 | 1): number[] => moveAt(ids, ids.indexOf(id), by);
 
-/** What matches, in its section and entry, and all of a section or entry whose name does. */
-export const filterChecklist = (list: ChecklistSection[], query: string): ChecklistSection[] => {
+/** What was just added: a section, or an entry or items that weren't known. */
+type Kept = { sectionId: number; entryId: string | null; known: string[] };
+
+/** What matches, in its section and entry, all of a section or entry whose name does, and what is kept. */
+export const filterChecklist = (list: ChecklistSection[], query: string, keep: Kept | null = null): ChecklistSection[] => {
   const wanted = query.trim().toLowerCase();
   if (!wanted) return list;
   const matches = (text: string) => text.toLowerCase().includes(wanted);
 
   return list.flatMap((section) => {
-    if (matches(section.name)) return [section];
+    const kept = keep !== null && section.sectionId === keep.sectionId ? keep : null;
+    if (matches(section.name) || kept?.entryId === null) return [section];
     const entries = section.entries.flatMap((entry) => {
       if (matches(entry.title)) return [entry];
-      const items = entry.items.filter(({ text }) => matches(text));
-      return items.length > 0 ? [{ ...entry, items }] : [];
+      const isKept = entry.inCv && kept?.entryId === entry.id;
+      const items = entry.items.filter(({ id, text }) => matches(text) || (isKept && !kept.known.includes(id)));
+      return items.length > 0 || isKept ? [{ ...entry, items }] : [];
     });
     return entries.length > 0 ? [{ ...section, entries }] : [];
   });
