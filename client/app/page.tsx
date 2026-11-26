@@ -53,10 +53,7 @@ const LandingPage = () => (
             <p className="mt-5 max-w-[26em] text-[17px] sm:text-[18px]">
               Track every application on one board, and tailor your CV to each job before you send it.
             </p>
-            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <CtaLink href="/register">Create account</CtaLink>
-              <a href="#board" className="py-2 font-semibold underline underline-offset-4">Try the board first</a>
-            </div>
+            <CtaLink href="/register" className="mt-7">Create account</CtaLink>
           </div>
 
           <div className="mr-[90px] self-end lg:mr-[120px]">
