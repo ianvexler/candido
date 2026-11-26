@@ -1,7 +1,8 @@
 import type { PaperSize } from "@/lib/types";
 import type { AddPlace } from "../useCvEdits";
 import { BlockPlace, isPadded } from "./breakRules";
-import { MeasuredBlock, measureColumns, printTop } from "./measureBlocks";
+import { isShown, lineBox } from "./HiddenTextMarks";
+import { columnsOf, MeasuredBlock, measureColumn, printTop } from "./measureBlocks";
 import { SHEET_GAP, SHEETS } from "./pageSize";
 
 type Side = "left" | "right";
@@ -30,21 +31,6 @@ export const HIT = 6;
 const TRAIL = 24;
 
 const sideOf = (element: Element): Side => (element.closest(".rs-main") ? "right" : "left");
-
-/** As measureColumns finds them, in the same order. */
-const columnsOf = (root: HTMLElement): HTMLElement[] => {
-  const found = [...root.querySelectorAll<HTMLElement>(".rs-side, .rs-main")];
-  return found.length > 0 ? found : [...root.querySelectorAll<HTMLElement>(".resume-classic")];
-};
-
-const isShown = (element: Element) => element.getBoundingClientRect().height > 0;
-const firstShown = (element: Element): Element => [...element.children].find(isShown) ?? element;
-
-/** The page's own scale, from its box and its unscaled width. */
-const scaleOf = (root: HTMLElement): number => {
-  const width = root.offsetWidth;
-  return width > 0 ? root.getBoundingClientRect().width / width : 1;
-};
 
 type Spot = { top: number; bottom: number } & (
   | { kind: "header" }
@@ -94,8 +80,11 @@ const placeAfter = (spot: Exclude<Spot, { kind: "header" }>): AddPlace => {
 
 type Found = { gap: GapKind; from: number; to: number; top: number };
 
+type Sheets = { of: (y: number) => number; end: (sheet: number) => number };
+
 /** Each place in a column the pointer can be at, with the y range that finds it. */
-const placesOf = (spots: Spot[], sheetOf: (y: number) => number): Found[] => {
+const placesOf = (spots: Spot[], sheets: Sheets, order: number[]): Found[] => {
+  const sheetOf = sheets.of;
   const pairs = spots.slice(1).map((below, index) => [spots[index], below] as const);
   const broken = ([above, below]: readonly [Spot, Spot]) => sheetOf(above.bottom) !== sheetOf(below.top);
   // A break's space says nothing of the gap: what the column's others are says it.
@@ -103,12 +92,19 @@ const placesOf = (spots: Spot[], sheetOf: (y: number) => number): Found[] => {
   const normal = spaces.length > 0 ? spaces[Math.floor(spaces.length / 2)] : 0;
 
   const found: Found[] = [];
+  // A column's first section follows the one before it in the CV, which may be in the other column.
+  const first = spots.find((spot) => spot.kind !== "header");
+  const before = first ? (order[order.indexOf(first.sectionId) - 1] ?? null) : null;
+  if (first && spots[0] === first) {
+    const top = first.top - HIT;
+    found.push({ gap: { kind: "section", afterSectionId: before }, from: top - HIT, to: first.top, top });
+  }
   pairs.forEach((pair) => {
     const [above, below] = pair;
     // Never in the space between sheets.
     const top = broken(pair) ? below.top - normal / 2 : (above.bottom + below.top) / 2;
     if (above.kind === "header") {
-      found.push({ gap: { kind: "section", afterSectionId: null }, from: top - HIT, to: top + HIT, top });
+      found.push({ gap: { kind: "section", afterSectionId: before }, from: top - HIT, to: top + HIT, top });
     } else if (below.kind !== "header" && below.sectionId === above.sectionId) {
       found.push({ gap: { kind: "add", place: placeAfter(above) }, from: top - HIT, to: top + HIT, top });
     } else {
@@ -118,33 +114,36 @@ const placesOf = (spots: Spot[], sheetOf: (y: number) => number): Found[] => {
   });
   const last = spots[spots.length - 1];
   if (last && last.kind !== "header") {
-    const top = last.bottom + TRAIL / 2;
+    // Not past its sheet's foot.
+    const end = Math.min(last.bottom + TRAIL, sheets.end(sheetOf(last.bottom)));
+    const top = (last.bottom + end) / 2;
     found.push({ gap: { kind: "add", place: placeAfter(last) }, from: last.bottom, to: top, top });
-    found.push({ gap: { kind: "section", afterSectionId: last.sectionId }, from: top, to: last.bottom + TRAIL, top });
+    found.push({ gap: { kind: "section", afterSectionId: last.sectionId }, from: top, to: end, top });
   }
   return found;
 };
 
-/** The gap under the pointer, in the column it is over. */
-export const gapAt = (root: HTMLElement, scale: number, clientX: number, clientY: number): Gap | null => {
+/** The gap under the pointer, in the column it is over. `order` is the CV's section ids in order. */
+export const gapAt = (root: HTMLElement, scale: number, clientX: number, clientY: number, order: number[]): Gap | null => {
+  const column = columnsOf(root).find((each) => {
+    const { left, right } = each.getBoundingClientRect();
+    return clientX >= left && clientX <= right;
+  });
+  if (!column) return null;
+
   const box = root.getBoundingClientRect();
   const origin = box.top / scale;
   const y = clientY / scale - origin;
   const paper = root.querySelector("[data-paper]")?.getAttribute("data-paper") as PaperSize | null;
-  const sheet = paper && SHEETS[paper] ? SHEETS[paper].height + SHEET_GAP : Infinity;
-  const sheetOf = (at: number) => Math.floor(at / sheet);
+  const height = paper && SHEETS[paper] ? SHEETS[paper].height : Infinity;
+  const sheets: Sheets = {
+    of: (at) => Math.floor(at / (height + SHEET_GAP)),
+    // Written so that without a paper there is one endless sheet.
+    end: (sheet) => (sheet + 1) * (height + SHEET_GAP) - SHEET_GAP,
+  };
 
-  const columns = columnsOf(root);
-  const measured = measureColumns(root, scale);
-  const index = columns.findIndex((column) => {
-    const { left, right } = column.getBoundingClientRect();
-    return clientX >= left && clientX <= right;
-  });
-  if (index < 0 || !measured[index]) return null;
-
-  const column = columns[index];
-  const { base, blocks } = measured[index];
-  const hit = placesOf(spotsOf(blocks, base, origin, scale), sheetOf).find(({ from, to }) => y >= from && y < to);
+  const { base, blocks } = measureColumn(column, scale);
+  const hit = placesOf(spotsOf(blocks, base, origin, scale), sheets, order).find(({ from, to }) => y >= from && y < to);
   if (!hit) return null;
 
   const edges = column.getBoundingClientRect();
@@ -159,7 +158,7 @@ export const gapAt = (root: HTMLElement, scale: number, clientX: number, clientY
 };
 
 /** The innermost block containing `target`, and where its first line starts. The header has none. */
-export const blockAt = (root: HTMLElement, target: Element): (BlockRef & { top: number; side: Side }) | null => {
+export const blockAt = (root: HTMLElement, scale: number, target: Element): (BlockRef & { top: number; side: Side }) | null => {
   const section = target.closest("[data-section-id]");
   if (!section || !root.contains(section)) return null;
   const sectionId = Number(section.getAttribute("data-section-id"));
@@ -182,7 +181,7 @@ export const blockAt = (root: HTMLElement, target: Element): (BlockRef & { top: 
     return null;
   } else if (item) {
     ref = { sectionId, kind: "item", entryId, itemId: item.getAttribute("data-cv-item")! };
-    element = firstShown(item);
+    element = item;
   } else if (summary) {
     ref = { sectionId, kind: "summary", entryId };
     element = summary;
@@ -192,7 +191,7 @@ export const blockAt = (root: HTMLElement, target: Element): (BlockRef & { top: 
     // Its title line, not the section heading the first entry's head holds.
     element = (head && [...head.children].find((child) => !child.matches(".rc-heading") && isShown(child))) ?? entry;
   }
-  const scale = scaleOf(root);
-  const top = (element.getBoundingClientRect().top - root.getBoundingClientRect().top) / scale;
+  // A line box: a block's own box has any break's padding, and its first child may be on a later line.
+  const top = (lineBox(element).top - root.getBoundingClientRect().top) / scale;
   return { ...ref, top, side: sideOf(section) };
 };

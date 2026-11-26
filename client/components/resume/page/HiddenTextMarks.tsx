@@ -14,13 +14,13 @@ export type HiddenMarkAt = { top: number; side: "left" | "right"; places: Hidden
 export const MARK_SIZE = 24;
 
 /** The first line of text of an element, or its box. */
-const lineBox = (element: Element): DOMRect => {
+export const lineBox = (element: Element): DOMRect => {
   const range = document.createRange();
   range.selectNodeContents(element);
   return [...range.getClientRects()].find(({ height }) => height > 0) ?? element.getBoundingClientRect();
 };
 
-const isShown = (element: Element | null): element is Element => element !== null && element.getBoundingClientRect().height > 0;
+export const isShown = (element: Element | null): element is Element => element !== null && element.getBoundingClientRect().height > 0;
 
 /** The item, or the nearest thing shown above it when all of it is hidden. */
 const shownItem = (entry: Element, itemId: string): Element | null => {

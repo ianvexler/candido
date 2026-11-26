@@ -1,10 +1,24 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { blockAt, gapAt } from "./pagePlaces";
 
 let root: HTMLElement;
+let shownAt = 1;
+
+/** Line boxes come from data-lines="top,bottom;…"; without them, the element's box. */
+beforeEach(() => {
+  Range.prototype.getClientRects = function (this: Range) {
+    const lines = (this.startContainer as HTMLElement).dataset?.lines;
+    if (!lines) return [] as unknown as DOMRectList;
+    return lines.split(";").map((line) => {
+      const [top, bottom] = line.split(",").map((n) => Number(n) * shownAt);
+      return { top, bottom, height: bottom - top } as DOMRect;
+    }) as unknown as DOMRectList;
+  };
+});
 
 /** Boxes come from data-box="top,bottom" and data-x="left,right", in sheet px; without a box it isn't shown. */
 const page = (html: string, scale = 1) => {
+  shownAt = scale;
   root = document.createElement("div");
   root.innerHTML = html;
   document.body.append(root);
@@ -15,7 +29,6 @@ const page = (html: string, scale = 1) => {
       ({ top, bottom, left, right, height: bottom - top, width: right - left }) as DOMRect;
   });
   root.getBoundingClientRect = () => ({ top: 0, bottom: 0, left: 0, right: 800 * scale, height: 0, width: 800 * scale }) as DOMRect;
-  Object.defineProperty(root, "offsetWidth", { value: 800 });
 };
 
 const bullets = (items: [string, number, number][], style = "") =>
@@ -36,9 +49,9 @@ const sections =
   "</div></section>";
 const classic = `<div class="resume-classic" data-paper="a4" data-box="0,1123">${header}${sections}</div>`;
 
-const at = (y: number, x = 400, scale = 1) => gapAt(root, scale, x * scale, y * scale);
-const what = (y: number, x?: number, scale?: number) => {
-  const gap = at(y, x, scale);
+const at = (y: number, x = 400, scale = 1, order = [1, 2]) => gapAt(root, scale, x * scale, y * scale, order);
+const what = (y: number, x?: number, scale?: number, order?: number[]) => {
+  const gap = at(y, x, scale, order);
   if (!gap) return null;
   return gap.kind === "add" ? { kind: "add", place: gap.place } : { kind: "section", afterSectionId: gap.afterSectionId };
 };
@@ -81,6 +94,23 @@ describe("gapAt", () => {
     expect(what(246)).toBeNull();
   });
 
+  it("adds a section above the first section without a header shown", () => {
+    page(classic.replace('data-box="0,60"', ""));
+    expect(what(70)).toEqual({ kind: "section", afterSectionId: null });
+    expect(at(70)?.top).toBe(74);
+    expect(what(66)).toBeNull();
+  });
+
+  it("keeps the trailing points on the last block's sheet", () => {
+    page(`<div class="resume-classic" data-paper="a4" data-box="0,1123">${header}` +
+      '<section data-section-id="1"><div data-entry-id="e1"><div data-block="head" data-box="1080,1096"><h3 data-box="1080,1096"></h3></div>' +
+      bullets([["b1", 1100, 1110]]) + "</div></section></div>");
+    // The first sheet ends at 1122.5.
+    expect(what(1112)).toEqual({ kind: "add", place: { sectionId: 1, entryId: "e1", after: "b1" } });
+    expect(what(1120)).toEqual({ kind: "section", afterSectionId: 1 });
+    expect(what(1125)).toBeNull();
+  });
+
   it("gives the column's content edges and the side it is nearest", () => {
     page(classic.replace('class="resume-classic"', 'class="resume-classic" style="padding-left: 40px; padding-right: 30px"'));
     expect(at(143)).toMatchObject({ left: 40, right: 770, side: "left" });
@@ -113,6 +143,11 @@ describe("gapAt", () => {
     expect(what(58, 500)).toEqual({ kind: "add", place: { sectionId: 4, entryId: null, after: null } });
     expect(at(58, 500)?.side).toBe("right");
     expect(what(58, 100)).toBeNull();
+    // Above each column's first section, after the section before it in the CV.
+    expect(what(34, 500, 1, [3, 4])).toEqual({ kind: "section", afterSectionId: 3 });
+    expect(what(34, 500, 1, [4, 3])).toEqual({ kind: "section", afterSectionId: null });
+    expect(what(72, 100, 1, [4, 3])).toEqual({ kind: "section", afterSectionId: 4 });
+    expect(what(72, 100, 1, [3, 4])).toEqual({ kind: "section", afterSectionId: null });
   });
 
   it("puts a gap across a page break at the top of the next page's block", () => {
@@ -137,19 +172,31 @@ describe("blockAt", () => {
 
   it("is the innermost block under the pointer", () => {
     page(classic);
-    expect(blockAt(root, target('[data-cv-item="b2"]'))).toEqual({ sectionId: 1, kind: "item", entryId: "e1", itemId: "b2", top: 144, side: "left" });
-    expect(blockAt(root, target(".rc-summary"))).toMatchObject({ kind: "summary", entryId: "e1", top: 116 });
-    expect(blockAt(root, target('[data-section-id="2"] .rc-heading'))).toMatchObject({ sectionId: 2, kind: "heading", top: 172 });
-    expect(blockAt(root, target('[data-section-id="1"] h3'))).toMatchObject({ kind: "entry", entryId: "e1", top: 100 });
+    expect(blockAt(root, 1, target('[data-cv-item="b2"]'))).toEqual({ sectionId: 1, kind: "item", entryId: "e1", itemId: "b2", top: 144, side: "left" });
+    expect(blockAt(root, 1, target(".rc-summary"))).toMatchObject({ kind: "summary", entryId: "e1", top: 116 });
+    expect(blockAt(root, 1, target('[data-section-id="2"] .rc-heading'))).toMatchObject({ sectionId: 2, kind: "heading", top: 172 });
+    expect(blockAt(root, 1, target('[data-section-id="1"] h3'))).toMatchObject({ kind: "entry", entryId: "e1", top: 100 });
+  });
+
+  it("gives a paragraph's top from its first line, past a break's padding and its inline parts", () => {
+    page(
+      `<div class="resume-classic" data-paper="a4" data-box="0,2300">${header}<section data-section-id="1"><div data-entry-id="e1">` +
+        '<div class="rc-body"><div class="ProseMirror">' +
+        '<p data-cv-item="p1" data-box="300,332" data-lines="300,316;316,332">text <strong data-box="316,332"></strong></p>' +
+        '<p data-cv-item="p2" data-box="1000,1236" style="padding-top: 220px" data-lines="1220,1236"></p>' +
+        "</div></div></div></section></div>"
+    );
+    expect(blockAt(root, 1, target("strong"))).toMatchObject({ kind: "item", itemId: "p1", top: 300 });
+    expect(blockAt(root, 1, target('[data-cv-item="p2"]'))).toMatchObject({ kind: "item", itemId: "p2", top: 1220 });
   });
 
   it("has none for the header", () => {
     page(classic);
-    expect(blockAt(root, target("header"))).toBeNull();
+    expect(blockAt(root, 1, target("header"))).toBeNull();
   });
 
   it("gives its top in sheet units on a scaled page", () => {
     page(classic, 0.75);
-    expect(blockAt(root, target('[data-cv-item="b2"]'))?.top).toBeCloseTo(144);
+    expect(blockAt(root, 0.75, target('[data-cv-item="b2"]'))?.top).toBeCloseTo(144);
   });
 });
