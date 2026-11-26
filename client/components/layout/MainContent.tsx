@@ -21,6 +21,8 @@ const MainContent = ({ children }: MainContentProps) => {
   const hasNav = isAuthenticated && !isLanding;
   // Pages that manage their own scrolling panes.
   const isFullHeight = pathname === "/board" || pathname.startsWith("/board/") || pathname.startsWith("/resume/");
+  // The list and the selected job scroll side by side on wide screens; on phones the page scrolls.
+  const isWideFullHeight = pathname === "/applications";
 
   return (
     <div
@@ -28,7 +30,8 @@ const MainContent = ({ children }: MainContentProps) => {
         "flex flex-1 flex-col min-w-0",
         // Room for the sidebar on desktop and the tab bar on mobile.
         hasNav && "pb-16 md:pb-0 md:pl-60",
-        isFullHeight ? "h-screen overflow-hidden" : "min-h-screen overflow-y-auto"
+        isFullHeight ? "h-screen overflow-hidden" : "min-h-screen overflow-y-auto",
+        isWideFullHeight && "lg:h-screen lg:min-h-0 lg:overflow-hidden"
       )}
     >
       {children}

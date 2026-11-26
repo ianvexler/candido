@@ -22,11 +22,11 @@ const BoardJobEntryPage = ({ params, searchParams }: BoardJobEntryPageProps) => 
   const { id } = use(params);
   const { from } = use(searchParams);
   // A new job starts from a clean page.
-  return <JobPage key={id} id={id} from={from === "sheet" ? "sheet" : "board"} />;
+  return <JobPage key={id} id={id} from={from === "applications" ? "applications" : "board"} />;
 };
 
 /** Preparing a job's application, with the job's own fields beside it. */
-const JobPage = ({ id, from }: { id: string; from: "board" | "sheet" }) => {
+const JobPage = ({ id, from }: { id: string; from: "board" | "applications" }) => {
   const router = useRouter();
   const [entry, setEntry] = useState<JobBoardEntry>();
   const [allEntries, setAllEntries] = useState<JobBoardEntry[] | null>(null);
