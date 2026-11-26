@@ -145,7 +145,7 @@ export const findDatesMarks = (
   scale: number,
   sections: ExportSection[],
   unfinished: EntryPlace[],
-  others: HiddenMarkAt[]
+  others: Pick<HiddenMarkAt, "top" | "side">[]
 ): DatesMarkAt[] => {
   const keys = new Set(unfinished.map(cardKey));
   const base = root.getBoundingClientRect().top;

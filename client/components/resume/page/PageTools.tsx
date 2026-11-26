@@ -72,11 +72,13 @@ const sectionGap = (root: HTMLElement, scale: number, order: number[], afterSect
 interface ToolMenuProps {
   anchor: Element | null;
   onClose: (back: boolean) => void;
+  /** What else a press on keeps it open: what opens another in its place. */
+  keepOpenOn?: string;
   children: ReactNode;
 }
 
 /** A menu by its pill, out of the page's scale. A press elsewhere closes it. */
-const ToolMenu = ({ anchor, onClose, children }: ToolMenuProps) => {
+export const ToolMenu = ({ anchor, onClose, keepOpenOn, children }: ToolMenuProps) => {
   const { refs, floatingStyles, elements } = useFloating({
     placement: "bottom-start",
     elements: { reference: anchor },
@@ -89,11 +91,12 @@ const ToolMenu = ({ anchor, onClose, children }: ToolMenuProps) => {
   useEffect(() => {
     const onDown = ({ target }: PointerEvent) => {
       if (!(target instanceof Node) || floating?.contains(target) || anchor?.contains(target)) return;
+      if (keepOpenOn && target instanceof Element && target.closest(keepOpenOn)) return;
       close(false);
     };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [floating, anchor]);
+  }, [floating, anchor, keepOpenOn]);
 
   return (
     <FloatingPortal>
@@ -283,7 +286,7 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
         <ToolMenu anchor={anchor} onClose={close}>
           <AddMenu
             place={menu.gap.place}
-            rows={rows}
+            sections={sections}
             edits={edits}
             onPutBack={(entryId, itemId) =>
               void actions.tick({ sectionId: menu.gap.place.sectionId, templateId: null, entryId, itemId, inCv: true }, true)

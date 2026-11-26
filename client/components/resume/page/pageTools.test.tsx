@@ -38,6 +38,20 @@ const rows = [
   },
 ] as unknown as ChecklistSection[];
 
+// The drafts: what the put-back list reads. The library's items aren't in them.
+const sections = [
+  {
+    id: 1,
+    entries: [
+      {
+        id: "e1",
+        content:
+          '<ul><li data-cv-item="i1"><p>Cut latency</p></li><li data-cv-item="i2" data-cv-off="true"><p>Rebuilt the checkout</p></li></ul>',
+      },
+    ],
+  },
+] as unknown as CurriculumSection[];
+
 let host: HTMLDivElement;
 let root: Root;
 let actions: { tick: ReturnType<typeof vi.fn>; orderSections: ReturnType<typeof vi.fn> };
@@ -60,7 +74,7 @@ const Sheet = () => {
           ref={handle}
           rootRef={rootRef}
           scale={1}
-          sections={[{ id: 1 } as CurriculumSection]}
+          sections={sections}
           rows={rows}
           actions={actions as unknown as ChecklistActions}
           edits={edits as unknown as CvEdits}

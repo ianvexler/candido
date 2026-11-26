@@ -27,7 +27,9 @@ import { ResumeTemplate } from "../templates/ResumeTemplate";
 import type { Added } from "../useAdded";
 import type { SuggestionProps } from "../useEntrySuggestions";
 import { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
-import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, MARK_SIZE } from "./HiddenTextMarks";
+import FoldMarks from "./FoldMarks";
+import { findFolds, FoldAt } from "./folds";
+import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, isHiddenMark, MARK_SIZE, mergeMarks } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
 import { CardsContext, entryAt } from "./cardPlace";
 import { editOnPage } from "./editOnPage";
@@ -193,18 +195,27 @@ const Page = ({
 
   // --- Pages ----------------------------------------------------------------
   const [marks, setMarks] = useState<HiddenMarkAt[]>([]);
+  const [folds, setFolds] = useState<FoldAt[]>([]);
   const [datesMarks, setDatesMarks] = useState<DatesMarkAt[]>([]);
   const [headerTop, setHeaderTop] = useState(0);
+  const folding = tools !== null;
   const onLaidOut = useCallback(
     (root: HTMLElement, at: number) => {
-      const found = findHiddenMarks(root, at, shownSections);
+      // In one margin with the hidden-text marks: stacked, never over each other.
+      const all = mergeMarks<HiddenMarkAt | FoldAt>([
+        ...findHiddenMarks(root, at, shownSections),
+        ...(folding ? findFolds(root, at, sections) : []),
+      ]);
+      const found = all.filter(isHiddenMark);
+      const folded = all.filter((mark): mark is FoldAt => !isHiddenMark(mark));
       setMarks((before) => (JSON.stringify(before) === JSON.stringify(found) ? before : found));
-      const dates = findDatesMarks(root, at, shownSections, unfinished, found);
+      setFolds((before) => (JSON.stringify(before) === JSON.stringify(folded) ? before : folded));
+      const dates = findDatesMarks(root, at, shownSections, unfinished, all);
       setDatesMarks((before) => (JSON.stringify(before) === JSON.stringify(dates) ? before : dates));
       const top = root.querySelector(".rc-header")?.getBoundingClientRect().top ?? 0;
       setHeaderTop(Math.round((top - root.getBoundingClientRect().top) / at));
     },
-    [shownSections, unfinished]
+    [shownSections, sections, unfinished, folding]
   );
   const paging = usePaging(rootRef, { pageId, design, paper, scale, onLaidOut });
   useEffect(() => onPaging(paging), [onPaging, paging]);
@@ -228,6 +239,8 @@ const Page = ({
     },
     [editors, onSectionChange]
   );
+
+  const focusPage = useCallback(() => rootRef.current?.focus({ preventScroll: true }), []);
 
   const { pages } = paging.paging;
   const { sheetHeight, gap } = paging.metrics;
@@ -294,7 +307,12 @@ const Page = ({
                     : null
                 }
               />
-              {tools && <PageTools ref={toolsRef} rootRef={rootRef} scale={scale} sections={sections} {...tools} />}
+              {tools && (
+                <>
+                  <FoldMarks folds={folds} inside={marksInside} actions={tools.actions} onClosed={focusPage} />
+                  <PageTools ref={toolsRef} rootRef={rootRef} scale={scale} sections={sections} {...tools} />
+                </>
+              )}
             </>
           )}
         </div>

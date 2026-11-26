@@ -1,26 +1,27 @@
 "use client";
 
-import type { ChecklistSection } from "@/lib/resume/checklist";
+import type { CurriculumSection } from "@/lib/types";
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import { textStart } from "../ChecklistRow";
 import type { AddPlace, CvEdits } from "../useCvEdits";
-
-export type LeftOutItem = { id: string; text: string };
+import { leftOutItemsOf } from "./folds";
 
 /** The entry a place adds into: its own, or under a heading the section's first, as addAt has it. */
-const entryIdOf = (rows: ChecklistSection[], { sectionId, entryId }: AddPlace) =>
-  entryId ?? rows.find((row) => row.sectionId === sectionId)?.entries.find(({ inCv }) => inCv)?.id ?? null;
+const entryOf = (sections: CurriculumSection[], { sectionId, entryId }: AddPlace) => {
+  const entries = sections.find(({ id }) => id === sectionId)?.entries ?? [];
+  return (entryId === null ? entries[0] : entries.find(({ id }) => id === entryId)) ?? null;
+};
 
 /** The items of a place's entry that the CV has and leaves out. */
-export const leftOutItems = (rows: ChecklistSection[], place: AddPlace): LeftOutItem[] => {
-  const entryId = entryIdOf(rows, place);
-  const entry = rows.find((row) => row.sectionId === place.sectionId)?.entries.find(({ id, inCv }) => id === entryId && inCv);
-  return (entry?.items ?? []).filter(({ inCv, off }) => inCv && off).map(({ id, text }) => ({ id, text }));
+const leftOutItems = (sections: CurriculumSection[], place: AddPlace) => {
+  const entry = entryOf(sections, place);
+  return entry ? leftOutItemsOf(entry) : [];
 };
 
 interface AddMenuProps {
   place: AddPlace;
-  rows: ChecklistSection[];
+  /** The drafts. */
+  sections: CurriculumSection[];
   edits: Pick<CvEdits, "addAt">;
   /** Ticks an item of the place's entry back on. */
   onPutBack: (entryId: string, itemId: string) => void;
@@ -31,11 +32,11 @@ interface AddMenuProps {
 const ITEM = "flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-[#fff4dc] focus-visible:bg-[#fff4dc]";
 
 /** What a "+ Add" adds at its place. A plain list: no search. */
-const AddMenu = ({ place, rows, edits, onPutBack, onClose }: AddMenuProps) => {
+const AddMenu = ({ place, sections, edits, onPutBack, onClose }: AddMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [listing, setListing] = useState(false);
-  const leftOut = leftOutItems(rows, place);
-  const entryId = entryIdOf(rows, place);
+  const leftOut = leftOutItems(sections, place);
+  const entryId = entryOf(sections, place)?.id ?? null;
 
   // Each list starts at its first item; not scrolled to, as it may not be placed yet.
   useEffect(() => menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true }), [listing]);

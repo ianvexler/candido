@@ -4,6 +4,7 @@ import type { ExportSection } from "@/lib/resume/exportDocument";
 import { EyeOffIcon } from "lucide-react";
 import { memo } from "react";
 import IconAction from "../IconAction";
+import type { FoldAt } from "./folds";
 import type { HiddenPlace } from "./hiddenText";
 import { sourceOfEntry } from "./pageDocument";
 
@@ -31,15 +32,18 @@ const shownItem = (entry: Element, itemId: string): Element | null => {
   return [item, ...above, head, entry].find(isShown) ?? null;
 };
 
-/** Those that would overlap as one. */
-export const mergeMarks = (marks: HiddenMarkAt[]): HiddenMarkAt[] => {
-  const merged: HiddenMarkAt[] = [];
+export const isHiddenMark = (mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
+
+/** Hidden-text marks that would overlap as one; a fold below whatever it would overlap. */
+export const mergeMarks = <T extends HiddenMarkAt | FoldAt>(marks: T[]): T[] => {
+  const merged: T[] = [];
   [...marks]
     .sort((a, b) => a.top - b.top)
     .forEach((mark) => {
       const last = merged.findLast(({ side }) => side === mark.side);
-      if (last && mark.top - last.top < MARK_SIZE) last.places = [...last.places, ...mark.places];
-      else merged.push({ ...mark });
+      if (!last || mark.top - last.top >= MARK_SIZE) merged.push({ ...mark });
+      else if (isHiddenMark(last) && isHiddenMark(mark)) last.places = [...last.places, ...mark.places];
+      else merged.push({ ...mark, top: last.top + MARK_SIZE });
     });
   return merged;
 };

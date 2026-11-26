@@ -83,7 +83,8 @@ const cached = <A extends (string | null)[], T>(compute: (...args: A) => T) => {
   };
 };
 
-const itemsOf = cached((html: string): readonly Item[] => listItems(html));
+/** An entry content's items, remembered. */
+export const itemsOf = cached((html: string): readonly Item[] => listItems(html));
 const stateOf = cached(itemState);
 const shownOf = cached(shownText);
 
