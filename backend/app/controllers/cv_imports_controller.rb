@@ -37,12 +37,14 @@ class CvImportsController < ApplicationController
   def apply
     applied = @cv_import.apply!(
       entry_ids: entry_ids,
-      fill_profile: ActiveModel::Type::Boolean.new.cast(params[:fill_profile]) || false
+      fill_profile: ActiveModel::Type::Boolean.new.cast(params[:fill_profile]) || false,
+      create_cv: ActiveModel::Type::Boolean.new.cast(params[:create_cv]) || false
     )
     render json: {
       cv_import: serialize(@cv_import, with: CvImportBlueprint),
       section_templates: serialize(applied[:section_templates], with: SectionTemplateBlueprint),
-      profile: applied[:profile]
+      profile: applied[:profile],
+      curriculum_id: applied[:curriculum]&.id
     }
   end
 

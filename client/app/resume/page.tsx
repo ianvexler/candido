@@ -3,6 +3,12 @@
 import { createCurriculum } from "@/api/resources/curriculums/createCurriculum";
 import { deleteCurriculum } from "@/api/resources/curriculums/deleteCurriculum";
 import { getCurriculums } from "@/api/resources/curriculums/getCurriculums";
+import FitBadge from "@/components/common/FitBadge";
+import ImportCvDialog from "@/components/resume/ImportCvDialog";
+import TailorToJob from "@/components/resume/TailorToJob";
+import { useAuth } from "@/contexts/AuthContext";
+import { copyReadiness } from "@/lib/jobBoard/tailorJobs";
+import { capitalize } from "@/lib/utils";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import Description from "@/components/common/Description";
 import Loader from "@/components/common/Loader";
@@ -13,19 +19,62 @@ import { Button } from "@/components/ui/Button";
 import { deleteDescription, splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { Curriculum } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronRightIcon, FileTextIcon, LibraryBigIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { FileUpIcon, LibraryBigIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+interface CopyRowProps {
+  copy: Curriculum;
+  reviewsAvailable: boolean;
+  onDelete: () => void;
+}
+
+/** A copy made for a job. The one the job uses opens its application; an unused one opens as a CV. */
+const CopyRow = ({ copy, reviewsAvailable, onDelete }: CopyRowProps) => {
+  const job = copy.tailoring?.job;
+  const ready = copy.cv_for_job ? copyReadiness(copy, reviewsAvailable) : null;
+  const status = copy.cv_for_job ? ready?.label ?? (job ? capitalize(job.status.toLowerCase()) : null) : "Not in use";
+  const source = copy.tailoring?.source_title;
+  const about = job && source ? `${job.title}, from ${source}` : job?.title ?? (source ? `From ${source}` : "");
+
+  return (
+    <li className="group relative flex flex-wrap items-center gap-x-4 gap-y-1 py-3 pr-10">
+      <div className="min-w-0 flex-1 basis-56">
+        <NextLink
+          href={copy.cv_for_job ? `/board/${copy.cv_for_job.id}` : `/resume/${copy.id}`}
+          className="font-medium break-words after:absolute after:inset-0 hover:underline"
+        >
+          {job?.company ?? copy.tailored_for}
+        </NextLink>
+        <p className="truncate text-sm text-muted-foreground">{about || copy.title}</p>
+      </div>
+      {status && <span className="text-sm text-muted-foreground">{status}</span>}
+      {copy.tailoring?.fit && <FitBadge fit={copy.tailoring.fit} />}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="absolute top-1/2 right-0 -translate-y-1/2 text-muted-foreground"
+        onClick={onDelete}
+        aria-label={`Delete ${copy.title}`}
+      >
+        <Trash2Icon />
+      </Button>
+    </li>
+  );
+};
+
 const ResumesPage = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Curriculum | null>(null);
-  const [copiesOpen, setCopiesOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [tailoringCv, setTailoringCv] = useState<Curriculum | null>(null);
   const { masters, copies } = splitCurriculums(curriculums);
 
   useEffect(() => {
@@ -60,26 +109,36 @@ const ResumesPage = () => {
     }
   };
 
+  const libraryLink = (
+    <Button variant="ghost" asChild>
+      <NextLink href="/resume/sections">
+        <LibraryBigIcon />
+        Section library
+      </NextLink>
+    </Button>
+  );
+
   return (
     <PageContainer>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Title>Your CVs</Title>
-          <Description className="mt-1">
-            Build a CV from sections in your library. Edits here stay with that CV.
-          </Description>
+          <Description className="mt-1">Keep a CV or two, and tailor a copy for each job.</Description>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <NextLink href="/resume/sections">
-              <LibraryBigIcon />
-              Section library
-            </NextLink>
-          </Button>
-          <Button onClick={() => setCreating(true)}>
-            <PlusIcon />
-            New CV
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          {libraryLink}
+          {!loading && masters.length > 0 && (
+            <>
+            <Button variant="outline" onClick={() => setImporting(true)}>
+              <FileUpIcon />
+              Import a CV
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+              <PlusIcon />
+              New CV
+            </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -88,38 +147,53 @@ const ResumesPage = () => {
           <Loader />
         </div>
       ) : masters.length === 0 ? (
-        <div className="mt-10 rounded-lg border border-dashed border-border px-6 py-14 text-center">
-          <FileTextIcon className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-3 font-medium">
-            {copies.length > 0 ? "No master CVs yet" : "No CVs yet"}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {copies.length > 0
-              ? "Create one to reuse for applications."
-              : "Write sections in your library, then pick the ones each CV needs."}
-          </p>
-          <Button className="mt-5" onClick={() => setCreating(true)}>
-            <PlusIcon />
-            New CV
-          </Button>
+        <div className="mt-8 rounded-lg border border-dashed border-border px-6 py-14 text-center">
+          <p className="text-base font-medium">Start with the CV you have</p>
+          <p className="mt-1 text-sm text-muted-foreground">We&apos;ll read it into sections you can edit and tailor.</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button variant="candido" onClick={() => setImporting(true)}>
+              <FileUpIcon />
+              Import a CV
+            </Button>
+            <Button variant="outline" onClick={() => setCreating(true)}>
+              Start from scratch
+            </Button>
+          </div>
         </div>
       ) : (
         <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {masters.map((curriculum) => (
-            <li key={curriculum.id} className="group relative">
+            <li
+              key={curriculum.id}
+              className="group relative flex flex-col rounded-lg border border-border bg-white p-5 transition-colors hover:border-foreground/30"
+            >
               <NextLink
                 href={`/resume/${curriculum.id}`}
-                className="flex h-full flex-col rounded-lg border border-border bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:border-foreground/30"
+                // The whole card opens the CV; its buttons sit above this.
+                className="pr-8 font-semibold break-words after:absolute after:inset-0 after:rounded-lg"
               >
-                <span className="pr-8 font-semibold">{curriculum.title}</span>
-                {curriculum.description && (
-                  <span className="mt-1 line-clamp-2 text-sm text-muted-foreground">{curriculum.description}</span>
-                )}
-                <span className="mt-auto pt-6 text-xs text-muted-foreground">
-                  {curriculum.section_count} {curriculum.section_count === 1 ? "section" : "sections"} · edited{" "}
-                  {formatDistanceToNow(new Date(curriculum.updated_at), { addSuffix: true })}
-                </span>
+                {curriculum.title}
               </NextLink>
+              {curriculum.description && (
+                <span className="mt-1 line-clamp-2 text-sm text-muted-foreground">{curriculum.description}</span>
+              )}
+              <span className="mt-1 text-sm text-muted-foreground">
+                {curriculum.section_count} {curriculum.section_count === 1 ? "section" : "sections"}, edited{" "}
+                {formatDistanceToNow(new Date(curriculum.updated_at), { addSuffix: true })}
+              </span>
+              <div className="mt-auto pt-5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="relative"
+                  onClick={() => setTailoringCv(curriculum)}
+                  aria-label={`Tailor ${curriculum.title} to a job`}
+                >
+                  <SparklesIcon />
+                  Tailor to a job
+                </Button>
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -136,56 +210,32 @@ const ResumesPage = () => {
       )}
 
       {!loading && copies.length > 0 && (
-        <div className="mt-10">
-          <button
-            type="button"
-            onClick={() => setCopiesOpen((open) => !open)}
-            aria-expanded={copiesOpen}
-            aria-controls="tailored-copies"
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            <ChevronRightIcon className={`size-4 transition-transform ${copiesOpen ? "rotate-90" : ""}`} />
-            Tailored for jobs ({copies.length})
-          </button>
-          {copiesOpen && (
-            <ul id="tailored-copies" className="mt-3 divide-y divide-border rounded-lg border border-border bg-white">
-              {copies.map((curriculum) => (
-                <li key={curriculum.id} className="group relative">
-                  <NextLink
-                    href={`/resume/${curriculum.id}`}
-                    className="flex flex-col gap-0.5 px-4 py-3 pr-12 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-4"
-                  >
-                    <span className="flex min-w-0 items-center gap-2 sm:flex-1">
-                      <span className="truncate text-sm font-medium">{curriculum.title}</span>
-                      {curriculum.cv_for_job && (
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          In use
-                        </span>
-                      )}
-                    </span>
-                    <span className="min-w-0 truncate text-xs text-muted-foreground sm:w-48 sm:shrink-0">
-                      For {curriculum.tailored_for}
-                    </span>
-                    <span className="text-xs text-muted-foreground sm:w-36 sm:shrink-0 sm:text-right">
-                      Edited {formatDistanceToNow(new Date(curriculum.updated_at), { addSuffix: true })}
-                    </span>
-                  </NextLink>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                    onClick={() => setPendingDelete(curriculum)}
-                    aria-label={`Delete ${curriculum.title}`}
-                  >
-                    <Trash2Icon />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <section className="mt-12">
+          <h2 className="text-xl font-semibold tracking-tight">Tailored for jobs</h2>
+          <ul className="mt-3 divide-y divide-border border-y border-border">
+            {copies.map((copy) => (
+              <CopyRow
+                key={copy.id}
+                copy={copy}
+                reviewsAvailable={user?.reviews_available ?? true}
+                onDelete={() => setPendingDelete(copy)}
+              />
+            ))}
+          </ul>
+        </section>
       )}
+
+      {tailoringCv && <TailorToJob curriculum={tailoringCv} onClose={() => setTailoringCv(null)} />}
+
+      <ImportCvDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        createCv
+        onApplied={({ curriculum_id }) => {
+          if (curriculum_id) router.push(`/resume/${curriculum_id}`);
+          else toast.success("Profile updated");
+        }}
+      />
 
       <SectionPickerDialog
         open={creating}

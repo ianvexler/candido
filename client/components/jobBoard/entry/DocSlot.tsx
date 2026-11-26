@@ -61,9 +61,6 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
   const [dragging, setDragging] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "replace" | "remove"; description?: string; run: () => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  // The leave wrapper changes as the sheet's fields change: the sheet's save reads the latest fields and entry.
-  const latestBeforeLeave = useRef(beforeLeave);
-  latestBeforeLeave.current = beforeLeave;
 
   const save = async (text?: string, file?: File, success?: string) => {
     setSaving(true);
@@ -160,7 +157,9 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {state === "copy" && next && <DropdownMenuItem onSelect={() => openCopy()}>Open</DropdownMenuItem>}
-        {replaceWays(kind, state).filter((way) => canTailor || way !== "use").map((way) => (
+        {replaceWays(kind, state)
+          .filter((way) => canTailor || way !== "use")
+          .map((way) => (
           <DropdownMenuItem key={way} onSelect={() => replaceWith(way)}>
             {FILL_ICONS[way]}
             {way === "use" ? "Replace with one of my CVs" : way === "upload" ? "Replace with a file" : "Replace with text"}
@@ -316,7 +315,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
               entryId: entry.id,
               copy: result.curriculum,
               onPatchEntry,
-              beforeLeave: latestBeforeLeave.current,
+              beforeLeave,
               navigate: (href) => router.push(href),
             })
           }

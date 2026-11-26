@@ -32,6 +32,8 @@ interface ImportCvDialogProps {
   open: boolean;
   onClose: () => void;
   onApplied: (result: ApplyCvImportResponse) => void;
+  /** Also makes a CV from the added sections, instead of only filling the library. */
+  createCv?: boolean;
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -41,7 +43,7 @@ const headerSummary = (header: ResumeHeader) =>
   [header.name, header.headline, header.email, header.phone, header.location].filter(Boolean);
 
 /** Upload a CV, wait while it's read, then choose what to add to the library. */
-const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
+const ImportCvDialog = ({ open, onClose, onApplied, createCv = false }: ImportCvDialogProps) => {
   const [step, setStep] = useState<Step>({ name: "choose" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [fillProfile, setFillProfile] = useState(true);
@@ -132,6 +134,7 @@ const ImportCvDialog = ({ open, onClose, onApplied }: ImportCvDialogProps) => {
       const result = await applyCvImport(step.cvImport.id, {
         entry_ids: [...selected],
         fill_profile: fillProfile,
+        create_cv: createCv,
       });
       onApplied(result);
       reset();

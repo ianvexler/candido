@@ -271,8 +271,6 @@ const SheetPageContent = () => {
       <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>
         {openAddJobModal && (
           <JobFormSheet
-            mode="create"
-            entry={null}
             allEntries={jobBoardEntries}
             onClose={() => handleSheetOpenChange(false)}
             onAddJob={onAddJob}

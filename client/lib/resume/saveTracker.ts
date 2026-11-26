@@ -1,6 +1,6 @@
 /**
- * Tracks resume edits that haven't finished saving (autosave debounce plus
- * the request), so export can wait until the server has the latest text.
+ * Tracks CV and job edits that haven't finished saving (a CV's autosave pause plus
+ * the request), so export and pages opened next can wait until the server has them.
  */
 const pending = new Set<string>();
 let waiters: (() => void)[] = [];
