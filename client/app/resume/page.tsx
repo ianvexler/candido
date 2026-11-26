@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { deleteDescription, splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { Curriculum } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronRightIcon, FileTextIcon, LayersIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronRightIcon, FileTextIcon, LibraryBigIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -72,7 +72,7 @@ const ResumesPage = () => {
         <div className="flex gap-2">
           <Button variant="outline" asChild>
             <NextLink href="/resume/sections">
-              <LayersIcon />
+              <LibraryBigIcon />
               Section library
             </NextLink>
           </Button>

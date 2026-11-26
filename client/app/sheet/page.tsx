@@ -3,15 +3,14 @@
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { saveDocument } from "@/lib/jobBoard/docSlot";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
+import { usePublishJobCounts } from "@/lib/jobBoard/useJobCounts";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
-import Description from "@/components/common/Description";
-import Title from "@/components/common/Title";
+import JobsHeader from "@/components/jobBoard/JobsHeader";
 import BoardFilters from "@/components/jobBoard/BoardFilters";
 import SheetTable from "@/components/jobBoard/sheet/SheetTable";
 import { useBoardFilters } from "@/hooks/useBoardFilters";
 import { JobBoardEntry, JobStatus } from "@/lib/types";
-import { PlusIcon } from "lucide-react";
 import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -24,6 +23,7 @@ const SheetPageContent = () => {
   const { jobId, openJob, closeJob } = useOpenJob();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
+  usePublishJobCounts(jobBoardEntries);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
@@ -228,35 +228,32 @@ const SheetPageContent = () => {
     [jobBoardEntries, onPatchJob]
   );
 
+  const openAddJob = () => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    setOpenAddJobModal(true);
+    setIsSheetOpen(true);
+  };
+
   return (
     <>
-      <div className="mx-auto max-w-[1200px] w-full px-4 sm:px-6 pt-4 sm:pt-12 pb-8 flex flex-col min-h-0 flex-1 min-w-0">
-        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start shrink-0 min-w-0 px-1">
-          <div>
-            <Title>Sheet</Title>
-            <Description className="mt-1">
-              View your job applications in a table
-            </Description>
-          </div>
-
-          <div className="flex items-end w-full min-w-0 sm:w-auto">
-            <BoardFilters
-              jobBoardEntries={jobBoardEntries}
-              searchInput={searchInput}
-              onSearchChange={handleSearchChange}
-              tags={tags}
-              onTagToggle={handleTagToggle}
-              onClearTags={handleClearTags}
-              showRejected={showRejected}
-              onToggleRejected={handleToggleRejected}
-              showArchived={showArchived}
-              onToggleArchived={handleToggleArchived}
-              statusFilter={statusFilter}
-              onStatusFilterToggle={handleStatusFilterToggle}
-              onClearStatusFilter={() => setStatusFilter([])}
-            />
-          </div>
-        </div>
+      <div className="mx-auto max-w-[1536px] w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 min-w-0">
+        <JobsHeader title="Sheet" description="View your job applications in a table" onAddJob={openAddJob}>
+          <BoardFilters
+            jobBoardEntries={jobBoardEntries}
+            searchInput={searchInput}
+            onSearchChange={handleSearchChange}
+            tags={tags}
+            onTagToggle={handleTagToggle}
+            onClearTags={handleClearTags}
+            showRejected={showRejected}
+            onToggleRejected={handleToggleRejected}
+            showArchived={showArchived}
+            onToggleArchived={handleToggleArchived}
+            statusFilter={statusFilter}
+            onStatusFilterToggle={handleStatusFilterToggle}
+            onClearStatusFilter={() => setStatusFilter([])}
+          />
+        </JobsHeader>
 
         <SheetTable
           entries={sortedEntries}
@@ -269,18 +266,6 @@ const SheetPageContent = () => {
           onCoverLetterDownload={handleCoverLetterDownload}
           isLoading={isLoading}
         />
-
-        <button
-          onClick={() => {
-            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                setOpenAddJobModal(true);
-            setIsSheetOpen(true);
-          }}
-          className="cursor-pointer fixed bottom-6 right-6 size-15 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center"
-          aria-label="Add job"
-        >
-          <PlusIcon className="size-7" />
-        </button>
       </div>
 
       <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>

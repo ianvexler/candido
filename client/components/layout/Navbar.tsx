@@ -3,201 +3,100 @@
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
-import Logo from "@/lib/images/SmallLogo.png";
-import { FileTextIcon, HomeIcon, KanbanIcon, LayersIcon, LogOutIcon, MenuIcon, SettingsIcon, SheetIcon, ShieldIcon, UploadIcon } from "lucide-react";
-import NavbarLink from "./NavbarLink";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/NavigationMenu";
-import ImportJobsModal from "@/components/common/ImportJobsModal";
-import { useState } from "react";
+import Wordmark from "@/lib/images/Wordmark.png";
 import { usePathname } from "next/navigation";
 import { isBareRoute } from "@/lib/routes";
-
-const navLinks = [
-  { href: "/dashboard", icon: HomeIcon, label: "Dashboard" },
-  { href: "/board", icon: KanbanIcon, label: "Board" },
-  { href: "/sheet", icon: SheetIcon, label: "Sheet" },
-  { href: "/resume", icon: LayersIcon, label: "CVs" },
-];
+import { mobileTabs, navGroups } from "@/lib/navigation";
+import useJobCounts, { activeCount } from "@/lib/jobBoard/useJobCounts";
+import { cn } from "@/lib/utils";
+import AccountMenu from "./AccountMenu";
+import FeedbackCard from "./FeedbackCard";
+import JobsPipeline from "./JobsPipeline";
+import NavbarLink from "./NavbarLink";
 
 const Navbar = () => {
-  const { isAuthenticated, isAdmin, handleLogout } = useAuth();
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState("");
+  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
+  const showNav = isAuthenticated && !isBareRoute(pathname);
+  const counts = useJobCounts(pathname, showNav);
 
-  if (!isAuthenticated || isBareRoute(pathname)) {
+  if (!showNav) {
     return null;
   }
 
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden md:flex fixed left-0 top-0 z-10 h-screen w-18 shrink-0 flex-col items-center bg-candido-black py-4">
-        <Link href="/" className="mb-6 my-3">
-          <Image src={Logo} alt="Candido" width={34} height={36} className="rounded" />
+      <aside className="hidden md:flex fixed left-0 top-0 z-10 h-screen w-60 shrink-0 flex-col bg-candido-ink px-3 py-4">
+        <Link href="/dashboard" className="mb-6 flex h-11 shrink-0 items-center justify-center" aria-label="Candido">
+          <Image src={Wordmark} alt="" height={34} priority className="w-auto" />
         </Link>
 
-        <nav className="flex flex-1 flex-col gap-3">
-          {navLinks.map(({ href, icon: Icon, label }) => (
-            <NavbarLink
-              key={href}
-              href={href}
-              aria-label={label}
-              label={label}
-            >
-              <Icon className="size-5" />
-            </NavbarLink>
+        <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
+          {navGroups.map((group, index) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <p
+                className={cn(
+                  "flex items-center gap-2 whitespace-nowrap px-3 pb-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-gray-400",
+                  index > 0 ? "pt-5" : "pt-1"
+                )}
+              >
+                <span className="h-px w-3 shrink-0 bg-candido" aria-hidden />
+                {group.label}
+                {group.showsJobCounts && counts && activeCount(counts) > 0 && (
+                  <span className="ml-auto text-[13px] tracking-normal tabular-nums text-candido" title="Active applications">
+                    {activeCount(counts)}
+                  </span>
+                )}
+              </p>
+              {group.items.map((item) => (
+                <NavbarLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  active={item.isActive(pathname)}
+                />
+              ))}
+              {group.showsJobCounts && counts && <JobsPipeline counts={counts} />}
+            </div>
           ))}
         </nav>
 
-        <div className="flex flex-col items-center justify-center gap-3">
-          <button
-            onClick={() => setImportModalOpen(true)}
-            className="cursor-pointer flex size-10 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
-            aria-label="Import jobs"
-            title="Import jobs"
-          >
-            <UploadIcon className="size-5" />
-          </button>
-
-          <NavbarLink href="/settings" label="Settings">
-            <SettingsIcon className="size-5" />
-          </NavbarLink>
-
-          <NavbarLink href="/feedback" label="Feedback">
-            <FileTextIcon className="size-5" />
-          </NavbarLink>
-
-          {isAdmin && (
-            <NavbarLink href="/admin" label="Admin">
-              <ShieldIcon className="size-5" />
-            </NavbarLink>
-          )}
-
-          <button
-            onClick={() => handleLogout()}
-            className="cursor-pointer flex size-10 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
-            aria-label="Logout"
-            title="Logout"
-          >
-            <LogOutIcon className="size-5" />
-          </button>
+        <div className="flex flex-col gap-1">
+          <FeedbackCard />
+          <div className="mt-2 border-t border-white/10 pt-3">
+            <AccountMenu variant="sidebar" />
+          </div>
         </div>
       </aside>
 
       {/* Mobile */}
-      <nav className="md:hidden fixed top-0 left-0 right-0 z-10 flex items-center justify-between border-b border-border bg-candido-black px-4 py-2 gap-4">
-        <Link href="/" className="shrink-0">
-          <Image src={Logo} alt="Candido" width={28} height={30} className="rounded" />
-        </Link>
-
-        <NavigationMenu
-          className="max-w-none flex-1 justify-end"
-          viewport={false}
-          value={mobileMenuOpen}
-          onValueChange={setMobileMenuOpen}
-        >
-          <NavigationMenuList className="gap-0">
-            <NavigationMenuItem value="menu">
-              <NavigationMenuTrigger
-                hideChevron
-                className="h-10 w-10 bg-transparent px-0 text-gray-400 hover:text-white"
-              >
-                <MenuIcon className="size-5" />
-              </NavigationMenuTrigger>
-
-              <NavigationMenuContent className="absolute right-0 left-auto top-full mt-1.5 z-50 min-w-[180px] rounded-md bg-candido-black! p-1">
-                <ul className="flex flex-col">
-                  {navLinks.map(({ href, icon: Icon, label }) => (
-                    <li key={href}>
-                      <Link
-                        href={href}
-                        onClick={() => setMobileMenuOpen("")}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded"
-                      >
-                        <Icon className="size-4" />
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-
-                  <li>
-                    <button
-                      onClick={() => {
-                        setMobileMenuOpen("");
-                        setImportModalOpen(true);
-                      }}
-                      className="flex w-full items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded"
-                    >
-                      <UploadIcon className="size-4" />
-                      Import
-                    </button>
-                  </li>
-
-                  <li>
-                    <Link
-                      href="/settings"
-                      onClick={() => setMobileMenuOpen("")}
-                      className="flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded"
-                    >
-                      <SettingsIcon className="size-4" />
-                      Settings
-                    </Link>
-                  </li>
-
-                  <li>
-                    <Link
-                      href="/feedback"
-                      onClick={() => setMobileMenuOpen("")}
-                      className="flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded"
-                    >
-                      <FileTextIcon className="size-4" />
-                      Feedback
-                    </Link>
-                  </li>
-
-                  {isAdmin && (
-                    <li>
-                      <Link
-                        href="/admin"
-                        onClick={() => setMobileMenuOpen("")}
-                        className="flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded"
-                      >
-                        <ShieldIcon className="size-4" />
-                        Admin
-                      </Link>
-                    </li>
-                  )}
-
-                  <li>
-                    <button
-                      onClick={() => {
-                        setMobileMenuOpen("");
-                        handleLogout();
-                      }}
-                      className="flex w-full items-center gap-3 px-3 py-2 text-sm text-white hover:bg-white/10 rounded"
-                    >
-                      <LogOutIcon className="size-4" />
-                      Logout
-                    </button>
-                  </li>
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-10 grid grid-cols-5 border-t border-white/10 bg-candido-ink pb-[env(safe-area-inset-bottom)]"
+        aria-label="Main"
+      >
+        {mobileTabs.map(({ href, label, icon: Icon, isActive }) => {
+          const active = isActive(pathname);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "relative flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors",
+                active
+                  ? "text-candido before:absolute before:inset-x-4 before:top-0 before:h-1 before:rounded-b-sm before:hazard-stripes"
+                  : "text-gray-300 hover:text-white"
+              )}
+            >
+              <Icon className="size-5" strokeWidth={1.75} />
+              {label}
+            </Link>
+          );
+        })}
+        <AccountMenu variant="tab" />
       </nav>
-
-      <ImportJobsModal
-        isOpen={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-      />
     </>
   );
 };
