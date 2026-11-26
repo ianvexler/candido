@@ -21,6 +21,9 @@ const cut = (text: string) => (text.length > LABEL_LENGTH ? `${text.slice(0, LAB
 /** How wide a mark's words are at most, for a count of that many digits, in screen px. */
 const wordsWidth = (count: number) => 60 + 8 * String(count).length;
 
+/** Whether a fold of that many is beside the sheet, with that much room there, rather than in its margin. */
+export const isBeside = (count: number, deskRoom: number) => deskRoom >= wordsWidth(count) + ROOM + INSET;
+
 type Place = { style: CSSProperties; dir: "ltr" | "rtl"; compact: boolean };
 
 /**
@@ -31,7 +34,7 @@ type Place = { style: CSSProperties; dir: "ltr" | "rtl"; compact: boolean };
 export const placeOf = ({ top, side, line, items }: FoldAt, scale: number, sheetWidth: number, deskRoom: number): Place => {
   const y = top * scale - FOLD_HEIGHT / 2;
   const width = wordsWidth(items.length);
-  if (deskRoom >= width + ROOM + INSET) {
+  if (isBeside(items.length, deskRoom)) {
     const out = `calc(100% + ${ROOM}px)`;
     return { style: side === "left" ? { top: y, right: out } : { top: y, left: out }, dir: "ltr", compact: false };
   }

@@ -80,13 +80,20 @@ const elementOf = (root: HTMLElement, block: BlockRef): Element | null => {
 };
 
 /**
- * Where the gutter is for, in sheet units: the block's rows, and its gutter's, give or take a
- * little, from its column's far edge out past the sheet's.
+ * Where the gutter is for: its block's rows, from its column's far edge out past the sheet's, and
+ * the gutter itself; each give or take a little. Not the gutter's rows across the text: a stacked
+ * one reaches past a short block, over the next blocks' text.
  */
 const holds = (block: PlacedBlock, gutter: GutterPlace, x: number, y: number, scale: number) => {
-  const top = Math.min(block.top, gutter.top / scale) - SLACK / scale;
-  const bottom = Math.max(block.bottom, (gutter.top + gutter.height) / scale) + SLACK / scale;
-  return y >= top && y <= bottom && (block.side === "left" ? x <= block.right : x >= block.left);
+  const slack = SLACK / scale;
+  const rows = y >= block.top - slack && y <= block.bottom + slack && (block.side === "left" ? x <= block.right : x >= block.left);
+  const [screenX, screenY] = [x * scale, y * scale];
+  const onIt =
+    screenX >= gutter.left - SLACK &&
+    screenX <= gutter.left + gutter.width + SLACK &&
+    screenY >= gutter.top - SLACK &&
+    screenY <= gutter.top + gutter.height + SLACK;
+  return rows || onIt;
 };
 
 /** A value shown while pointed at, and for a while after. */
@@ -181,11 +188,11 @@ export type PageToolsActions = {
   addSection: (name: string, afterSectionId: number | null) => Promise<void>;
 };
 
-/** A mark in a margin, in sheet units: where a gutter can't be too. */
-export type Taken = { top: number; side: "left" | "right" };
+/** A mark, in sheet units: where a gutter can't be too. `desk`: beside the sheet, not in its margin. */
+export type Taken = { top: number; side: "left" | "right"; desk?: boolean };
 
 /** Where a gutter is drawn, in screen px from the sheet's top left. */
-type GutterPlace = { left: number; top: number; height: number; size: number; stacked: boolean; desk: boolean };
+type GutterPlace = { left: number; top: number; width: number; height: number; size: number; stacked: boolean; desk: boolean };
 
 /**
  * Never over the text: beside the sheet when there is room there; else in the margin, its two
@@ -211,9 +218,10 @@ const placeGutter = (block: PlacedBlock, taken: Taken[], scale: number, sheetWid
   // Its middle, its first button's by the first line; a mark is at most as tall as a tool on screen.
   const middle = block.top + block.line / 2 + (height - size) / 2 / scale;
   const apart = (height / 2 + Math.max(MARK_SIZE * scale, BUTTON) / 2 + 1) / scale;
-  const others = taken.filter(({ side }) => side === block.side).map(({ top }) => top);
+  // Only marks where it is: beside the sheet, or in the margin.
+  const others = taken.filter((mark) => mark.side === block.side && Boolean(mark.desk) === desk).map(({ top }) => top);
   const top = freeBelow(middle, others, apart) * scale - height / 2;
-  return { left: x, top, height, size, stacked: !row, desk };
+  return { left: x, top, width, height, size, stacked: !row, desk };
 };
 
 // In px, not rem: the app's rem isn't 16px.

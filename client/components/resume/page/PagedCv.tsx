@@ -27,7 +27,7 @@ import { ResumeTemplate } from "../templates/ResumeTemplate";
 import type { Added } from "../useAdded";
 import type { SuggestionProps } from "../useEntrySuggestions";
 import { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
-import FoldMarks, { FOLD_HEIGHT } from "./FoldMarks";
+import FoldMarks, { FOLD_HEIGHT, isBeside } from "./FoldMarks";
 import { findFolds, FoldAt } from "./folds";
 import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, isHiddenMark, MARK_SIZE, mergeMarks } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
@@ -249,8 +249,14 @@ const Page = ({
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
   const marksInside = markRoom < MARK_SIZE + 8;
   // Each mark is in a margin or beside the sheet, where a gutter may be too.
-  const taken = useMemo(() => [...marks, ...datesMarks, ...folds].map(({ top, side }) => ({ top, side })), [marks, folds, datesMarks]);
   const deskRoom = Math.max(0, markRoom);
+  const taken = useMemo(
+    () => [
+      ...[...marks, ...datesMarks].map(({ top, side }) => ({ top, side, desk: !marksInside })),
+      ...folds.map(({ top, side, items }) => ({ top, side, desk: isBeside(items.length, deskRoom) })),
+    ],
+    [marks, folds, datesMarks, marksInside, deskRoom]
+  );
 
   return (
     <div ref={outerRef} className="paged-cv">

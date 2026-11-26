@@ -62,7 +62,7 @@ let actions: { tick: ReturnType<typeof vi.fn>; orderSections: ReturnType<typeof 
 let edits: { addAt: ReturnType<typeof vi.fn> };
 const handle = createRef<PageToolsHandle>();
 
-let taken: { top: number; side: "left" | "right" }[] = [];
+let taken: { top: number; side: "left" | "right"; desk?: boolean }[] = [];
 let scale = 1;
 let deskRoom = 0;
 
@@ -78,6 +78,9 @@ const Sheet = () => {
               <div data-entry-id="e1">
                 <p id="item" data-cv-item="i1">
                   Cut latency
+                </p>
+                <p id="next" data-cv-item="i2">
+                  Rebuilt the checkout
                 </p>
               </div>
             </section>
@@ -123,7 +126,9 @@ beforeEach(async () => {
   // For a tooltip.
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   places.gapAt.mockReturnValue(null);
-  places.blockAt.mockImplementation((_root: unknown, _scale: unknown, target: Element) => (target.id === "item" ? itemBlock : null));
+  places.blockAt.mockImplementation((_root: unknown, _scale: unknown, target: Element) =>
+    target.id === "item" ? itemBlock : target.id === "next" ? nextBlock : null
+  );
   places.blockBeside.mockReturnValue(null);
   actions = { tick: vi.fn(), orderSections: vi.fn() };
   edits = { addAt: vi.fn() };
@@ -318,6 +323,46 @@ describe("PageTools", () => {
     expect(tip?.className).toContain("pointer-events-none");
     // Its positioning wrapper too, by page.css.
     expect(tip?.parentElement?.matches("[data-radix-popper-content-wrapper]:has(> [data-page-tip])")).toBe(true);
+  });
+
+  it("lets go of a block once the pointer is on the next one's text, though its stacked gutter reaches there", async () => {
+    scale = 0.924;
+    places.blockAt.mockImplementation((_root: unknown, _scale: unknown, target: Element) =>
+      target.id === "item" ? { ...itemBlock, left: 40 } : target.id === "next" ? { ...nextBlock, left: 40 } : null
+    );
+    await render();
+    await move(itemText());
+    expect(gutterBox().stacked).toBe(true);
+    await move(document.getElementById("next")!, 400, 150);
+    expect(named("Leave out Rebuilt the checkout")).not.toBeNull();
+  });
+
+  it("keeps a block as the pointer goes straight down its stacked gutter to the tick", async () => {
+    scale = 0.924;
+    places.blockAt.mockImplementation((_root: unknown, _scale: unknown, target: Element) =>
+      target.id === "item" ? { ...itemBlock, left: 40 } : null
+    );
+    places.blockBeside.mockReturnValue({ ...nextBlock, left: 40 });
+    await render();
+    await move(itemText());
+    const { left, top } = gutterBox();
+    // From the plus's middle down to the tick's, in the margin, in sheet units.
+    for (let y = top + 12; y <= top + 24 + 2 + 12; y += 4) await move(margin(), (left + 12) / scale, y / scale);
+    expect(named("Leave out Cut latency")).not.toBeNull();
+  });
+
+  it("moves off only the marks where it is: in the margin, or beside the sheet", async () => {
+    deskRoom = 100;
+    taken = [{ top: 130, side: "left", desk: false }];
+    await render();
+    await move(itemText());
+    expect(gutterBox().top).toBeCloseTo(116);
+    taken = [{ top: 130, side: "left", desk: true }];
+    await render();
+    await move(margin(), 30, 400);
+    await act(async () => new Promise((done) => setTimeout(done, 350)));
+    await move(itemText());
+    expect(gutterBox().top).toBeGreaterThan(116 + 12);
   });
 
   it("aims where an entry's addition goes: under its summary", async () => {
