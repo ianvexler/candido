@@ -18,7 +18,7 @@ import { splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { Curriculum, JobBoardEntry } from "@/lib/types";
 import { useFinishSetup } from "@/lib/useSetup";
 import { cn } from "@/lib/utils";
-import { CheckIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -123,13 +123,16 @@ const WelcomePage = () => {
 
   return (
     <PageContainer className="max-w-3xl">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Get your first application ready</h1>
-        <Button variant="ghost" onClick={() => leaveTo("/dashboard")}>
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+        <div className="min-w-0">
+          <h1 className="text-4xl font-bold tracking-tight">Get your first application ready</h1>
+          <p className="mt-3 text-base text-muted-foreground">Bring in your CV, add a job, and see how well they fit.</p>
+        </div>
+        <Button variant="outline" onClick={() => leaveTo("/dashboard")}>
           Skip for now
+          <ArrowRightIcon />
         </Button>
       </div>
-      <p className="mt-2 text-base text-muted-foreground">Bring in your CV, add a job, and see how well they fit.</p>
 
       <ol className="mt-8 divide-y divide-border border-y border-border">
         <Step
