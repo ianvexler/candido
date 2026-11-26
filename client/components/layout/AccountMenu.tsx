@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 interface AccountMenuProps {
   /** "sidebar" sits at the foot of the desktop sidebar; "tab" is the last tab on the mobile bar. */
   variant: "sidebar" | "tab";
-  collapsed?: boolean;
 }
 
 const initialsOf = (name?: string, email?: string) => {
@@ -26,7 +25,7 @@ const initialsOf = (name?: string, email?: string) => {
   return email?.[0]?.toUpperCase() ?? "?";
 };
 
-const AccountMenu = ({ variant, collapsed = false }: AccountMenuProps) => {
+const AccountMenu = ({ variant }: AccountMenuProps) => {
   const { user, isAdmin, handleLogout } = useAuth();
   const pathname = usePathname();
   const initials = initialsOf(user?.name, user?.email);
@@ -47,21 +46,13 @@ const AccountMenu = ({ variant, collapsed = false }: AccountMenuProps) => {
         {variant === "sidebar" ? (
           <button
             className={cn(
-              // Fixed padding keeps the avatar centred in the collapsed bar too.
-              "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-[15px] text-gray-100 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10"
+              "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[15px] text-gray-100 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10"
             )}
             aria-label="Account"
           >
             {avatar}
-            <span
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity duration-200",
-                collapsed && "opacity-0"
-              )}
-            >
-              <span className="min-w-0 flex-1 truncate whitespace-nowrap">{user?.name || user?.email}</span>
-              <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400" />
-            </span>
+            <span className="min-w-0 flex-1 truncate">{user?.name || user?.email}</span>
+            <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400" />
           </button>
         ) : (
           <button

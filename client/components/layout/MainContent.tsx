@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { isBareRoute } from "@/lib/routes";
-import useSidebarStore from "@/lib/stores/sidebarStore";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 
@@ -12,7 +11,6 @@ interface MainContentProps {
 
 const MainContent = ({ children }: MainContentProps) => {
   const { isAuthenticated } = useAuth();
-  const collapsed = useSidebarStore((state) => state.collapsed);
   const pathname = usePathname();
 
   if (isBareRoute(pathname)) {
@@ -29,8 +27,7 @@ const MainContent = ({ children }: MainContentProps) => {
       className={cn(
         "flex flex-1 flex-col min-w-0",
         // Room for the sidebar on desktop and the tab bar on mobile.
-        hasNav && "pb-16 md:pb-0 md:transition-[padding] md:duration-200 md:ease-in-out",
-        hasNav && (collapsed ? "md:pl-16" : "md:pl-60"),
+        hasNav && "pb-16 md:pb-0 md:pl-60",
         isFullHeight ? "h-screen overflow-hidden" : "min-h-screen overflow-y-auto"
       )}
     >

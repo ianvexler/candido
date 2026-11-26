@@ -18,7 +18,7 @@ const JobsPipeline = ({ counts }: { counts: JobCounts }) => {
   ].filter(Boolean);
 
   return (
-    <div className="w-54 px-2.5 pt-2 pb-1">
+    <div className="px-3 pt-2 pb-1">
       <div
         className="flex h-1.5 gap-px overflow-hidden rounded-full"
         role="img"
