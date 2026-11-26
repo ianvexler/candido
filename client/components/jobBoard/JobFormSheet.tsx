@@ -88,10 +88,8 @@ const toClosingDatePayload = (date: string): Date | null =>
   date ? parse(date, "yyyy-MM-dd", new Date()) : null;
 
 const factInput = "h-9 py-0 text-base";
-// Reads as text; hovering or editing shows a soft fill behind it. Pulled out by its padding, so
-// the text stays in line with the labels above it.
-const paneInput =
-  "-mx-1.5 w-[calc(100%+0.75rem)] rounded-md border-transparent px-1.5 transition-colors hover:bg-muted focus:bg-muted aria-invalid:border-transparent aria-invalid:bg-destructive/10";
+// Reads as text until hovered or focused, then shows the underline of a field.
+const paneInput = "border-transparent hover:border-border focus:border-foreground";
 const paneFieldInput = cn(paneInput, "h-7 py-0 text-sm font-medium");
 
 /** One of the job's facts in the applications pane. */
@@ -753,7 +751,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             allEntries={props.allEntries}
             tags={tags}
             onTagsChange={setTags}
-            className={cn(paneInput, "mt-1 min-h-7 py-1 text-sm font-medium")}
+            className="mt-1.5 min-h-7 py-0.5 text-sm font-medium hover:bg-transparent hover:border-border border-transparent"
           />
         </PaneField>
     </div>
