@@ -443,12 +443,28 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     });
   };
 
-  // However the sheet goes away (the browser's back button too), what was typed is saved.
+  // However the sheet goes away (the browser's back button too, or picking another job in the
+  // applications pane), what was typed is saved.
   const skipFinalSave = useRef(false);
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
   useEffect(
     () => () => {
       // Only edits: a new job is added by its own button, never by closing the sheet.
-      if (!isCreate && !skipFinalSave.current && hasUpdatedRef.current) void performSaveRef.current();
+      if (isCreate || skipFinalSave.current || !hasUpdatedRef.current) return;
+      const fields = stateRef.current;
+      const job = entryRef.current;
+      // Nothing asks first when the form goes away, so a blank title or company would make the
+      // save refuse every other edit. Keep the job's current ones and save the rest.
+      if (job && (!fields.title.trim() || !fields.company.trim())) {
+        stateRef.current = {
+          ...fields,
+          title: fields.title.trim() ? fields.title : job.title,
+          company: fields.company.trim() ? fields.company : job.company,
+        };
+        toast("A job needs a title and company, so the previous ones were kept.");
+      }
+      void performSaveRef.current();
     },
     [isCreate]
   );

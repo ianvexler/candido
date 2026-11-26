@@ -2,21 +2,9 @@ import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { coverLetterSlotState, cvSlotState } from "./docSlot";
 import { differenceInCalendarDays } from "date-fns";
 
-/** Statuses in pipeline order, for the filter chips. */
-export const STATUS_ORDER: JobStatus[] = [
-  JobStatus.PENDING,
-  JobStatus.APPLIED,
-  JobStatus.ASSESSMENT,
-  JobStatus.INTERVIEW,
-  JobStatus.OFFERED,
-  JobStatus.ACCEPTED,
-  JobStatus.REJECTED,
-  JobStatus.ARCHIVED,
-];
-
-/** Each status that has jobs, in pipeline order, with how many. */
+/** Each status that has jobs, in pipeline order (the enum's), with how many. */
 export const statusCounts = (entries: Pick<JobBoardEntry, "status">[]): { status: JobStatus; count: number }[] =>
-  STATUS_ORDER.map((status) => ({ status, count: entries.filter((e) => e.status === status).length })).filter(
+  Object.values(JobStatus).map((status) => ({ status, count: entries.filter((e) => e.status === status).length })).filter(
     (s) => s.count > 0
   );
 

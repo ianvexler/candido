@@ -23,7 +23,7 @@ interface SentListProps {
   isEmpty: boolean;
 }
 
-export const statusLabel = (status: JobStatus) => capitalize(status.toLowerCase());
+const statusLabel = (status: JobStatus) => capitalize(status.toLowerCase());
 
 /** The applications, one row each: the job, where it stands, what went with it, and when. */
 const SentList = ({ entries, status, onStatusChange, selectedId, onSelect, isLoading, isEmpty }: SentListProps) => {

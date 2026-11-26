@@ -52,6 +52,8 @@ const ApplicationsPageContent = () => {
     filteredEntries,
   } = useBoardFilters("applications", jobBoardEntries, setJobBoardEntries);
 
+  // Hiding rejected or archived jobs drops them from the list (see useBoardFilters), so showing
+  // them again loads the jobs afresh.
   useEffect(() => {
     let cancelled = false;
     getJobBoardEntries()
@@ -68,7 +70,7 @@ const ApplicationsPageContent = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showRejected, showArchived]);
 
   useEffect(() => {
     if (refreshTrigger === 0) return;
@@ -81,17 +83,18 @@ const ApplicationsPageContent = () => {
   }, [refreshTrigger]);
 
   // Search, tags and the rejected/archived toggles; the status chips apply on top, in the list.
-  const listedEntries = useMemo(() => {
-    const showAccepted = jobBoardEntries.some((e) => e.status === JobStatus.ACCEPTED);
-    return filteredEntries
-      .filter(
-        (e) =>
-          (showRejected || e.status !== JobStatus.REJECTED) &&
-          (showArchived || e.status !== JobStatus.ARCHIVED) &&
-          (showAccepted || e.status !== JobStatus.ACCEPTED)
-      )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [filteredEntries, jobBoardEntries, showRejected, showArchived]);
+  const listedEntries = useMemo(
+    () =>
+      filteredEntries
+        .filter(
+          (e) =>
+            (showRejected || e.status !== JobStatus.REJECTED) && (showArchived || e.status !== JobStatus.ARCHIVED)
+        )
+        .map((e) => ({ e, added: new Date(e.created_at).getTime() }))
+        .sort((a, b) => b.added - a.added)
+        .map(({ e }) => e),
+    [filteredEntries, showRejected, showArchived]
+  );
 
   // One status at a time; a status hidden by the toggles no longer filters.
   const status = statusFilter.find((s) => listedEntries.some((e) => e.status === s)) ?? null;
@@ -108,7 +111,12 @@ const ApplicationsPageContent = () => {
   // The list as last shown, to find the selected job's neighbour once it's gone.
   const previousIdsRef = useRef<number[]>([]);
   useEffect(() => {
-    if (!isWide || isLoading || jobId === null || shownIds.includes(jobId)) return;
+    if (isLoading || jobId === null || shownIds.includes(jobId)) return;
+    // On phones the panel has closed; clear the address too, so Back doesn't return to it.
+    if (!isWide) {
+      closeJob();
+      return;
+    }
     // Filtered out, rejected or deleted: select the job next to it.
     const next = neighbourId(previousIdsRef.current, jobId, shownIds);
     if (next !== null) openJob(next, { replace: true });
@@ -233,6 +241,8 @@ const ApplicationsPageContent = () => {
             onClose={closeAddJob}
             onAddJob={(job) => {
               setJobBoardEntries((prev) => [...prev, job]);
+              // A status chip hiding the new job would leave it out of sight.
+              if (status && job.status !== status) setStatusFilter([]);
               openJob(job.id, { replace: isWide });
             }}
           />

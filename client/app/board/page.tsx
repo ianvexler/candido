@@ -405,7 +405,6 @@ const BoardPageContent = () => {
       <JobSheet
         entry={jobBoardEntries.find((entry) => entry.id === jobId)}
         allEntries={jobBoardEntries}
-        from="board"
         onClose={closeJob}
         onPatchJob={onPatchJob}
         onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
