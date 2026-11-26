@@ -99,15 +99,18 @@ const PaneField = ({
   htmlFor,
   hint,
   action,
+  wide = false,
   children,
 }: {
   label: string;
-  htmlFor: string;
+  htmlFor?: string;
+  /** Spans both columns. */
+  wide?: boolean;
   hint?: string | null;
   action?: ReactNode;
   children: ReactNode;
 }) => (
-  <div className="min-w-0 bg-background px-4 py-2.5">
+  <div className={cn("min-w-0 bg-background px-4 py-2.5", wide && "col-span-2")}>
     <div className="flex items-center justify-between gap-2">
       <label htmlFor={htmlFor} className="text-xs text-muted-foreground">
         {label}
@@ -995,6 +998,15 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             >
               <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
             </PaneField>
+            <PaneField label="Tags" wide>
+              <TagsInput
+                compact
+                allEntries={props.allEntries}
+                tags={tags}
+                onTagsChange={setTags}
+                className="mt-1.5 h-7 text-sm font-medium hover:bg-transparent hover:border-border border-transparent"
+              />
+            </PaneField>
           </div>
 
           <PaneSection
@@ -1017,8 +1029,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             </Button>
           </PaneSection>
 
-          <PaneSection title="Notes">{notesArea}</PaneSection>
-
           <PaneSection title="Job description">
             <div className="simple-editor-wrapper flex flex-col overflow-hidden rounded-lg border border-border bg-background">
               {editor && <SimpleMenuBar editor={editor} />}
@@ -1030,9 +1040,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             </div>
           </PaneSection>
 
-          <PaneSection title="Tags">
-            <TagsInput compact allEntries={props.allEntries} tags={tags} onTagsChange={setTags} />
-          </PaneSection>
+          <PaneSection title="Notes">{notesArea}</PaneSection>
 
           <p className="mt-7 text-xs text-muted-foreground">
             Added {format(new Date(entry.created_at), "d MMM yyyy")}
