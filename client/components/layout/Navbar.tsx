@@ -37,10 +37,10 @@ const Navbar = () => {
       <aside
         className={cn(
           "hidden md:flex fixed left-0 top-0 z-10 h-screen shrink-0 flex-col bg-candido-ink px-3 py-4 transition-[width] duration-200",
-          collapsed ? "w-16" : "w-56"
+          collapsed ? "w-16" : "w-52"
         )}
       >
-        <div className={cn("mb-4 flex items-center gap-2.5", collapsed ? "flex-col" : "pl-3 pr-1.5")}>
+        <div className={cn("mb-6 flex items-center gap-2.5", collapsed ? "flex-col" : "pl-3 pr-1.5")}>
           <Link href="/dashboard" className="flex min-w-0 items-center" aria-label="Candido">
             {collapsed ? (
               <Image src={Logo} alt="" width={30} height={32} className="shrink-0 rounded" />
