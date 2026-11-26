@@ -1,58 +1,28 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
-import { FileInputIcon, PlusIcon, SquareKanbanIcon, Table2Icon } from "lucide-react";
+import { FileInputIcon, PlusIcon } from "lucide-react";
 import Description from "@/components/common/Description";
 import ImportJobsModal from "@/components/common/ImportJobsModal";
 import Title from "@/components/common/Title";
 import { Button } from "@/components/ui/Button";
-import { cn } from "@/lib/utils";
-
-const views = [
-  { href: "/board", label: "Board", icon: SquareKanbanIcon },
-  { href: "/sheet", label: "Sheet", icon: Table2Icon },
-];
 
 interface JobsHeaderProps {
+  title: string;
   description: string;
   onAddJob: () => void;
   /** The filters, shown under the title row. */
   children?: ReactNode;
 }
 
-/** The header shared by the board and the sheet: two views of the same jobs. */
-const JobsHeader = ({ description, onAddJob, children }: JobsHeaderProps) => {
-  const pathname = usePathname();
+/** The header shared by the board and the sheet: title, filters, Import and Add job. */
+const JobsHeader = ({ title, description, onAddJob, children }: JobsHeaderProps) => {
   const [importOpen, setImportOpen] = useState(false);
 
   return (
     <div className="flex shrink-0 flex-col gap-4 min-w-0 px-1">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 items-center gap-4">
-          <Title>Jobs</Title>
-          <div className="flex rounded-lg bg-muted p-0.5" role="tablist" aria-label="View">
-            {views.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href || pathname.startsWith(`${href}/`);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  role="tab"
-                  aria-selected={active}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors",
-                    active ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className="size-4" strokeWidth={1.75} />
-                  {label}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
+        <Title>{title}</Title>
 
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>

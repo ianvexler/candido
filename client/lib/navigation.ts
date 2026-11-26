@@ -1,4 +1,4 @@
-import { FileUserIcon, LayoutDashboardIcon, LibraryBigIcon, LucideIcon, SquareKanbanIcon } from "lucide-react";
+import { FileUserIcon, LayoutDashboardIcon, LibraryBigIcon, LucideIcon, SquareKanbanIcon, Table2Icon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -8,13 +8,11 @@ export type NavItem = {
 };
 
 export type NavGroup = {
-  label?: string;
+  label: string;
   items: NavItem[];
 };
 
 const isUnder = (pathname: string, path: string) => pathname === path || pathname.startsWith(`${path}/`);
-
-export const isJobsPath = (pathname: string) => isUnder(pathname, "/board") || isUnder(pathname, "/sheet");
 
 export const isSectionLibraryPath = (pathname: string) => isUnder(pathname, "/resume/sections");
 
@@ -27,11 +25,18 @@ export const dashboardItem: NavItem = {
   isActive: (pathname) => isUnder(pathname, "/dashboard"),
 };
 
-export const jobsItem: NavItem = {
+export const boardItem: NavItem = {
   href: "/board",
-  label: "Jobs",
+  label: "Board",
   icon: SquareKanbanIcon,
-  isActive: isJobsPath,
+  isActive: (pathname) => isUnder(pathname, "/board"),
+};
+
+export const sheetItem: NavItem = {
+  href: "/sheet",
+  label: "Sheet",
+  icon: Table2Icon,
+  isActive: (pathname) => isUnder(pathname, "/sheet"),
 };
 
 export const cvsItem: NavItem = {
@@ -49,10 +54,10 @@ export const sectionLibraryItem: NavItem = {
 };
 
 export const navGroups: NavGroup[] = [
-  { items: [dashboardItem] },
-  { label: "Job search", items: [jobsItem] },
+  { label: "Overview", items: [dashboardItem] },
+  { label: "Job search", items: [boardItem, sheetItem] },
   { label: "Documents", items: [cvsItem, sectionLibraryItem] },
 ];
 
 /** The pages on the mobile tab bar; the rest sit in its account menu. */
-export const mobileTabs: NavItem[] = [dashboardItem, jobsItem, cvsItem];
+export const mobileTabs: NavItem[] = [dashboardItem, boardItem, sheetItem, cvsItem];

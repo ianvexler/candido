@@ -317,7 +317,7 @@ const BoardPageContent = () => {
   return (
     <>
       <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 pt-4 sm:pt-12 pb-8 flex flex-col min-h-0 flex-1 overflow-hidden">
-        <JobsHeader description="Track your job applications" onAddJob={openAddJob}>
+        <JobsHeader title="Board" description="Track your job applications" onAddJob={openAddJob}>
           <BoardFilters
             jobBoardEntries={jobBoardEntries}
             searchInput={searchInput}

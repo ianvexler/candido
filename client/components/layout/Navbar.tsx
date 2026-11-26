@@ -7,7 +7,7 @@ import Logo from "@/lib/images/SmallLogo.png";
 import Wordmark from "@/lib/images/Wordmark.png";
 import { usePathname } from "next/navigation";
 import { isBareRoute } from "@/lib/routes";
-import { jobsItem, mobileTabs, navGroups } from "@/lib/navigation";
+import { mobileTabs, navGroups } from "@/lib/navigation";
 import useJobCounts, { activeCount } from "@/lib/jobBoard/useJobCounts";
 import useSidebarStore from "@/lib/stores/sidebarStore";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ const Navbar = () => {
           collapsed ? "w-16" : "w-56"
         )}
       >
-        <div className={cn("mb-4 flex items-center gap-2.5", collapsed ? "flex-col" : "px-1")}>
+        <div className={cn("mb-4 flex items-center gap-2.5", collapsed ? "flex-col" : "pl-3 pr-1.5")}>
           <Link href="/dashboard" className="flex min-w-0 items-center" aria-label="Candido">
             {collapsed ? (
               <Image src={Logo} alt="" width={30} height={32} className="shrink-0 rounded" />
@@ -52,7 +52,8 @@ const Navbar = () => {
             onClick={toggleCollapsed}
             className={cn(
               "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/5 hover:text-white",
-              collapsed ? "mt-2" : "ml-auto"
+              // The hat sits above the letters, so nudge down to line up with them.
+              collapsed ? "mt-2" : "ml-auto translate-y-0.5"
             )}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -63,29 +64,36 @@ const Navbar = () => {
 
         <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
           {navGroups.map((group, index) => (
-            <div key={group.label ?? index} className="flex flex-col gap-1">
-              {group.label &&
-                (collapsed ? (
-                  <div className="mx-2 my-2 border-t border-white/10" aria-hidden />
-                ) : (
-                  <p className="flex items-center gap-2 px-3 pt-5 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-gray-500">
-                    <span className="h-px w-3 bg-candido" aria-hidden />
-                    {group.label}
-                  </p>
-                ))}
+            <div key={group.label} className="flex flex-col gap-1">
+              {collapsed ? (
+                index > 0 && <div className="mx-2 my-2 border-t border-white/10" aria-hidden />
+              ) : (
+                <p
+                  className={cn(
+                    "flex items-center gap-2 whitespace-nowrap px-3 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-gray-500",
+                    index > 0 ? "pt-5" : "pt-1"
+                  )}
+                >
+                  <span className="h-px w-3 bg-candido" aria-hidden />
+                  {group.label}
+                  {group.label === "Job search" && counts && activeCount(counts) > 0 && (
+                    <span className="ml-auto text-xs tracking-normal tabular-nums text-candido" title="Active applications">
+                      {activeCount(counts)}
+                    </span>
+                  )}
+                </p>
+              )}
               {group.items.map((item) => (
-                <div key={item.href}>
-                  <NavbarLink
-                    href={item.href}
-                    label={item.label}
-                    icon={item.icon}
-                    active={item.isActive(pathname)}
-                    collapsed={collapsed}
-                    badge={item === jobsItem && counts ? activeCount(counts) : undefined}
-                  />
-                  {item === jobsItem && counts && !collapsed && <JobsPipeline counts={counts} />}
-                </div>
+                <NavbarLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  active={item.isActive(pathname)}
+                  collapsed={collapsed}
+                />
               ))}
+              {group.label === "Job search" && counts && !collapsed && <JobsPipeline counts={counts} />}
             </div>
           ))}
         </nav>
@@ -111,7 +119,7 @@ const Navbar = () => {
 
       {/* Mobile */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-10 grid grid-cols-4 border-t border-white/10 bg-candido-ink pb-[env(safe-area-inset-bottom)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-10 grid grid-cols-5 border-t border-white/10 bg-candido-ink pb-[env(safe-area-inset-bottom)]"
         aria-label="Main"
       >
         {mobileTabs.map(({ href, label, icon: Icon, isActive }) => {
@@ -124,7 +132,7 @@ const Navbar = () => {
               className={cn(
                 "relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
                 active
-                  ? "text-candido before:absolute before:inset-x-6 before:top-0 before:h-1 before:rounded-b-sm before:hazard-stripes"
+                  ? "text-candido before:absolute before:inset-x-4 before:top-0 before:h-1 before:rounded-b-sm before:hazard-stripes"
                   : "text-gray-400 hover:text-white"
               )}
             >

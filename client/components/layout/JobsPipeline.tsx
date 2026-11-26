@@ -6,7 +6,7 @@ const STAGES = PIPELINE_STATUSES.filter(({ key }) => key !== "rejected");
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/** A thin bar of where your jobs stand, under the Jobs link. */
+/** A thin bar of where your jobs stand, under the job search links. */
 const JobsPipeline = ({ counts }: { counts: JobCounts }) => {
   const total = STAGES.reduce((sum, { key }) => sum + counts[key], 0);
   if (total === 0) return null;
@@ -18,7 +18,7 @@ const JobsPipeline = ({ counts }: { counts: JobCounts }) => {
   ].filter(Boolean);
 
   return (
-    <div className="px-3 pt-1 pb-2">
+    <div className="px-3 pt-2 pb-1">
       <div
         className="flex h-1.5 gap-px overflow-hidden rounded-full"
         role="img"

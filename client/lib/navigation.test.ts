@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { cvsItem, dashboardItem, jobsItem, sectionLibraryItem } from "./navigation";
+import { boardItem, cvsItem, dashboardItem, sectionLibraryItem, sheetItem } from "./navigation";
 
 describe("nav items", () => {
-  it.each(["/board", "/board/12", "/sheet"])("marks Jobs active on %s", (path) => {
-    expect(jobsItem.isActive(path)).toBe(true);
+  it.each(["/board", "/board/12"])("marks only Board active on %s", (path) => {
+    expect(boardItem.isActive(path)).toBe(true);
+    expect(sheetItem.isActive(path)).toBe(false);
+  });
+
+  it("marks only Sheet active on its page", () => {
+    expect(sheetItem.isActive("/sheet")).toBe(true);
+    expect(boardItem.isActive("/sheet")).toBe(false);
   });
 
   it.each(["/resume", "/resume/12"])("marks CVs active on %s", (path) => {
@@ -17,7 +23,7 @@ describe("nav items", () => {
   });
 
   it("does not match paths that only share a prefix", () => {
-    expect(jobsItem.isActive("/boards")).toBe(false);
+    expect(boardItem.isActive("/boards")).toBe(false);
     expect(dashboardItem.isActive("/dashboards")).toBe(false);
   });
 });
