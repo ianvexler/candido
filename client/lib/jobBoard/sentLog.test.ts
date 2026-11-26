@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { JobStatus } from "@/lib/types";
-import { closingLabel, neighbourId, sentDocuments, statusCounts } from "./sentLog";
+import { closingLabel, neighbourId, pageCount, pageOfIndex, pageRangeLabel, sentDocuments, statusCounts } from "./sentLog";
 
 describe("statusCounts", () => {
   it("lists statuses with jobs in pipeline order", () => {
@@ -41,5 +41,26 @@ describe("neighbourId", () => {
   it("falls back to the first job, or null when none are left", () => {
     expect(neighbourId([1, 2], 9, [5, 6])).toBe(5);
     expect(neighbourId([1], 1, [])).toBeNull();
+  });
+});
+
+describe("paging", () => {
+  it("counts pages, with one for an empty list", () => {
+    expect(pageCount(0, 25)).toBe(1);
+    expect(pageCount(25, 25)).toBe(1);
+    expect(pageCount(26, 25)).toBe(2);
+  });
+
+  it("finds a row's page", () => {
+    expect(pageOfIndex(0, 25)).toBe(0);
+    expect(pageOfIndex(24, 25)).toBe(0);
+    expect(pageOfIndex(25, 25)).toBe(1);
+    expect(pageOfIndex(-1, 25)).toBe(0);
+  });
+
+  it("labels the rows a page shows", () => {
+    expect(pageRangeLabel(0, 64, 25)).toBe("1–25 of 64");
+    expect(pageRangeLabel(2, 64, 25)).toBe("51–64 of 64");
+    expect(pageRangeLabel(0, 0, 25)).toBe("0 of 0");
   });
 });

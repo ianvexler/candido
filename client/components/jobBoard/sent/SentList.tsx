@@ -1,15 +1,24 @@
 "use client";
 
 import Loader from "@/components/common/Loader";
-import { closingLabel, sentDocuments, statusCounts } from "@/lib/jobBoard/sentLog";
+import {
+  closingLabel,
+  PAGE_SIZE,
+  pageCount,
+  pageOfIndex,
+  pageRangeLabel,
+  sentDocuments,
+  statusCounts,
+} from "@/lib/jobBoard/sentLog";
 import Restock from "@/lib/images/Restock.png";
 import Spy from "@/lib/images/Spy.png";
 import { JobBoardEntry, JobStatus, jobStatusColors } from "@/lib/types";
 import { capitalize, cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { FileTextIcon, FileUserIcon } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { ChevronLeftIcon, ChevronRightIcon, FileTextIcon, FileUserIcon } from "lucide-react";
 import Image from "next/image";
-import { KeyboardEvent, useEffect, useRef } from "react";
+import { KeyboardEvent, useEffect, useRef, useState } from "react";
 
 interface SentListProps {
   /** Before the status chips are applied, so the chips can count them. */
@@ -30,20 +39,47 @@ const SentList = ({ entries, status, onStatusChange, selectedId, onSelect, isLoa
   const counts = statusCounts(entries);
   const rows = status ? entries.filter((e) => e.status === status) : entries;
   const rowRefs = useRef(new Map<number, HTMLButtonElement>());
+  const listRef = useRef<HTMLUListElement>(null);
+  // Set when the arrow keys pick a job, so its row takes focus once its page is showing.
+  const focusSelected = useRef(false);
 
-  // A job picked from the address, or after the previous one left, is scrolled into view.
+  // The page follows the selected job: picked from the address, with the arrow keys, or after the
+  // previous one left. When the rows change and it isn't among them, start from the first page.
+  const ids = rows.map((row) => row.id).join(",");
+  const [page, setPage] = useState(0);
+  const [followed, setFollowed] = useState({ ids, selectedId });
+  if (followed.ids !== ids || followed.selectedId !== selectedId) {
+    setFollowed({ ids, selectedId });
+    const index = rows.findIndex((row) => row.id === selectedId);
+    if (index !== -1) setPage(pageOfIndex(index));
+    else if (followed.ids !== ids) setPage(0);
+  }
+  const pages = pageCount(rows.length);
+  const shownPage = Math.min(page, pages - 1);
+  const pageRows = rows.slice(shownPage * PAGE_SIZE, (shownPage + 1) * PAGE_SIZE);
+
   useEffect(() => {
-    if (selectedId !== null) rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
-  }, [selectedId]);
+    if (selectedId === null) return;
+    const row = rowRefs.current.get(selectedId);
+    row?.scrollIntoView({ block: "nearest" });
+    if (focusSelected.current) row?.focus();
+    focusSelected.current = false;
+  }, [selectedId, shownPage]);
 
+  const goToPage = (next: number) => {
+    setPage(next);
+    listRef.current?.scrollTo({ top: 0 });
+  };
+
+  // Moves through every row, onto the next or previous page at the ends of this one.
   const moveSelection = (e: KeyboardEvent) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
     const index = rows.findIndex((row) => row.id === selectedId);
     const next = rows[e.key === "ArrowDown" ? Math.min(index + 1, rows.length - 1) : Math.max(index - 1, 0)];
-    if (next) {
+    if (next && next.id !== selectedId) {
+      focusSelected.current = true;
       onSelect(next);
-      rowRefs.current.get(next.id)?.focus();
     }
   };
 
@@ -91,8 +127,8 @@ const SentList = ({ entries, status, onStatusChange, selectedId, onSelect, isLoa
             <span>Sent</span>
             <span className="text-right">Added</span>
           </div>
-          <ul className="min-h-0 flex-1 overflow-y-auto" onKeyDown={moveSelection}>
-            {rows.map((entry) => (
+          <ul ref={listRef} className="min-h-0 flex-1 overflow-y-auto" onKeyDown={moveSelection}>
+            {pageRows.map((entry) => (
               <li key={entry.id}>
                 <Row
                   entry={entry}
@@ -106,6 +142,38 @@ const SentList = ({ entries, status, onStatusChange, selectedId, onSelect, isLoa
               </li>
             ))}
           </ul>
+          {pages > 1 && (
+            <nav aria-label="Pages" className="flex shrink-0 items-center justify-between gap-3 border-t px-4 py-2.5 text-sm @xl:px-5">
+              <p className="tabular-nums text-muted-foreground" aria-live="polite">
+                {pageRangeLabel(shownPage, rows.length)}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => goToPage(shownPage - 1)}
+                  disabled={shownPage === 0}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeftIcon />
+                </Button>
+                <span className="min-w-16 text-center tabular-nums">
+                  {shownPage + 1} / {pages}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => goToPage(shownPage + 1)}
+                  disabled={shownPage === pages - 1}
+                  aria-label="Next page"
+                >
+                  <ChevronRightIcon />
+                </Button>
+              </div>
+            </nav>
+          )}
         </>
       )}
     </div>

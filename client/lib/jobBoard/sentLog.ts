@@ -41,3 +41,16 @@ export const neighbourId = (previousIds: number[], goneId: number, currentIds: n
   }
   return currentIds[0] ?? null;
 };
+
+/** Rows on one page of the applications list. */
+export const PAGE_SIZE = 25;
+
+/** How many pages the rows fill; an empty list still has one. */
+export const pageCount = (total: number, size = PAGE_SIZE): number => Math.max(1, Math.ceil(total / size));
+
+/** The page a row is on, from its position in the list. */
+export const pageOfIndex = (index: number, size = PAGE_SIZE): number => Math.floor(Math.max(index, 0) / size);
+
+/** "26–50 of 64" for a page, numbered from 0. */
+export const pageRangeLabel = (page: number, total: number, size = PAGE_SIZE): string =>
+  total === 0 ? "0 of 0" : `${page * size + 1}–${Math.min((page + 1) * size, total)} of ${total}`;
