@@ -6,16 +6,17 @@ import { act, createRef, useRef } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CvEdits } from "../useCvEdits";
-import type { Gap } from "./pagePlaces";
-import { MARK_SIZE } from "./HiddenTextMarks";
+import type { Gap, PlacedBlock } from "./pagePlaces";
 import PageTools, { PageToolsHandle } from "./PageTools";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const places = vi.hoisted(() => ({ gapAt: vi.fn(), blockAt: vi.fn() }));
+const places = vi.hoisted(() => ({ gapAt: vi.fn(), blockAt: vi.fn(), blockBeside: vi.fn() }));
 vi.mock("./pagePlaces", async (actual) => ({ ...(await actual<typeof import("./pagePlaces")>()), ...places }));
 
-const addGap: Gap = { kind: "add", place: { sectionId: 1, entryId: "e1", after: "i1" }, top: 200, left: 68, right: 726, side: "left" };
+/** An item at 120 to 140, a 16px line, in a column from 68 to 726, in sheet units. */
+const itemBlock: PlacedBlock = { sectionId: 1, kind: "item", entryId: "e1", itemId: "i1", top: 120, bottom: 140, line: 16, left: 68, right: 726, side: "left" };
+const sectionGap: Gap = { afterSectionId: 1, top: 300, left: 68, right: 726, side: "left" };
 
 const rows = [
   {
@@ -60,23 +61,32 @@ let edits: { addAt: ReturnType<typeof vi.fn> };
 const handle = createRef<PageToolsHandle>();
 
 let taken: { top: number; side: "left" | "right" }[] = [];
+let scale = 1;
 
 const Sheet = () => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
   return (
     <TooltipProvider>
-      <div id="area">
+      <div id="area" ref={areaRef}>
         <div ref={rootRef} data-cv-page="p">
           <div className="resume-classic">
             <section data-section-id="1">
-              <p id="item">Cut latency</p>
+              <div data-entry-id="e1">
+                <p id="item" data-cv-item="i1">
+                  Cut latency
+                </p>
+              </div>
             </section>
           </div>
         </div>
+        <div id="margin" />
         <PageTools
           ref={handle}
           rootRef={rootRef}
-          scale={1}
+          areaRef={areaRef}
+          scale={scale}
+          sheetWidth={794}
           sections={sections}
           taken={taken}
           rows={rows}
@@ -90,99 +100,218 @@ const Sheet = () => {
 };
 
 const frame = () => new Promise((done) => requestAnimationFrame(() => done(null)));
-const move = (target: Element) =>
+/** At sheet units (x, y): the root is at the client's origin. */
+const move = (target: Element, x = 100, y = 125) =>
   act(async () => {
-    target.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 100, clientY: 205 }));
+    target.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: x * scale, clientY: y * scale }));
     await frame();
   });
 const press = (element: Element | null) => act(async () => (element as HTMLElement).click());
-const named = (label: string) => document.querySelector(`[aria-label="${label}"]`);
+const named = (label: string) => document.querySelector<HTMLElement>(`[aria-label="${label}"]`);
 const item = (text: string) =>
   [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((each) => each.textContent?.startsWith(text)) ?? null;
+const render = () => act(async () => root.render(<Sheet />));
 
 beforeEach(async () => {
   // jsdom has none.
   vi.stubGlobal("PointerEvent", class extends MouseEvent {});
-  places.gapAt.mockReturnValue(addGap);
-  places.blockAt.mockReturnValue({ sectionId: 1, kind: "item", entryId: "e1", itemId: "i1", top: 120, side: "left" });
+  vi.stubGlobal("CSS", { escape: (text: string) => text });
+  // For a tooltip.
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  places.gapAt.mockReturnValue(null);
+  places.blockAt.mockImplementation((_root: unknown, _scale: unknown, target: Element) => (target.id === "item" ? itemBlock : null));
+  places.blockBeside.mockReturnValue(null);
   actions = { tick: vi.fn(), orderSections: vi.fn() };
   edits = { addAt: vi.fn() };
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(<Sheet />));
+  await render();
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+  taken = [];
+  scale = 1;
 });
 
+const margin = () => document.getElementById("margin")!;
+const itemText = () => document.getElementById("item")!;
+
 describe("PageTools", () => {
-  it("shows nothing until the pointer moves, then one tick and one pill", async () => {
-    expect(named("Leave out Cut latency")).toBeNull();
-    expect(named("Add here")).toBeNull();
-    await move(document.getElementById("item")!);
-    expect(document.querySelectorAll('[aria-label^="Leave out"]')).toHaveLength(1);
-    expect(document.querySelectorAll('[aria-label="Add here"], [aria-label="Add a section"]')).toHaveLength(1);
-    expect(named("Add here")?.textContent).toBe("+ Add");
+  it("shows nothing until the pointer moves, then a gutter of two by the block", async () => {
+    expect(named("Add below")).toBeNull();
+    await move(itemText());
+    expect(named("Add below")).not.toBeNull();
+    expect(named("Leave out Cut latency")).not.toBeNull();
+    expect(document.querySelectorAll("[data-page-gutter] button")).toHaveLength(2);
+  });
+
+  it("has no gutter where there is no block, such as the header", async () => {
+    await move(margin(), 30, 40);
+    expect(named("Add below")).toBeNull();
+  });
+
+  it("shows it from the margin beside the block", async () => {
+    places.blockBeside.mockReturnValue(itemBlock);
+    await move(margin(), 30, 125);
+    expect(named("Add below")).not.toBeNull();
+  });
+
+  it("keeps it as the pointer goes into the margin and onto its buttons, and from the block's later lines", async () => {
+    await move(itemText());
+    await move(margin(), 10, 138);
+    await move(named("Add below")!, 40, 128);
+    await move(named("Leave out Cut latency")!, 60, 128);
+    await move(itemText(), 400, 139);
+    expect(named("Add below")).not.toBeNull();
+  });
+
+  it("lingers 300ms after the pointer leaves, then goes", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] });
+    const step = (target: Element, x: number, y: number) =>
+      act(async () => {
+        target.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: x, clientY: y }));
+        vi.advanceTimersByTime(16);
+      });
+    await step(itemText(), 100, 125);
+    await step(margin(), 400, 400);
+    await act(async () => vi.advanceTimersByTime(250));
+    expect(named("Add below")).not.toBeNull();
+    // Back in time: it stays.
+    await step(itemText(), 100, 125);
+    await act(async () => vi.advanceTimersByTime(400));
+    expect(named("Add below")).not.toBeNull();
+    await step(margin(), 400, 400);
+    await act(async () => vi.advanceTimersByTime(300));
+    expect(named("Add below")).toBeNull();
+  });
+
+  it("stays while its menu is open", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await move(itemText());
+    await press(named("Add below"));
+    await act(async () => {
+      document.getElementById("area")!.dispatchEvent(new PointerEvent("pointerleave"));
+      vi.advanceTimersByTime(1000);
+    });
+    expect(named("Add below")).not.toBeNull();
+    expect(item("Bullet")).not.toBeNull();
   });
 
   it("puts nothing inside the page", async () => {
     const page = document.querySelector("[data-cv-page]")!;
     const before = page.innerHTML;
-    await move(document.getElementById("item")!);
-    await press(named("Add here"));
+    await move(itemText());
+    await press(named("Add below"));
     expect(page.innerHTML).toBe(before);
   });
 
   it("leaves the hovered block out", async () => {
-    await move(document.getElementById("item")!);
+    await move(itemText());
     await press(named("Leave out Cut latency"));
     expect(actions.tick).toHaveBeenCalledWith({ sectionId: 1, templateId: null, entryId: "e1", itemId: "i1", inCv: true }, false);
   });
 
-  it("adds a bullet at the gap", async () => {
-    await move(document.getElementById("item")!);
-    await press(named("Add here"));
+  it("adds a bullet after the hovered item", async () => {
+    await move(itemText());
+    await press(named("Add below"));
     expect(item("Put back a left-out bullet")?.textContent).toContain("1");
     await press(item("Bullet"));
-    expect(edits.addAt).toHaveBeenCalledWith(addGap.place, "bullet");
+    expect(edits.addAt).toHaveBeenCalledWith({ sectionId: 1, entryId: "e1", after: "i1" }, "bullet");
   });
 
-  it("puts a left-out item back from its list", async () => {
-    await act(async () => handle.current!.openAdd(addGap));
+  it("adds at the top of a section by its heading", async () => {
+    places.blockAt.mockReturnValue({ ...itemBlock, kind: "heading" });
+    await move(itemText());
+    await press(named("Add below"));
+    await press(item("Entry"));
+    expect(edits.addAt).toHaveBeenCalledWith({ sectionId: 1, entryId: null, after: null }, "entry");
+  });
+
+  it("shows where it adds, under the block, only once + is pointed at", async () => {
+    await move(itemText());
+    expect(document.querySelector("[data-add-line]")).toBeNull();
+    await act(async () => named("Add below")!.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    const line = document.querySelector<HTMLElement>("[data-add-line]");
+    expect(parseFloat(line!.style.top)).toBeCloseTo(140);
+  });
+
+  it("is drawn at screen size, placed from sheet units by the scale", async () => {
+    scale = 0.75;
+    places.blockAt.mockReturnValue({ ...itemBlock, left: 100 });
+    await render();
+    await move(itemText());
+    const gutter = document.querySelector<HTMLElement>("[data-page-gutter]")!;
+    gutter.querySelectorAll("button").forEach((button) => expect(button.className).toContain("size-[24px]"));
+    // Its middle by the first line's; its right 4px before the text.
+    expect(parseFloat(gutter.style.top)).toBeCloseTo((120 + 8) * 0.75 - 12);
+    expect(parseFloat(gutter.style.left)).toBeCloseTo(100 * 0.75 - 4 - 50);
+    for (let at: HTMLElement | null = gutter; at && at.id !== "area"; at = at.parentElement) expect(at.style.transform).toBe("");
+  });
+
+  it("stays on the sheet when the margin is narrower than it", async () => {
+    places.blockAt.mockReturnValue({ ...itemBlock, left: 20 });
+    await move(itemText());
+    expect(parseFloat(document.querySelector<HTMLElement>("[data-page-gutter]")!.style.left)).toBe(2);
+    places.blockAt.mockReturnValue({ ...itemBlock, top: 400, bottom: 420, side: "right", left: 300, right: 780 });
+    await move(itemText(), 400, 410);
+    expect(parseFloat(document.querySelector<HTMLElement>("[data-page-gutter]")!.style.left)).toBe(794 - 2 - 50);
+  });
+
+  it("moves off a mark in its margin, so both can be pressed", async () => {
+    taken = [{ top: 130, side: "left" }];
+    await render();
+    await move(itemText());
+    const gutter = document.querySelector<HTMLElement>("[data-page-gutter]")!;
+    const middle = parseFloat(gutter.style.top) + 12;
+    expect(Math.abs(middle - 130)).toBeGreaterThanOrEqual(24);
+  });
+
+  it("moves off a mark at a fraction of a px at a fractional scale, and ends", async () => {
+    scale = 0.924;
+    taken = [{ top: 113.37, side: "left" }];
+    places.blockAt.mockReturnValue({ ...itemBlock, top: 105.37, line: 16 });
+    await render();
+    await move(itemText(), 100, 110);
+    expect(document.querySelector("[data-page-gutter]")).not.toBeNull();
+  });
+
+  it("puts a left-out item back from its list, opened for a place", async () => {
+    await act(async () => handle.current!.openAdd({ sectionId: 1, entryId: "e1", after: "i1" }));
     await press(item("Put back a left-out bullet"));
     expect(item("From the library")).toBeNull();
     await press(item("Rebuilt the checkout"));
     expect(actions.tick).toHaveBeenCalledWith({ sectionId: 1, templateId: null, entryId: "e1", itemId: "i2", inCv: true }, true);
   });
 
-  it("closes a menu from its pill", async () => {
-    await move(document.getElementById("item")!);
-    await press(named("Add here"));
+  it("opens the menu for a block, by its gutter", async () => {
+    await act(async () => handle.current!.openAdd({ sectionId: 1, kind: "item", entryId: "e1", itemId: "i1" }));
+    expect(named("Add below")?.getAttribute("aria-expanded")).toBe("true");
+    await press(item("Paragraph"));
+    expect(edits.addAt).toHaveBeenCalledWith({ sectionId: 1, entryId: "e1", after: "i1" }, "paragraph");
+  });
+
+  it("closes a menu from its button", async () => {
+    await move(itemText());
+    await press(named("Add below"));
     expect(item("Bullet")).not.toBeNull();
-    await press(named("Add here"));
+    await press(named("Add below"));
     expect(item("Bullet")).toBeNull();
   });
 
-  it("moves its pill off a mark in its margin, so both can be pressed", async () => {
-    taken = [{ top: addGap.top + 3, side: "left" }];
-    await act(async () => root.render(<Sheet />));
-    await move(document.getElementById("item")!);
-    const pill = named("Add here") as HTMLElement;
-    const middle = parseFloat(pill.style.top) + 10;
-    expect(Math.abs(middle - taken[0].top)).toBeGreaterThanOrEqual(MARK_SIZE);
-    // Its line stays across the gap.
-    expect(parseFloat((pill.previousElementSibling as HTMLElement).style.top)).toBe(addGap.top - 0.75);
-    taken = [];
-  });
-
-  it("opens the section menu", async () => {
-    places.gapAt.mockReturnValue({ ...addGap, kind: "section", afterSectionId: 1 });
-    await move(document.getElementById("item")!);
-    await press(named("Add a section"));
+  it("shows a light + Section across its gap, and opens the section menu", async () => {
+    places.gapAt.mockReturnValue(sectionGap);
+    await move(margin(), 400, 300);
+    const pill = named("Add a section")!;
+    expect(pill.textContent).toBe("Section");
+    expect(pill.querySelector("svg")).not.toBeNull();
+    expect(pill.className).toContain("h-[24px]");
+    expect(named("Add below")).toBeNull();
+    await press(pill);
     expect(document.activeElement?.getAttribute("placeholder")).toBe("Search your sections…");
   });
 });

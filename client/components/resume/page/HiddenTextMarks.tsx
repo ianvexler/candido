@@ -14,6 +14,9 @@ export type HiddenMarkAt = { top: number; side: "left" | "right"; places: Hidden
 /** Their height, and how near two can be without being one. */
 export const MARK_SIZE = 24;
 
+/** Less than any gap that matters, more than any rounding. */
+export const HAIR = 1e-6;
+
 /** The first line of text of an element, or its box. */
 export const lineBox = (element: Element): DOMRect => {
   const range = document.createRange();
@@ -36,9 +39,10 @@ export const isHiddenMark = (mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt 
 
 /**
  * Hidden-text marks that would overlap as one, each by its text; then each fold in the nearest
- * free place at or below its own, so it never covers another mark.
+ * free place at or below its own, so it never covers another mark. `foldSize`: how far a fold's
+ * middle is kept from another's, in sheet units; folds are drawn at screen size.
  */
-export const mergeMarks = <T extends HiddenMarkAt | FoldAt>(marks: T[]): T[] => {
+export const mergeMarks = <T extends HiddenMarkAt | FoldAt>(marks: T[], foldSize = MARK_SIZE): T[] => {
   const merged: T[] = [];
   const byTop = [...marks].sort((a, b) => a.top - b.top);
   byTop.forEach((mark) => {
@@ -51,8 +55,9 @@ export const mergeMarks = <T extends HiddenMarkAt | FoldAt>(marks: T[]): T[] => 
     .filter((mark) => !isHiddenMark(mark))
     .forEach((mark) => {
       let top = mark.top;
-      const near = () => merged.find((other) => other.side === mark.side && Math.abs(other.top - top) < MARK_SIZE);
-      for (let other = near(); other; other = near()) top = other.top + MARK_SIZE;
+      // Less a hair: a fraction added and taken away may come back a hair short, and find the same one again.
+      const near = () => merged.find((other) => other.side === mark.side && Math.abs(other.top - top) < foldSize - HAIR);
+      for (let other = near(); other; other = near()) top = other.top + foldSize;
       merged.push({ ...mark, top });
     });
   return merged.sort((a, b) => a.top - b.top);

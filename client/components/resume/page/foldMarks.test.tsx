@@ -23,11 +23,11 @@ let host: HTMLDivElement;
 let root: Root;
 let tick: ReturnType<typeof vi.fn>;
 
-const render = (folds: FoldAt[]) =>
+const render = (folds: FoldAt[], scale = 1) =>
   act(async () =>
     root.render(
       <TooltipProvider>
-        <FoldMarks folds={folds} inside={false} actions={{ tick } as unknown as ChecklistActions} />
+        <FoldMarks folds={folds} scale={scale} sheetWidth={794} actions={{ tick } as unknown as ChecklistActions} />
       </TooltipProvider>
     )
   );
@@ -51,6 +51,29 @@ afterEach(async () => {
 describe("FoldMarks", () => {
   it("says how many are left out", () => {
     expect(mark()).toBeDefined();
+  });
+
+  it("is drawn at screen size in its column's margin, placed from sheet units by the scale", async () => {
+    await render([fold], 0.75);
+    const button = mark()!;
+    expect(button.className).toContain("h-[24px]");
+    expect(button.className).toContain("text-[12px]");
+    const slot = button.parentElement!;
+    // Its middle on its line; from the sheet's edge to its text, less room.
+    expect(parseFloat(slot.style.top)).toBeCloseTo(200 * 0.75 - 12);
+    expect(parseFloat(slot.style.left)).toBe(2);
+    expect(parseFloat(slot.style.width)).toBeCloseTo(68 * 0.75 - 4 - 2);
+  });
+
+  it("never reaches past the sheet: on the right, from its text to the sheet's edge", async () => {
+    await render([{ ...fold, side: "right", line: { top: 200, left: 300, right: 740 } }], 0.75);
+    const slot = mark()!.parentElement!;
+    const left = parseFloat(slot.style.left);
+    expect(left).toBeCloseTo(740 * 0.75 + 4);
+    expect(left + parseFloat(slot.style.width)).toBeCloseTo(794 * 0.75 - 2);
+    // Too wide, it goes to the slot's start, which right to left is the sheet's edge.
+    expect(slot.getAttribute("dir")).toBe("rtl");
+    expect(mark()!.getAttribute("dir")).toBe("ltr");
   });
 
   it("lists each of them, cut to 80 characters", async () => {
@@ -91,6 +114,17 @@ describe("mergeMarks", () => {
     expect(eyes).toEqual([200, 230]);
     const [folded] = merged.filter((mark) => "items" in mark);
     expect(merged.every((mark) => mark === folded || Math.abs(mark.top - folded.top) >= MARK_SIZE)).toBe(true);
+  });
+
+  it("stacks folds as far apart as they are tall on screen", () => {
+    const merged = mergeMarks<FoldAt>([fold, { ...fold, top: 210 }], 32);
+    expect(merged.map(({ top }) => top)).toEqual([200, 232]);
+  });
+
+  it("ends when a fold's step is a fraction, which adding and taking away doesn't give back exactly", () => {
+    const size = 26 / 0.924;
+    const merged = mergeMarks<HiddenMarkAt | FoldAt>([eye(113.37, "b1"), { ...fold, top: 113.37 }], size);
+    expect(merged[1].top - merged[0].top).toBeCloseTo(size);
   });
 
   it("still merges hidden-text marks that would overlap", () => {

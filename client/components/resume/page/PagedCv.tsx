@@ -27,7 +27,7 @@ import { ResumeTemplate } from "../templates/ResumeTemplate";
 import type { Added } from "../useAdded";
 import type { SuggestionProps } from "../useEntrySuggestions";
 import { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
-import FoldMarks from "./FoldMarks";
+import FoldMarks, { FOLD_HEIGHT } from "./FoldMarks";
 import { findFolds, FoldAt } from "./folds";
 import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, isHiddenMark, MARK_SIZE, mergeMarks } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
@@ -101,6 +101,7 @@ const Page = ({
 }: PagedCvProps) => {
   const pageId = useId();
   const outerRef = useRef<HTMLDivElement>(null);
+  const sheetsRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<number | null>(null);
   const { width } = SHEETS[paper];
@@ -201,11 +202,11 @@ const Page = ({
   const folding = tools !== null;
   const onLaidOut = useCallback(
     (root: HTMLElement, at: number) => {
-      // In one margin with the hidden-text marks: stacked, never over each other.
-      const all = mergeMarks<HiddenMarkAt | FoldAt>([
-        ...findHiddenMarks(root, at, shownSections),
-        ...(folding ? findFolds(root, at, sections) : []),
-      ]);
+      // In one margin with the hidden-text marks: stacked, never over each other, folds as tall as on screen.
+      const all = mergeMarks<HiddenMarkAt | FoldAt>(
+        [...findHiddenMarks(root, at, shownSections), ...(folding ? findFolds(root, at, sections) : [])],
+        Math.max(MARK_SIZE, (FOLD_HEIGHT + 2) / at)
+      );
       const found = all.filter(isHiddenMark);
       const folded = all.filter((mark): mark is FoldAt => !isHiddenMark(mark));
       setMarks((before) => (JSON.stringify(before) === JSON.stringify(found) ? before : found));
@@ -247,15 +248,15 @@ const Page = ({
   const height = sheetsHeight(pages, paging.metrics);
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
   const marksInside = markRoom < MARK_SIZE + 8;
-  // Within the margins the marks are where an add point's pill would be.
+  // Marks within the margins are where a gutter would be: folds always are.
   const taken = useMemo(
-    () => (marksInside ? [...marks, ...folds, ...datesMarks].map(({ top, side }) => ({ top, side })) : []),
+    () => [...(marksInside ? [...marks, ...datesMarks] : []), ...folds].map(({ top, side }) => ({ top, side })),
     [marksInside, marks, folds, datesMarks]
   );
 
   return (
     <div ref={outerRef} className="paged-cv">
-      <div className="relative mx-auto" style={{ width: width * scale, height: height * scale }}>
+      <div ref={sheetsRef} className="relative mx-auto" style={{ width: width * scale, height: height * scale }}>
         <div
           className="absolute left-0 top-0 origin-top-left"
           // Scaled, not zoomed: text wraps and measures as it does in print.
@@ -312,15 +313,25 @@ const Page = ({
                     : null
                 }
               />
-              {tools && (
-                <>
-                  <FoldMarks folds={folds} inside={marksInside} actions={tools.actions} onClosed={focusPage} />
-                  <PageTools ref={toolsRef} rootRef={rootRef} scale={scale} sections={sections} taken={taken} {...tools} />
-                </>
-              )}
             </>
           )}
         </div>
+        {!readOnly && tools && (
+          // Out of the page's scale: tools are as big at any zoom, placed from sheet units by it.
+          <div className="pointer-events-none absolute inset-0 font-[family-name:var(--font-dm-sans)]">
+            <FoldMarks folds={folds} scale={scale} sheetWidth={width} actions={tools.actions} onClosed={focusPage} />
+            <PageTools
+              ref={toolsRef}
+              rootRef={rootRef}
+              areaRef={sheetsRef}
+              scale={scale}
+              sheetWidth={width}
+              sections={sections}
+              taken={taken}
+              {...tools}
+            />
+          </div>
+        )}
       </div>
       <PageCards
         cards={cards}

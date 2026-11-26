@@ -9,47 +9,55 @@ import { ToolMenu } from "./PageTools";
 
 /** How much of each one's text its list shows. */
 const LABEL_LENGTH = 80;
-/** A mark's height, in sheet px; it sits in a MARK_SIZE slot. */
-const HEIGHT = 20;
-/** Room between a mark beside the sheet and the sheet. */
-const OUT = 6;
-/** Room between a mark in a margin and its column's text. */
+/** A mark's height, in screen px: it is drawn out of the page's scale. */
+export const FOLD_HEIGHT = 24;
+/** Room between a mark and its column's text, and between it and the sheet's edge, in screen px. */
 const ROOM = 4;
+const INSET = 2;
 
 const cut = (text: string) => (text.length > LABEL_LENGTH ? `${text.slice(0, LABEL_LENGTH).trimEnd()}…` : text);
 
 /**
- * Beside the sheet; or, with no room there, against its column's text, never over it: a margin
- * can be narrower than the mark, which then reaches past the sheet's edge.
+ * The margin a mark sits in, from the sheet's edge to its column's text, in screen px. It is by
+ * the text; in a margin narrower than it, against the sheet's edge, so never past the sheet.
  */
-const placeOf = ({ top, side, line }: FoldAt, inside: boolean) => {
-  const y = top - HEIGHT / 2;
-  if (inside) {
-    return side === "left"
-      ? { className: "-translate-x-full", style: { top: y, left: line.left - ROOM } }
-      : { className: "", style: { top: y, left: line.right + ROOM } };
-  }
-  return { className: side === "left" ? "-translate-x-full" : "translate-x-full", style: { top: y, [side]: -OUT } };
+const slotOf = ({ top, side, line }: FoldAt, scale: number, sheetWidth: number) => {
+  const y = top * scale - FOLD_HEIGHT / 2;
+  if (side === "left") return { top: y, left: INSET, width: Math.max(0, line.left * scale - ROOM - INSET) };
+  const left = line.right * scale + ROOM;
+  return { top: y, left, width: Math.max(0, sheetWidth * scale - INSET - left) };
 };
+
+/**
+ * Placed in a slot: by the text, or overflowing it rather than the sheet. Too wide, `safe` puts
+ * it at the slot's start: on the right, right to left, so that is the sheet's edge.
+ */
+const slotClass = "absolute flex h-[24px] [justify-content:safe_flex-end]";
+const slotDir = (side: "left" | "right") => (side === "right" ? "rtl" : "ltr");
+
+// In px, not rem: the app's rem isn't 16px.
+const MARK =
+  "inline-flex h-[24px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-dashed px-[8px] text-[12px] leading-none";
 
 interface FoldMarksProps {
   folds: FoldAt[];
-  /** No room beside the sheet: within its margin. */
-  inside: boolean;
+  /** The page's; marks are placed by it from sheet units, at screen size. */
+  scale: number;
+  /** In sheet units. */
+  sheetWidth: number;
   actions: Pick<ChecklistActions, "tick">;
   /** The list was closed from the keyboard. */
   onClosed?: () => void;
 }
 
 /** Where the CV leaves things out, each run folded into a mark: `<n> left out`. */
-const FoldMarks = memo(({ folds, inside, actions, onClosed }: FoldMarksProps) => {
+const FoldMarks = memo(({ folds, scale, sheetWidth, actions, onClosed }: FoldMarksProps) => {
   // What it held when opened: it stays listed as each goes back, until closed.
   const [open, setOpen] = useState<FoldAt | null>(null);
   const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const leftOut = new Set(folds.flatMap(({ items }) => items.map(foldKey)));
   const opened = open && new Set(open.items.map(foldKey));
-  const anchorAt = open && placeOf(open, inside);
   const isOpen = (fold: FoldAt) => Boolean(opened && fold.items.some((item) => opened.has(foldKey(item))));
 
   useEffect(() => {
@@ -79,30 +87,31 @@ const FoldMarks = memo(({ folds, inside, actions, onClosed }: FoldMarksProps) =>
     <>
       {folds.map((fold) => {
         const { top, left, right } = fold.line;
-        const { className, style } = placeOf(fold, inside);
         const expanded = isOpen(fold);
         return (
-          // Over the sidebar template's columns, which are stacked; only the mark takes the pointer.
-          <div key={foldKey(fold.items[0])} data-page-tools className="pointer-events-none absolute inset-0 z-10 print:hidden">
-            <button
-              type="button"
-              data-fold-mark
-              aria-haspopup="menu"
-              aria-expanded={expanded}
-              onClick={() => setOpen(expanded ? null : fold)}
-              className={cn(
-                "peer pointer-events-auto absolute h-5 whitespace-nowrap rounded-full border border-dashed border-[#c3c9cf] bg-white px-1.5 text-[10px]/[18px] text-[#5f6770] outline-none hover:border-[#8a929a] hover:text-[#1f2328] focus-visible:border-[#8a929a] focus-visible:text-[#1f2328]",
-                expanded && "border-[#8a929a] text-[#1f2328]",
-                className
-              )}
-              style={style}
-            >
-              {fold.items.length} left out
-            </button>
+          // Only the mark takes the pointer; the gutter is drawn over it.
+          <div key={foldKey(fold.items[0])} data-page-tools className="group pointer-events-none absolute inset-0 z-10 print:hidden">
+            <div dir={slotDir(fold.side)} className={slotClass} style={slotOf(fold, scale, sheetWidth)}>
+              <button
+                dir="ltr"
+                type="button"
+                data-fold-mark
+                aria-haspopup="menu"
+                aria-expanded={expanded}
+                onClick={() => setOpen(expanded ? null : fold)}
+                className={cn(
+                  MARK,
+                  "pointer-events-auto border-[#c3c9cf] bg-white text-[#5f6770] outline-none hover:border-[#8a929a] hover:text-[#1f2328] focus-visible:border-[#8a929a] focus-visible:text-[#1f2328]",
+                  expanded && "border-[#8a929a] text-[#1f2328]"
+                )}
+              >
+                {fold.items.length} left out
+              </button>
+            </div>
             <div
               aria-hidden
-              className="absolute hidden border-t border-dashed border-[#8a929a] peer-hover:block peer-focus-visible:block"
-              style={{ top: top - 0.5, left, width: right - left }}
+              className="absolute hidden border-t border-dashed border-[#8a929a] group-has-[[data-fold-mark]:hover]:block group-has-[[data-fold-mark]:focus-visible]:block"
+              style={{ top: top * scale - 0.5, left: left * scale, width: (right - left) * scale }}
             />
           </div>
         );
@@ -110,7 +119,16 @@ const FoldMarks = memo(({ folds, inside, actions, onClosed }: FoldMarksProps) =>
       {open && (
         <>
           {/* Where it was opened: it stays there when the mark goes. */}
-          <span ref={setAnchor} aria-hidden className={cn("pointer-events-none absolute h-5 w-0", anchorAt?.className)} style={anchorAt?.style} />
+          <div
+            aria-hidden
+            dir={slotDir(open.side)}
+            className={cn(slotClass, "pointer-events-none invisible")}
+            style={slotOf(open, scale, sheetWidth)}
+          >
+            <span ref={setAnchor} dir="ltr" className={MARK}>
+              {open.items.length} left out
+            </span>
+          </div>
           <ToolMenu anchor={anchor} onClose={close} keepOpenOn="[data-fold-mark]">
             <div ref={listRef} role="menu" aria-label="Left out here" onKeyDown={onKeyDown} className="w-72">
               {open.items.map((item) => {

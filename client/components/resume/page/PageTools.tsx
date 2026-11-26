@@ -5,35 +5,32 @@ import type { ChecklistActions, ChecklistTarget } from "@/lib/resume/useCvCheckl
 import { CurriculumSection, SUMMARY_ID } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { autoUpdate, flip, FloatingPortal, offset, shift, useFloating } from "@floating-ui/react";
-import { CheckIcon } from "lucide-react";
-import { ReactNode, Ref, RefObject, useEffect, useEffectEvent, useImperativeHandle, useState } from "react";
+import { CheckIcon, PlusIcon } from "lucide-react";
+import { ReactNode, Ref, RefObject, useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from "react";
 import { textStart } from "../ChecklistRow";
 import IconAction from "../IconAction";
-import type { CvEdits } from "../useCvEdits";
+import type { AddPlace, CvEdits } from "../useCvEdits";
 import AddMenu from "./AddMenu";
-import { MARK_SIZE } from "./HiddenTextMarks";
+import { HAIR, MARK_SIZE } from "./HiddenTextMarks";
 import { columnsOf } from "./measureBlocks";
-import { BlockRef, blockAt, columnEdges, Gap, gapAt } from "./pagePlaces";
+import { addPlaceOf, BlockRef, blockAt, blockBeside, columnEdges, Gap, gapAt, PlacedBlock } from "./pagePlaces";
 import SectionMenu from "./SectionMenu";
 
-/** Sizes in sheet px. */
-const TICK = 18;
-const PILL = 20;
-/** Room between a margin tool and its column's text. */
+/** In screen px: the tools are drawn out of the page's scale. A gutter is two buttons side by side. */
+const BUTTON = 24;
+const GUTTER = 2 * BUTTON + 2;
+/** Room between a gutter and its column's text, and between it and the sheet's edge. */
 const ROOM = 4;
-/** A "+ Section" sits below a "+ Add" of the same gap, as the lower half of it. */
-const SECTION_DROP = 4;
+const INSET = 2;
+/** How long the tools stay after the pointer leaves where they are for. */
+export const LINGER = 300;
 
-type Block = BlockRef & { top: number; left: number };
-type Hovered = { block: Block | null; gap: Gap | null };
-type AddGap = Extract<Gap, { kind: "add" }>;
-type Menu = { kind: "add"; gap: AddGap } | { kind: "section"; gap: Gap; afterSectionId: number | null };
-
-const NOTHING: Hovered = { block: null, gap: null };
+type Menu = { kind: "add"; block: PlacedBlock; place: AddPlace } | { kind: "section"; gap: Gap; afterSectionId: number | null };
 
 /** What a keyboard shortcut opens. */
 export type PageToolsHandle = {
-  openAdd: (gap: AddGap) => void;
+  /** The add menu by a block's gutter: the block, or the one a place adds after. */
+  openAdd: (at: BlockRef | AddPlace) => void;
   /** At `at`, or above the section after the given one. */
   openSection: (afterSectionId: number | null, at?: Gap) => void;
 };
@@ -55,7 +52,58 @@ const nameOf = (rows: ChecklistSection[], block: BlockRef) => {
   return entry?.items.find(({ id }) => id === itemId)?.text || (block.kind === "summary" ? "the summary" : "this");
 };
 
-const same = (a: Hovered, b: Hovered) => JSON.stringify(a) === JSON.stringify(b);
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The block a place adds after. */
+const blockOfPlace = ({ sectionId, entryId, after }: AddPlace): BlockRef =>
+  entryId === null
+    ? { sectionId, kind: "heading" }
+    : after === null
+      ? { sectionId, kind: "entry", entryId }
+      : { sectionId, kind: "item", entryId, itemId: after };
+
+/** A block's element on the page, to be placed by. */
+const elementOf = (root: HTMLElement, block: BlockRef): Element | null => {
+  const section = root.querySelector(`[data-section-id="${block.sectionId}"]`);
+  if (!section || block.kind === "heading") return section?.querySelector('.rc-heading, [data-block="heading"]') ?? null;
+  const entry = section.querySelector(`[data-entry-id="${CSS.escape(block.entryId)}"]`);
+  if (!entry || block.kind === "entry") return entry;
+  if (block.kind === "summary") return entry.querySelector(".rc-summary");
+  return entry.querySelector(`[data-cv-item="${CSS.escape(block.itemId)}"]`);
+};
+
+/** Where the gutter is for: the block and the margin beside it, from the sheet's edge, in sheet units. */
+const holds = (block: PlacedBlock, x: number, y: number, sheetWidth: number) =>
+  y >= block.top && y <= block.bottom && (block.side === "left" ? x >= 0 && x <= block.right : x >= block.left && x <= sheetWidth);
+
+/** A value shown while pointed at, and for a while after. */
+const useLingering = <T,>() => {
+  const [value, setValue] = useState<T | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const stop = () => {
+    window.clearTimeout(timer.current);
+    timer.current = undefined;
+  };
+  useEffect(() => stop, []);
+  return {
+    value,
+    show: (next: T) => {
+      stop();
+      setValue((before) => (same(before, next) ? before : next));
+    },
+    linger: () => {
+      if (timer.current !== undefined) return;
+      timer.current = window.setTimeout(() => {
+        timer.current = undefined;
+        setValue(null);
+      }, LINGER);
+    },
+    hide: () => {
+      stop();
+      setValue(null);
+    },
+  };
+};
 
 /** Where a "+ Section" for after a section goes when no gap was pointed at: above the next one. */
 const sectionGap = (root: HTMLElement, scale: number, order: number[], afterSectionId: number | null): Gap | null => {
@@ -67,7 +115,7 @@ const sectionGap = (root: HTMLElement, scale: number, order: number[], afterSect
   if (!at || !column) return null;
   const box = at.getBoundingClientRect();
   const top = ((below ? box.top : box.bottom) - root.getBoundingClientRect().top) / scale;
-  return { kind: "section", afterSectionId, top, ...columnEdges(root, scale, column) };
+  return { afterSectionId, top, ...columnEdges(root, scale, column) };
 };
 
 interface ToolMenuProps {
@@ -78,7 +126,7 @@ interface ToolMenuProps {
   children: ReactNode;
 }
 
-/** A menu by its pill, out of the page's scale. A press elsewhere closes it. */
+/** A menu by its tool, out of the page's scale. A press elsewhere closes it. */
 export const ToolMenu = ({ anchor, onClose, keepOpenOn, children }: ToolMenuProps) => {
   const { refs, floatingStyles, elements } = useFloating({
     placement: "bottom-start",
@@ -112,62 +160,6 @@ export const ToolMenu = ({ anchor, onClose, keepOpenOn, children }: ToolMenuProp
   );
 };
 
-interface PillProps {
-  gap: Gap;
-  /** Where a "+ Add" pill's middle is: its gap's y, unless a mark is there. */
-  at: number;
-  open: boolean;
-  onOpen: () => void;
-  buttonRef?: (element: HTMLButtonElement | null) => void;
-}
-
-/** An add point: the pill and its line across the gap. Neither takes room. */
-const Pill = ({ gap, at, open, onOpen, buttonRef }: PillProps) => {
-  const { left, right } = gap;
-  const pill = "absolute h-5 whitespace-nowrap rounded-full border px-2 text-xs/[18px] font-medium shadow-[0_2px_8px_-3px_rgb(0_0_0/0.25)]";
-  if (gap.kind === "add") {
-    return (
-      <>
-        <div aria-hidden className="pointer-events-none absolute h-[1.5px] bg-[#f5a524]" style={{ top: gap.top - 0.75, left, width: right - left }} />
-        <button
-          ref={buttonRef}
-          type="button"
-          aria-label="Add here"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          onClick={onOpen}
-          className={cn(pill, "-translate-x-full border-[#aab2ba] bg-white text-[#1f2328] hover:border-[#f5a524] hover:bg-[#fff4dc]", open && "border-[#f5a524] bg-[#fff4dc]")}
-          style={{ top: at - PILL / 2, left: left - ROOM }}
-        >
-          + Add
-        </button>
-      </>
-    );
-  }
-  const top = gap.top + SECTION_DROP;
-  return (
-    <>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute border-t-[1.5px] border-dashed border-[#1f2328]"
-        style={{ top: top - 0.75, left, width: right - left }}
-      />
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-label="Add a section"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={onOpen}
-        className={cn(pill, "-translate-x-1/2 border-[#1f2328] bg-[#1f2328] font-semibold tracking-[0.02em] text-white hover:bg-[#3a4047]")}
-        style={{ top: top - PILL / 2, left: (left + right) / 2 }}
-      >
-        + Section
-      </button>
-    </>
-  );
-};
-
 /** What the tools do, from the CV's checklist. */
 export type PageToolsActions = {
   rows: ChecklistSection[];
@@ -176,96 +168,148 @@ export type PageToolsActions = {
   addSection: (name: string, afterSectionId: number | null) => Promise<void>;
 };
 
-/** A mark in a margin: where a "+ Add" pill can't be too. */
+/** A mark in a margin, in sheet units: where a gutter can't be too. */
 export type Taken = { top: number; side: "left" | "right" };
 
-/** Up from a gap's y, past any mark in its margin: a pill is left of its column, as left marks are of theirs. */
-const pillAt = (gap: Gap, taken: Taken[]) => {
-  let top = gap.top;
-  if (gap.kind !== "add" || gap.side !== "left") return top;
-  const near = () => taken.find(({ top: other, side }) => side === "left" && Math.abs(other - top) < MARK_SIZE);
-  for (let mark = near(); mark; mark = near()) top = mark.top - MARK_SIZE;
-  return top;
+/** The gutter's middle, in sheet units: by the block's first line, or down past any mark there. */
+const gutterAt = (block: PlacedBlock, taken: Taken[], scale: number) => {
+  // A mark is at most as tall as a tool on screen.
+  const room = Math.max(MARK_SIZE, (BUTTON + 2) / scale);
+  let middle = block.top + block.line / 2;
+  // Less a hair: a fraction added and taken away may come back a hair short, and find the same mark again.
+  const near = () => taken.find(({ top, side }) => side === block.side && Math.abs(top - middle) < room - HAIR);
+  for (let mark = near(); mark; mark = near()) middle = mark.top + room;
+  return middle;
 };
+
+/** The gutter's left, in screen px: by the text, and never past the sheet's edge. */
+const gutterLeft = (block: PlacedBlock, scale: number, sheetWidth: number) =>
+  block.side === "left"
+    ? Math.max(INSET, block.left * scale - ROOM - GUTTER)
+    : Math.min(sheetWidth * scale - INSET - GUTTER, block.right * scale + ROOM);
+
+// In px, not rem: the app's rem isn't 16px.
+const TOOL = "inline-flex size-[24px] min-w-0 items-center justify-center rounded-md p-0 leading-none shadow-[0_1px_4px_-1px_rgb(0_0_0/0.2)] [&_svg]:size-[14px]";
 
 interface PageToolsProps extends PageToolsActions {
   ref?: Ref<PageToolsHandle>;
   /** The page's root: what prints. Nothing is put in it. */
   rootRef: RefObject<HTMLElement | null>;
+  /** The sheets' box on screen, unscaled, that the tools are placed in and the pointer is followed over. */
+  areaRef: RefObject<HTMLElement | null>;
   scale: number;
+  /** In sheet units. */
+  sheetWidth: number;
   sections: CurriculumSection[];
-  /** Marks within the margins, which a pill moves off. */
+  /** Marks within the margins, which a gutter moves off. */
   taken?: Taken[];
 }
 
 /**
- * The tick and add point under the pointer, over the page's margins and gaps.
- * Placed in the page's scaled box, beside the page, in sheet units.
+ * The gutter by the block under the pointer, and the "+ Section" of the gap between sections.
+ * Drawn at screen size in the sheets' unscaled box, placed from sheet units by the scale.
  */
-const PageTools = ({ ref, rootRef, scale, sections, taken = [], rows, actions, edits, addSection }: PageToolsProps) => {
-  const [hovered, setHovered] = useState<Hovered>(NOTHING);
+const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken = [], rows, actions, edits, addSection }: PageToolsProps) => {
+  const hovered = useLingering<PlacedBlock>();
+  const pointed = useLingering<Gap>();
   const [menu, setMenu] = useState<Menu | null>(null);
-  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const [aiming, setAiming] = useState(false);
+  // Both can be shown at once: a gutter lingers by a gap.
+  const [addAnchor, setAddAnchor] = useState<HTMLButtonElement | null>(null);
+  const [sectionAnchor, setSectionAnchor] = useState<HTMLButtonElement | null>(null);
   const order = sections.map(({ id }) => id);
 
-  const find = useEffectEvent((event: PointerEvent): Hovered | null => {
+  const follow = useEffectEvent((event: PointerEvent) => {
     const root = rootRef.current;
     const target = event.target instanceof Element ? event.target : null;
-    if (!root || !target) return NOTHING;
-    // Over a tool: what it is for stays.
-    if (target.closest("[data-page-tools]")) return null;
+    if (!root || !target || menu) return;
     // Selecting, or a finger: no hover.
-    if (event.buttons !== 0 || event.pointerType === "touch") return NOTHING;
-    const found = blockAt(root, scale, target);
-    const column = found && columnsOf(root).find((each) => each.contains(target));
-    const block = found && column ? { ...found, left: columnEdges(root, scale, column).left } : null;
-    return { block, gap: gapAt(root, scale, event.clientX, event.clientY, order) };
+    if (event.buttons !== 0 || event.pointerType === "touch") {
+      hovered.hide();
+      pointed.hide();
+      return;
+    }
+    const box = root.getBoundingClientRect();
+    const x = (event.clientX - box.left) / scale;
+    const y = (event.clientY - box.top) / scale;
+
+    const current = hovered.value;
+    if (current && (target.closest("[data-page-gutter]") || holds(current, x, y, sheetWidth))) hovered.show(current);
+    else {
+      const found = (root.contains(target) ? blockAt(root, scale, target) : null) ?? blockBeside(root, scale, event.clientX, event.clientY);
+      // Between an entry's lines and its items is no block's.
+      if (found && y >= found.top && y <= found.bottom) hovered.show(found);
+      else hovered.linger();
+    }
+
+    const gap = pointed.value;
+    const next = gap && target.closest("[data-page-section]") ? gap : gapAt(root, scale, event.clientX, event.clientY, order);
+    if (next) pointed.show(next);
+    else pointed.linger();
+  });
+
+  const leave = useEffectEvent((now: boolean) => {
+    if (now) {
+      hovered.hide();
+      pointed.hide();
+    } else {
+      hovered.linger();
+      pointed.linger();
+    }
   });
 
   useEffect(() => {
-    const area = rootRef.current?.parentElement;
+    const area = areaRef.current;
     if (!area) return;
     let frame = 0;
     let last: PointerEvent | null = null;
     const update = () => {
       frame = 0;
-      const next = last && find(last);
-      if (next) setHovered((before) => (same(before, next) ? before : next));
+      if (last) follow(last);
     };
     const onMove = (event: PointerEvent) => {
       last = event;
       if (!frame) frame = requestAnimationFrame(update);
     };
-    const clear = () => {
+    const onLeave = () => {
       last = null;
-      setHovered(NOTHING);
+      leave(false);
     };
-    area.addEventListener("pointermove", onMove);
     // What is typed may move the text from under them. Once: nothing is done per key.
     const onKey = () => {
-      if (last) clear();
+      if (!last) return;
+      last = null;
+      leave(true);
     };
-    area.addEventListener("pointerleave", clear);
+    area.addEventListener("pointermove", onMove);
+    area.addEventListener("pointerleave", onLeave);
     area.addEventListener("keydown", onKey);
     return () => {
       cancelAnimationFrame(frame);
       area.removeEventListener("pointermove", onMove);
-      area.removeEventListener("pointerleave", clear);
+      area.removeEventListener("pointerleave", onLeave);
       area.removeEventListener("keydown", onKey);
     };
-  }, [rootRef]);
+  }, [areaRef]);
 
   const close = (back: boolean) => {
     setMenu(null);
-    setHovered(NOTHING);
+    setAiming(false);
+    hovered.hide();
+    pointed.hide();
     if (back) rootRef.current?.focus({ preventScroll: true });
   };
 
-  const open = (gap: Gap) =>
-    setMenu(gap.kind === "add" ? { kind: "add", gap } : { kind: "section", gap, afterSectionId: gap.afterSectionId });
+  const openFor = (block: PlacedBlock, place = addPlaceOf(block)) => setMenu({ kind: "add", block, place });
 
   useImperativeHandle(ref, () => ({
-    openAdd: (gap) => setMenu({ kind: "add", gap }),
+    openAdd: (at) => {
+      const root = rootRef.current;
+      const place = "kind" in at ? addPlaceOf(at) : at;
+      const element = root && elementOf(root, "kind" in at ? at : blockOfPlace(at));
+      const block = root && element && blockAt(root, scale, element);
+      if (block) openFor(block, place);
+    },
     openSection: (afterSectionId, at) => {
       const root = rootRef.current;
       const gap = at ?? (root && sectionGap(root, scale, order, afterSectionId));
@@ -273,47 +317,101 @@ const PageTools = ({ ref, rootRef, scale, sections, taken = [], rows, actions, e
     },
   }));
 
-  const { block, gap } = menu ? NOTHING : hovered;
-  // In the margin both would be in one place: by a gap, the pill is what is pointed at.
-  const clash = block && gap?.kind === "add" && Math.abs(block.top + TICK / 2 - gap.top) < (TICK + PILL) / 2;
-  const shownGap = menu?.gap ?? gap;
+  const block = menu?.kind === "add" ? menu.block : menu ? null : hovered.value;
+  const gap = menu?.kind === "section" ? menu.gap : menu ? null : pointed.value;
+  const adding = menu?.kind === "add";
 
   return (
-    // Over the sidebar template's columns, which are stacked.
-    <div data-page-tools className="print:hidden [&>*]:z-10">
-      {block && !clash && (
-        <IconAction
-          label={`Leave out ${textStart(nameOf(rows, block))}`}
-          side="left"
-          onClick={() => {
-            setHovered(NOTHING);
-            void actions.tick(targetOf(block), false);
-            rootRef.current?.focus({ preventScroll: true });
-          }}
-          className="absolute size-[18px] min-w-0 rounded-[4px] bg-[#1f2328] p-0 text-white hover:bg-[#3a4047] hover:text-white [&_svg]:size-3"
-          style={{ top: block.top - 1, left: block.left - ROOM - TICK }}
-        >
-          <CheckIcon strokeWidth={3} />
-        </IconAction>
+    <div data-page-tools className="print:hidden">
+      {block && (
+        <>
+          {(aiming || adding) && (
+            <div
+              aria-hidden
+              data-add-line
+              className="pointer-events-none absolute z-20 h-[1.5px] bg-[#f5a524]"
+              style={{ top: block.bottom * scale, left: block.left * scale, width: (block.right - block.left) * scale }}
+            />
+          )}
+          <div
+            data-page-gutter
+            className="pointer-events-auto absolute z-20 flex gap-0.5"
+            style={{ top: gutterAt(block, taken, scale) * scale - BUTTON / 2, left: gutterLeft(block, scale, sheetWidth) }}
+          >
+            <IconAction
+              label="Add below"
+              // Above: beside, it would cover the other button.
+              side="top"
+              buttonRef={setAddAnchor}
+              aria-haspopup="menu"
+              aria-expanded={adding}
+              onPointerEnter={() => setAiming(true)}
+              onPointerLeave={() => setAiming(false)}
+              onClick={() => (adding ? close(false) : openFor(block))}
+              className={cn(
+                TOOL,
+                "border border-[#d5dade] bg-white text-[#5f6770] hover:border-[#aab2ba] hover:bg-white hover:text-[#1f2328]",
+                adding && "border-[#f5a524] bg-[#fff4dc] text-[#1f2328] hover:bg-[#fff4dc]"
+              )}
+            >
+              <PlusIcon strokeWidth={2.5} />
+            </IconAction>
+            <IconAction
+              label={`Leave out ${textStart(nameOf(rows, block))}`}
+              side="top"
+              onClick={() => {
+                close(false);
+                void actions.tick(targetOf(block), false);
+                rootRef.current?.focus({ preventScroll: true });
+              }}
+              className={cn(TOOL, "bg-[#1f2328] text-white hover:bg-[#3a4047] hover:text-white")}
+            >
+              <CheckIcon strokeWidth={3} />
+            </IconAction>
+          </div>
+        </>
       )}
-      {shownGap && (
-        <Pill gap={shownGap} at={pillAt(shownGap, taken)} open={menu !== null} onOpen={() => (menu ? close(false) : open(shownGap))} buttonRef={setAnchor} />
+      {gap && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-20 border-t border-dashed border-[#aab2ba]"
+            style={{ top: gap.top * scale - 0.5, left: gap.left * scale, width: (gap.right - gap.left) * scale }}
+          />
+          <button
+            ref={setSectionAnchor}
+            type="button"
+            data-page-section
+            aria-label="Add a section"
+            aria-haspopup="listbox"
+            aria-expanded={menu?.kind === "section"}
+            onClick={() => (menu ? close(false) : setMenu({ kind: "section", gap, afterSectionId: gap.afterSectionId }))}
+            className={cn(
+              "pointer-events-auto absolute z-20 inline-flex h-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-[4px] whitespace-nowrap rounded-full border border-[#aab2ba] bg-white pl-[6px] pr-[10px] text-[12px] font-medium leading-none text-[#1f2328] hover:border-[#5f6770] hover:text-black [&_svg]:size-[14px]",
+              menu?.kind === "section" && "border-[#5f6770] text-black"
+            )}
+            style={{ top: gap.top * scale, left: ((gap.left + gap.right) / 2) * scale }}
+          >
+            <PlusIcon strokeWidth={2.5} />
+            Section
+          </button>
+        </>
       )}
       {menu?.kind === "add" && (
-        <ToolMenu anchor={anchor} onClose={close}>
+        <ToolMenu anchor={addAnchor} onClose={close} keepOpenOn="[data-page-gutter]">
           <AddMenu
-            place={menu.gap.place}
+            place={menu.place}
             sections={sections}
             edits={edits}
             onPutBack={(entryId, itemId) =>
-              void actions.tick({ sectionId: menu.gap.place.sectionId, templateId: null, entryId, itemId, inCv: true }, true)
+              void actions.tick({ sectionId: menu.place.sectionId, templateId: null, entryId, itemId, inCv: true }, true)
             }
             onClose={close}
           />
         </ToolMenu>
       )}
       {menu?.kind === "section" && (
-        <ToolMenu anchor={anchor} onClose={close}>
+        <ToolMenu anchor={sectionAnchor} onClose={close}>
           <SectionMenu
             rows={rows}
             order={order}
