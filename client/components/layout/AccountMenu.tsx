@@ -34,7 +34,7 @@ const AccountMenu = ({ variant, collapsed = false }: AccountMenuProps) => {
 
   const avatar = (
     <span
-      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-candido text-xs font-semibold text-candido-black"
+      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-candido text-xs font-semibold text-candido-black"
       aria-hidden
     >
       {initials}
@@ -47,7 +47,7 @@ const AccountMenu = ({ variant, collapsed = false }: AccountMenuProps) => {
         {variant === "sidebar" ? (
           <button
             className={cn(
-              "flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10",
+              "flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 text-left text-[15px] text-gray-100 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10",
               collapsed ? "justify-center" : "px-2"
             )}
             aria-label="Account"
@@ -56,15 +56,15 @@ const AccountMenu = ({ variant, collapsed = false }: AccountMenuProps) => {
             {!collapsed && (
               <>
                 <span className="min-w-0 flex-1 truncate">{user?.name || user?.email}</span>
-                <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-500" />
+                <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400" />
               </>
             )}
           </button>
         ) : (
           <button
             className={cn(
-              "flex h-16 cursor-pointer flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
-              accountActive ? "text-candido" : "text-gray-400 hover:text-white"
+              "flex h-16 cursor-pointer flex-col items-center justify-center gap-1 text-xs font-medium transition-colors",
+              accountActive ? "text-candido" : "text-gray-300 hover:text-white"
             )}
           >
             <UserIcon className="size-5" strokeWidth={1.75} />

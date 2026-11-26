@@ -22,14 +22,14 @@ const NavbarLink = ({ href, label, icon: Icon, active, collapsed, muted, badge }
       aria-label={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex h-9 items-center gap-3 rounded-md text-sm transition-colors",
+        "relative flex h-10 items-center gap-3 rounded-md text-[15px] transition-colors",
         collapsed ? "w-10 justify-center" : "px-3",
         active
-          ? "bg-white/[0.08] font-medium text-white before:absolute before:inset-y-1.5 before:-left-3 before:w-1.5 before:rounded-r-sm before:hazard-stripes"
-          : cn("hover:bg-white/5 hover:text-white", muted ? "text-gray-500" : "text-gray-400")
+          ? "bg-white/[0.08] font-medium text-white before:absolute before:inset-y-2 before:-left-3 before:w-1.5 before:rounded-r-sm before:hazard-stripes"
+          : cn("hover:bg-white/5 hover:text-white", muted ? "text-gray-400" : "text-gray-200")
       )}
     >
-      <Icon className="size-4.5 shrink-0" strokeWidth={1.75} />
+      <Icon className="size-5 shrink-0" strokeWidth={1.75} />
       {!collapsed && <span className="truncate">{label}</span>}
       {!collapsed && badge !== undefined && badge > 0 && (
         <span className="ml-auto font-mono text-xs tabular-nums text-candido">{badge}</span>

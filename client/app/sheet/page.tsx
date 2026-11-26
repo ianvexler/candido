@@ -234,7 +234,7 @@ const SheetPageContent = () => {
 
   return (
     <>
-      <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 pt-4 sm:pt-12 pb-8 flex flex-col min-h-0 flex-1 min-w-0">
+      <div className="mx-auto max-w-screen-2xl w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 min-w-0">
         <JobsHeader title="Sheet" description="View your job applications in a table" onAddJob={openAddJob}>
           <BoardFilters
             jobBoardEntries={jobBoardEntries}

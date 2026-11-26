@@ -30,7 +30,7 @@ const MainContent = ({ children }: MainContentProps) => {
         "flex flex-1 flex-col min-w-0",
         // Room for the sidebar on desktop and the tab bar on mobile.
         hasNav && "pb-16 md:pb-0 md:transition-[padding] md:duration-200",
-        hasNav && (collapsed ? "md:pl-16" : "md:pl-52"),
+        hasNav && (collapsed ? "md:pl-16" : "md:pl-60"),
         isFullHeight ? "h-screen overflow-hidden" : "min-h-screen overflow-y-auto"
       )}
     >

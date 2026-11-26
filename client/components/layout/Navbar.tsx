@@ -37,7 +37,7 @@ const Navbar = () => {
       <aside
         className={cn(
           "hidden md:flex fixed left-0 top-0 z-10 h-screen shrink-0 flex-col bg-candido-ink px-3 py-4 transition-[width] duration-200",
-          collapsed ? "w-16" : "w-52"
+          collapsed ? "w-16" : "w-60"
         )}
       >
         <div className={cn("mb-6 flex items-center gap-2.5", collapsed ? "flex-col" : "pl-3 pr-1.5")}>
@@ -51,7 +51,7 @@ const Navbar = () => {
           <button
             onClick={toggleCollapsed}
             className={cn(
-              "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/5 hover:text-white",
+              "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-white/5 hover:text-white",
               // The hat sits above the letters, so nudge down to line up with them.
               collapsed ? "mt-2" : "ml-auto translate-y-0.5"
             )}
@@ -70,14 +70,14 @@ const Navbar = () => {
               ) : (
                 <p
                   className={cn(
-                    "flex items-center gap-2 whitespace-nowrap px-3 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-gray-500",
+                    "flex items-center gap-2 whitespace-nowrap px-3 pb-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-gray-400",
                     index > 0 ? "pt-5" : "pt-1"
                   )}
                 >
                   <span className="h-px w-3 bg-candido" aria-hidden />
                   {group.label}
                   {group.label === "Job search" && counts && activeCount(counts) > 0 && (
-                    <span className="ml-auto text-xs tracking-normal tabular-nums text-candido" title="Active applications">
+                    <span className="ml-auto text-[13px] tracking-normal tabular-nums text-candido" title="Active applications">
                       {activeCount(counts)}
                     </span>
                   )}
@@ -130,10 +130,10 @@ const Navbar = () => {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+                "relative flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors",
                 active
                   ? "text-candido before:absolute before:inset-x-4 before:top-0 before:h-1 before:rounded-b-sm before:hazard-stripes"
-                  : "text-gray-400 hover:text-white"
+                  : "text-gray-300 hover:text-white"
               )}
             >
               <Icon className="size-5" strokeWidth={1.75} />
