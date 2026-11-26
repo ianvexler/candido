@@ -19,7 +19,6 @@ import ConfirmationModal from "../common/ConfirmationModal";
 import TagsInput from "./TagsInput";
 import { Button } from "../ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/DropdownMenu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/Tabs";
 import NotesArea from "./NotesArea";
 import ApplyBar from "./entry/ApplyBar";
 import JobSend from "./entry/JobSend";
@@ -200,7 +199,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">("idle");
   const [discardChangesModalOpen, setDiscardChangesModalOpen] = useState<boolean>(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
-  const [detailsTab, setDetailsTab] = useState<"description" | "notes" | "documents">("description");
   const [closingDate, setClosingDate] = useState<string>(initialClosingDate);
   // An action that leaves the sheet (open the CV editor) waiting on the discard-edits prompt.
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
@@ -218,18 +216,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     },
   });
 
-  // The parent remounts the sheet for each job, so the editor and tabs start from this job and
+  // The parent remounts the sheet for each job, so the editor starts from this job and
   // are never reset from props: a save's response would otherwise replace text typed meanwhile.
-
-  const handleDetailsTabChange = (value: string) => {
-    setDetailsTab(value as "description" | "notes" | "documents");
-    
-    if (value === "description") {
-      requestAnimationFrame(() => {
-        editor?.commands.focus("end");
-      });
-    }
-  };
 
   const hasUpdatedFields = useMemo(() => {
     if (isCreate) {
@@ -603,7 +591,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     </span>
   );
 
-  const panel = (
+  // Adding a job; an existing job is edited in the pane layout below.
+  const createForm = (
     <>
       <div className="shrink-0 border-b border-border bg-muted/30">
         <div className="flex items-start justify-between gap-4 px-6 py-5">
@@ -631,7 +620,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-          {saveStatus}
           <button
             type="button"
             onClick={handleCancelClick}
@@ -643,30 +631,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </div>
         </div>
       </div>
-
-      {!isCreate && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-6 py-2.5">
-          <p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-            <span
-              className={cn(
-                "size-2 shrink-0 rounded-full",
-                !ready ? "bg-border" : ready.state === "ready" ? "bg-emerald-500" : "bg-candido"
-              )}
-              aria-hidden
-            />
-            <span className="truncate">{prepare.detail ?? capitalize(entry!.status.toLowerCase())}</span>
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            variant={ready ? "candido" : "ghost"}
-            className="shrink-0"
-            onClick={() => props.onPrepare && beforeLeave(props.onPrepare)}
-          >
-            {prepare.label}
-          </Button>
-        </div>
-      )}
 
       <form
         onSubmit={handleCreateSubmit}
@@ -799,94 +763,18 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Tabs value={detailsTab} onValueChange={handleDetailsTabChange} className="w-full">
-            <TabsList>
-              <TabsTrigger value="description" className="px-4">Description</TabsTrigger>
-              <TabsTrigger value="notes" className="px-4" disabled={isCreate}>Notes</TabsTrigger>
-              {!isCreate && <TabsTrigger value="documents" className="px-4">Documents</TabsTrigger>}
-            </TabsList>
-
-            <TabsContent value="notes">{notesArea}</TabsContent>
-            {!isCreate && entry && (
-              // Kept mounted, so switching tabs doesn't lose a half-typed document.
-              <TabsContent value="documents" forceMount className="data-[state=inactive]:hidden">
-                <div className="divide-y divide-border rounded-lg border border-border [&>*]:px-4 [&>*]:py-3">
-                  <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} canTailor={false} />
-                  <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
-                </div>
-              </TabsContent>
-            )}
-
-            <TabsContent
-              value="description"
-              forceMount
-              className="data-[state=inactive]:hidden"
-            >
-              <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
-                {editor && <SimpleMenuBar editor={editor} />}
-                <EditorContent editor={editor} className="min-h-[140px]" />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-center">
-            {isCreate ? (
-              <Button type="submit" disabled={loading || saving} className="w-fit">
-                {loading ? "Creating..." : "Create"}
-              </Button>
-            ) : (
-              <>
-                <div />
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={loading || saving}
-                    onClick={() => handleStatusAction(JobStatus.REJECTED)}
-                  >
-                    <XCircleIcon className="size-4" />
-                    Rejected
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={loading || saving}
-                    onClick={() => handleStatusAction(JobStatus.ARCHIVED)}
-                  >
-                    <ArchiveIcon className="size-4" />
-                    Archive
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={loading || saving}
-                    onClick={handleDeleteClick}
-                  >
-                    <Trash2Icon className="size-4" />
-                    Delete
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="flex flex-row justify-end gap-2">
-            {!isCreate && entry && (
-              <p className="text-xs text-muted-foreground">
-                Created: {format(new Date(entry.created_at), "MMM d, yyyy")}
-                <span className="mx-2 text-border">·</span>
-                Updated: {format(new Date(entry.updated_at), "MMM d, yyyy")}
-              </p>
-            )}
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Description
+          </h3>
+          <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
+            {editor && <SimpleMenuBar editor={editor} />}
+            <EditorContent editor={editor} className="min-h-[140px]" />
           </div>
         </div>
+
+        <Button type="submit" disabled={loading} className="w-fit">
+          {loading ? "Creating..." : "Create"}
+        </Button>
       </form>
     </>
   );
@@ -958,12 +846,12 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     </DropdownMenu>
   );
 
-  if (isPane && entry) {
-    const posting = postingUrl(url);
-    const closing = status === JobStatus.PENDING ? closingLabel(closingDate ? parseISO(closingDate) : null) : null;
-    return (
-      <>
-        <div className="flex flex-col px-5 pb-6 pt-5 sm:px-7 sm:pt-6">
+  const posting = postingUrl(url);
+  const closing = status === JobStatus.PENDING ? closingLabel(closingDate ? parseISO(closingDate) : null) : null;
+  // The job's fields, edited in place: beside the applications list, and in the board's side panel.
+  const paneBody = (headerAction: ReactNode, padding: string) =>
+    entry && (
+        <div className={cn("flex flex-col", padding)}>
           <div className="flex items-center justify-between gap-2">
             <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
               <SelectTrigger size="sm" className="w-auto gap-2 rounded-full bg-background" aria-label="Status">
@@ -983,7 +871,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             <div className="flex items-center gap-1">
               {saveStatus}
               {moreMenu}
-              {props.headerAction}
+              {headerAction}
             </div>
           </div>
 
@@ -1102,6 +990,12 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             Updated {format(new Date(entry.updated_at), "d MMM yyyy")}
           </p>
         </div>
+    );
+
+  if (isPane) {
+    return (
+      <>
+        {paneBody(props.headerAction, "px-5 pb-6 pt-5 sm:px-7 sm:pt-6")}
         {prompts}
       </>
     );
@@ -1224,7 +1118,18 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         <SheetTitle>{isCreate ? "Create job" : `Edit job: ${title || "Untitled"}`}</SheetTitle>
       </VisuallyHidden.Root>
 
-      {panel}
+      {isCreate ? (
+        createForm
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30">
+          {paneBody(
+            <Button type="button" variant="ghost" size="icon-sm" onClick={handleCancelClick} aria-label="Close">
+              <XIcon />
+            </Button>,
+            "px-6 pb-8 pt-6 sm:px-9 sm:pt-7"
+          )}
+        </div>
+      )}
       {prompts}
     </SheetContent>
   );
