@@ -91,7 +91,8 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
     } catch (error) {
       console.error(error);
       setOutcome("failed");
-      toast.error("Failed to update job");
+      // One toast per job, so failures while offline don't pile up.
+      toast.error("Failed to update job", { id: `job-save-${job.id}` });
       return false;
     } finally {
       setSaving(false);
@@ -200,11 +201,23 @@ export const useJobAutosave = ({ entry, allEntries, fields, setField, reset, onP
     }
   };
 
+  // Nothing is sent without a title and company, so say that rather than nothing.
+  const incomplete = showErrors && !hasRequiredFields(fields);
+
   return {
     busy,
     saving,
     showErrors,
-    status: saving ? ("saving" as const) : outcome === "failed" && dirty ? ("failed" as const) : outcome && !dirty ? ("saved" as const) : null,
+    incomplete,
+    status: saving
+      ? ("saving" as const)
+      : incomplete
+        ? ("incomplete" as const)
+        : outcome === "failed" && dirty
+          ? ("failed" as const)
+          : outcome && !dirty
+            ? ("saved" as const)
+            : null,
     beforeLeave,
     moveTo,
     remove,

@@ -103,6 +103,7 @@ class CvImport < ApplicationRecord
   private
 
   CV_TITLE = "My CV".freeze
+  private_constant :CV_TITLE
 
   # "My CV", or the first free "My CV 2", "My CV 3"…
   def new_cv_title

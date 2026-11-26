@@ -106,10 +106,21 @@ describe("useJobAutosave", () => {
     await render({ title: " " });
     await act(async () => form.beforeLeave(go));
     expect(form.isLeaveBlocked).toBe(true);
+    expect(form.incomplete).toBe(true);
     expect(go).toHaveBeenCalledOnce();
 
     await act(async () => form.discardAndLeave());
     expect(go).toHaveBeenCalledTimes(2);
+  });
+
+  it("says a title and company are needed instead of saving without them", async () => {
+    await render({ company: "" });
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(api.update).not.toHaveBeenCalled();
+    expect(form.status).toBe("incomplete");
+
+    await render({ company: "Fernway" });
+    expect(form.status).not.toBe("incomplete");
   });
 
   it("doesn't save what was discarded", async () => {
