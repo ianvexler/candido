@@ -1,4 +1,4 @@
-import { MoreHorizontalIcon, XIcon, ArchiveIcon, XCircleIcon, Trash2Icon } from "lucide-react";
+import { MoreHorizontalIcon, XIcon, ArchiveIcon, XCircleIcon, Trash2Icon, ArrowUpRightIcon } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 import { SheetContent, SheetTitle } from "../ui/Sheet";
 import { JobBoardEntry, JobStatus, jobStatusColors } from "@/lib/types";
@@ -24,7 +24,9 @@ import NotesArea from "./NotesArea";
 import ApplyBar from "./entry/ApplyBar";
 import JobSend from "./entry/JobSend";
 import { useAuth } from "@/contexts/AuthContext";
-import { prepareAction, readiness } from "@/lib/jobBoard/readiness";
+import { postingUrl, prepareAction, readiness } from "@/lib/jobBoard/readiness";
+import { closingLabel } from "@/lib/jobBoard/sentLog";
+import FitBadge from "../common/FitBadge";
 import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
 import DocSlot from "./entry/DocSlot";
 import { EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
@@ -41,8 +43,13 @@ type JobFormSheetProps =
     }
   | {
       mode: "edit";
-      /** The side panel tracks the job; the full page is for preparing the application. */
-      layout?: "panel" | "page";
+      /**
+       * The side panel tracks the job; the full page is for preparing the application; the pane
+       * sits beside the applications list and edits the job in place.
+       */
+      layout?: "panel" | "page" | "pane";
+      /** At the top right of the pane, e.g. a close button over the list on phones. */
+      headerAction?: ReactNode;
       /** Opens the full view, from the panel. */
       onPrepare?: () => void;
       /** The way back, on the full page. */
@@ -82,6 +89,45 @@ const toClosingDatePayload = (date: string): Date | null =>
   date ? parse(date, "yyyy-MM-dd", new Date()) : null;
 
 const factInput = "h-9 py-0 text-base";
+// Reads as text until hovered or focused, then shows the underline of a field.
+const paneInput = "border-transparent hover:border-border focus:border-foreground";
+const paneFieldInput = cn(paneInput, "h-7 py-0 text-sm font-medium");
+
+/** One of the job's facts in the applications pane. */
+const PaneField = ({
+  label,
+  htmlFor,
+  hint,
+  action,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  hint?: string | null;
+  action?: ReactNode;
+  children: ReactNode;
+}) => (
+  <div className="min-w-0 bg-background px-4 py-2.5">
+    <div className="flex items-center justify-between gap-2">
+      <label htmlFor={htmlFor} className="text-xs text-muted-foreground">
+        {label}
+      </label>
+      {action}
+    </div>
+    {children}
+    {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+  </div>
+);
+
+const PaneSection = ({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) => (
+  <section className="mt-7">
+    <div className="mb-2.5 flex items-center justify-between gap-2">
+      <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</h3>
+      {aside}
+    </div>
+    {children}
+  </section>
+);
 
 /** One of the job's facts on the full page. */
 const Fact = ({
@@ -106,6 +152,7 @@ const Fact = ({
 const JobFormSheet = (props: JobFormSheetProps) => {
   const isCreate = props.mode === "create";
   const isPage = props.mode === "edit" && props.layout === "page";
+  const isPane = props.mode === "edit" && props.layout === "pane";
   const { user } = useAuth();
 
   const entry = props.entry;
@@ -851,6 +898,153 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     </>
   );
 
+  const moreMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="More job actions" disabled={loading || saving}>
+          <MoreHorizontalIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => void handleStatusAction(JobStatus.REJECTED)}>
+          <XCircleIcon />
+          Move to Rejected
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void handleStatusAction(JobStatus.ARCHIVED)}>
+          <ArchiveIcon />
+          Archive
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={handleDeleteClick}>
+          <Trash2Icon />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  if (isPane && entry) {
+    const posting = postingUrl(url);
+    const closing = status === JobStatus.PENDING ? closingLabel(closingDate ? parseISO(closingDate) : null) : null;
+    return (
+      <>
+        <div className="flex flex-col px-5 pb-6 pt-5 sm:px-7 sm:pt-6">
+          <div className="flex items-center justify-between gap-2">
+            <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
+              <SelectTrigger size="sm" className="w-auto gap-2 rounded-full bg-background" aria-label="Status">
+                <i className={cn("size-2 rounded-full", jobStatusColors[status])} aria-hidden />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                <SelectGroup>
+                  {Object.values(JobStatus).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {capitalize(s.toLowerCase())}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1">
+              {saveStatus}
+              {moreMenu}
+              {props.headerAction}
+            </div>
+          </div>
+
+          <InlineInput
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={loading}
+            aria-label="Job title"
+            aria-invalid={!isTitleValid || undefined}
+            placeholder="Job title"
+            className={cn(paneInput, "mt-4 py-0.5 text-2xl font-bold leading-tight tracking-tight")}
+          />
+          <InlineInput
+            id="company"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            disabled={loading}
+            aria-label="Company"
+            aria-invalid={!isCompanyValid || undefined}
+            placeholder="Company"
+            className={cn(paneInput, "mt-0.5 py-0.5 text-muted-foreground focus:text-foreground")}
+          />
+
+          <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">
+            <PaneField label="Location" htmlFor="location">
+              <InlineInput id="location" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+            </PaneField>
+            <PaneField label="Salary" htmlFor="salary">
+              <InlineInput id="salary" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+            </PaneField>
+            <PaneField label="Closing date" htmlFor="closingDate" hint={closing}>
+              <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={paneFieldInput} />
+            </PaneField>
+            <PaneField
+              label="Posting link"
+              htmlFor="url"
+              action={
+                posting && (
+                  <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the posting" className="text-muted-foreground hover:text-foreground">
+                    <ArrowUpRightIcon className="size-4" />
+                  </a>
+                )
+              }
+            >
+              <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+            </PaneField>
+          </div>
+
+          <PaneSection
+            title={status === JobStatus.PENDING ? "What you'll send" : "What you sent"}
+            aside={entry.cv_curriculum?.fit ? <FitBadge fit={entry.cv_curriculum.fit} /> : null}
+          >
+            <div className="divide-y divide-border rounded-lg border border-border bg-background [&>*]:px-4 [&>*]:py-3">
+              <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} />
+              <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={ready && ready.state !== "no_cv" ? "candido" : "outline"}
+              className="mt-3 w-full sm:w-auto"
+              onClick={() => props.onPrepare && beforeLeave(props.onPrepare)}
+            >
+              {prepare.label}
+              <ArrowUpRightIcon />
+            </Button>
+          </PaneSection>
+
+          <PaneSection title="Notes">{notesArea}</PaneSection>
+
+          <PaneSection title="Job description">
+            <div className="simple-editor-wrapper flex flex-col overflow-hidden rounded-lg border border-border bg-background">
+              {editor && <SimpleMenuBar editor={editor} />}
+              <EditorContent
+                editor={editor}
+                onClick={(event) => event.target === event.currentTarget && editor?.commands.focus("end")}
+                className="max-h-80 min-h-28 cursor-text overflow-y-auto leading-relaxed"
+              />
+            </div>
+          </PaneSection>
+
+          <PaneSection title="Tags">
+            <TagsInput compact allEntries={props.allEntries} tags={tags} onTagsChange={setTags} />
+          </PaneSection>
+
+          <p className="mt-7 text-xs text-muted-foreground">
+            Added {format(new Date(entry.created_at), "d MMM yyyy")}
+            <span className="mx-2 text-border">·</span>
+            Updated {format(new Date(entry.updated_at), "d MMM yyyy")}
+          </p>
+        </div>
+        {prompts}
+      </>
+    );
+  }
+
   if (isPage) {
     return (
       <>
@@ -871,27 +1065,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                 className={cn("min-w-0 flex-1 border-b-0 py-0 text-3xl font-semibold tracking-tight", !isTitleValid && "border-b")}
               />
               {saveStatus}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="More job actions" disabled={loading || saving}>
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => void handleStatusAction(JobStatus.REJECTED)}>
-                    <XCircleIcon />
-                    Move to Rejected
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void handleStatusAction(JobStatus.ARCHIVED)}>
-                    <ArchiveIcon />
-                    Archive
-                  </DropdownMenuItem>
-                  <DropdownMenuItem variant="destructive" onSelect={handleDeleteClick}>
-                    <Trash2Icon />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {moreMenu}
             </div>
           </header>
 

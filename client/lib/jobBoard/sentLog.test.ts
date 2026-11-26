@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { JobStatus } from "@/lib/types";
-import { closingLabel, descriptionText, neighbourId, sentDocuments, statusCounts } from "./sentLog";
+import { closingLabel, neighbourId, sentDocuments, statusCounts } from "./sentLog";
 
 describe("statusCounts", () => {
   it("lists statuses with jobs in pipeline order", () => {
@@ -29,17 +29,6 @@ describe("closingLabel", () => {
   ])("labels %s", (date, label) => expect(closingLabel(date, now)).toBe(label));
 
   it("is null without a date", () => expect(closingLabel(undefined, now)).toBeNull());
-});
-
-describe("descriptionText", () => {
-  it("keeps one line per paragraph and bullets list items", () => {
-    expect(descriptionText("<p>About us</p><p></p><ul><li><p>Figma</p></li><li>SQL</li></ul>")).toBe(
-      "About us\n• Figma\n• SQL"
-    );
-  });
-
-  it("reads plain text", () => expect(descriptionText("Just text")).toBe("Just text"));
-  it("is empty for nothing", () => expect(descriptionText(undefined)).toBe(""));
 });
 
 describe("neighbourId", () => {

@@ -50,7 +50,7 @@ const SentList = ({ entries, status, onStatusChange, selectedId, onSelect, isLoa
   return (
     <div className="@container flex min-h-0 min-w-0 flex-col">
       {counts.length > 0 && (
-        <div role="group" aria-label="Show only one status" className="flex flex-wrap gap-2 border-b px-4 py-3 @xl:px-5">
+        <div role="group" aria-label="Show only one status" className="flex flex-wrap gap-2 border-b px-4 py-3.5 @xl:px-5 @xl:py-4">
           <Chip pressed={status === null} onClick={() => onStatusChange(null)} label="All" count={entries.length} />
           {counts.map(({ status: s, count }) => (
             <Chip

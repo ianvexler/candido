@@ -38,25 +38,6 @@ export const closingLabel = (closing: Date | string | undefined | null, now = ne
   return `Closes in ${days} days`;
 };
 
-/** The job description's text, one paragraph per line, without the editor's markup. */
-export const descriptionText = (html: string | undefined | null): string => {
-  if (!html?.trim()) return "";
-  // Only rendered in the browser; strip tags crudely if it ever runs elsewhere.
-  if (typeof DOMParser === "undefined") return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const blocks = doc.body.querySelectorAll("p, li, h1, h2, h3, h4, h5, h6, blockquote, pre");
-  const lines = blocks.length
-    ? Array.from(blocks)
-        // Nested blocks (a paragraph inside a list item) would be read twice.
-        .filter((block) => !block.parentElement?.closest("li, blockquote"))
-        .map((block) => (block.tagName === "LI" ? `• ${block.textContent ?? ""}` : (block.textContent ?? "")))
-    : [doc.body.textContent ?? ""];
-  return lines
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join("\n");
-};
-
 /**
  * Where the selection goes when the selected job leaves the list: the next job that was below
  * it and is still listed, else the one above, else the first; null when the list is empty.

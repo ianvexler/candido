@@ -1,12 +1,9 @@
 "use client";
 
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
-import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import BoardFilters from "@/components/jobBoard/BoardFilters";
 import JobFormSheet from "@/components/jobBoard/JobFormSheet";
 import JobsHeader from "@/components/jobBoard/JobsHeader";
-import JobSheet from "@/components/jobBoard/JobSheet";
-import SentDetail from "@/components/jobBoard/sent/SentDetail";
 import SentList from "@/components/jobBoard/sent/SentList";
 import { Button } from "@/components/ui/Button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/Sheet";
@@ -21,10 +18,12 @@ import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
 import { JobBoardEntry, JobStatus } from "@/lib/types";
 import { XIcon } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 const ApplicationsPageContent = () => {
+  const router = useRouter();
   const isWide = useMediaQuery("(min-width: 1024px)");
   // The selected job is kept in the address, so a refresh or the full page's back link returns to it.
   const { jobId, openJob, closeJob } = useOpenJob();
@@ -33,7 +32,6 @@ const ApplicationsPageContent = () => {
   usePublishJobCounts(jobBoardEntries);
   const [isEmpty, setIsEmpty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   // Kept while the add panel slides out.
   const [addMounted, setAddMounted] = useState(false);
@@ -128,32 +126,6 @@ const ApplicationsPageContent = () => {
     [openJob, isWide]
   );
 
-  const handleStatusChange = useCallback(
-    async (entry: JobBoardEntry, newStatus: JobStatus) => {
-      const newNumber = jobBoardEntries.filter((e) => e.status === newStatus).length + 1;
-      // Only status and number change here, so other saves landing meanwhile are kept.
-      onPatchJob(entry.id, { status: newStatus, number: newNumber });
-      try {
-        await updateJobBoardEntry(
-          entry.id,
-          entry.title,
-          entry.company,
-          entry.location ?? "",
-          entry.salary ?? "",
-          entry.url ?? "",
-          entry.description ?? "",
-          newStatus,
-          newNumber
-        );
-      } catch (error) {
-        console.error(error);
-        toast.error(`Failed to update ${entry.title}`);
-        onPatchJob(entry.id, { status: entry.status, number: entry.number });
-      }
-    },
-    [jobBoardEntries, onPatchJob]
-  );
-
   const openAddJob = () => {
     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     setAddMounted(true);
@@ -167,16 +139,24 @@ const ApplicationsPageContent = () => {
 
   useEffect(() => () => void (closeTimeoutRef.current && clearTimeout(closeTimeoutRef.current)), []);
 
-  const detail = (entry: JobBoardEntry, close?: React.ReactNode) => (
-    <SentDetail
+  // The job's fields, edited in place; they save by themselves, also when another job is picked.
+  const detail = (entry: JobBoardEntry, headerAction?: ReactNode) => (
+    <JobFormSheet
+      // One form per job: its fields start from the job, so a reused form would save them onto another.
       key={entry.id}
+      mode="edit"
+      layout="pane"
       entry={entry}
-      onStatusChange={handleStatusChange}
+      allEntries={jobBoardEntries}
+      // Rejecting, archiving or deleting closes the phone panel; on wide screens the next job is selected.
+      onClose={() => !isWide && closeJob()}
+      onPrepare={() => router.push(`/board/${entry.id}?from=applications`)}
       onPatchJob={onPatchJob}
-      onEdit={() => setEditingId(entry.id)}
-      notes={notes[entry.id]}
+      onDelete={(gone) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== gone.id))}
+      notes={notes[entry.id] ?? []}
+      notesLoading={notes[entry.id] === undefined}
       onNoteAdded={(note) => addNote(entry.id, note)}
-      close={close}
+      headerAction={headerAction}
     />
   );
 
@@ -259,14 +239,6 @@ const ApplicationsPageContent = () => {
         )}
       </Sheet>
 
-      <JobSheet
-        entry={jobBoardEntries.find((entry) => entry.id === editingId)}
-        allEntries={jobBoardEntries}
-        from="applications"
-        onClose={() => setEditingId(null)}
-        onPatchJob={onPatchJob}
-        onDelete={(entry) => setJobBoardEntries((prev) => prev.filter((e) => e.id !== entry.id))}
-      />
     </>
   );
 };
