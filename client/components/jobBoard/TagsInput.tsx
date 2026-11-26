@@ -17,11 +17,13 @@ interface TagsInputProps {
   onTagsChange: (tags: string[]) => void;
   /** One line, underlined like the fields beside it. */
   compact?: boolean;
+  /** With compact: tags that don't fit wrap onto more lines instead of being cut off. */
+  wrap?: boolean;
   /** Extra classes for the button that opens the picker. */
   className?: string;
 }
 
-const TagsInput = ({ allEntries, tags, onTagsChange, compact = false, className }: TagsInputProps) => {  
+const TagsInput = ({ allEntries, tags, onTagsChange, compact = false, wrap = false, className }: TagsInputProps) => {  
   const [newTagInput, setNewTagInput] = useState("");
   const [filterValue, setFilterValue] = useState("");
 
@@ -85,11 +87,12 @@ const TagsInput = ({ allEntries, tags, onTagsChange, compact = false, className 
             "flex w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50",
             tags.length > 0 ? "gap-2" : "text-muted-foreground",
             compact && "h-9 text-base rounded-none border-0 border-b border-border bg-transparent px-0 py-0",
+            compact && wrap && "h-auto min-h-9 py-1",
             className
           )}
         >
           {tags.length > 0 ? (
-            <span className={cn("flex gap-1.5", compact ? "min-w-0 overflow-hidden" : "flex-wrap")}>
+            <span className={cn("flex gap-1.5", compact && !wrap ? "min-w-0 overflow-hidden" : "flex-wrap")}>
               {tags.map((tag) => (
                 <span
                   key={tag}

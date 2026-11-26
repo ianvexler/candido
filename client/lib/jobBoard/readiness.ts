@@ -80,10 +80,12 @@ export const tailoringPatch =
 /** The posting's address if it's one a browser can open, or null. */
 export const postingUrl = (url: string | null | undefined): string | null => {
   const trimmed = url?.trim();
-  if (!trimmed) return null;
+  // Browsers' URL parsers accept spaces and bare words as hosts ("not a link"), so check by hand.
+  if (!trimmed || /\s/.test(trimmed)) return null;
   try {
     const parsed = new URL(/^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+    const webHost = parsed.hostname.includes(".") || parsed.hostname === "localhost";
+    return (parsed.protocol === "https:" || parsed.protocol === "http:") && webHost ? parsed.href : null;
   } catch {
     return null;
   }
