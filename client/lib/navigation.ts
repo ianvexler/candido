@@ -10,6 +10,8 @@ export type NavItem = {
 export type NavGroup = {
   label: string;
   items: NavItem[];
+  /** Show the active-jobs count and pipeline bar with this group. */
+  showsJobCounts?: boolean;
 };
 
 const isUnder = (pathname: string, path: string) => pathname === path || pathname.startsWith(`${path}/`);
@@ -55,7 +57,7 @@ export const sectionLibraryItem: NavItem = {
 
 export const navGroups: NavGroup[] = [
   { label: "Overview", items: [dashboardItem] },
-  { label: "Job search", items: [boardItem, sheetItem] },
+  { label: "Job search", items: [boardItem, sheetItem], showsJobCounts: true },
   { label: "Documents", items: [cvsItem, sectionLibraryItem] },
 ];
 

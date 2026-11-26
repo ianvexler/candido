@@ -18,6 +18,7 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { move } from "@dnd-kit/helpers";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
+import { usePublishJobCounts } from "@/lib/jobBoard/useJobCounts";
 import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -33,6 +34,7 @@ const BoardPageContent = () => {
   const { jobId, openJob, closeJob } = useOpenJob();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
+  usePublishJobCounts(jobBoardEntries);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);

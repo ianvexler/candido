@@ -43,7 +43,7 @@ const Navbar = () => {
               >
                 <span className="h-px w-3 shrink-0 bg-candido" aria-hidden />
                 {group.label}
-                {group.label === "Job search" && counts && activeCount(counts) > 0 && (
+                {group.showsJobCounts && counts && activeCount(counts) > 0 && (
                   <span className="ml-auto text-[13px] tracking-normal tabular-nums text-candido" title="Active applications">
                     {activeCount(counts)}
                   </span>
@@ -58,7 +58,7 @@ const Navbar = () => {
                   active={item.isActive(pathname)}
                 />
               ))}
-              {group.label === "Job search" && counts && <JobsPipeline counts={counts} />}
+              {group.showsJobCounts && counts && <JobsPipeline counts={counts} />}
             </div>
           ))}
         </nav>

@@ -3,6 +3,7 @@
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
 import { saveDocument } from "@/lib/jobBoard/docSlot";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
+import { usePublishJobCounts } from "@/lib/jobBoard/useJobCounts";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getFileUpload } from "@/api/resources/uploads/getFileUpload";
 import JobsHeader from "@/components/jobBoard/JobsHeader";
@@ -22,6 +23,7 @@ const SheetPageContent = () => {
   const { jobId, openJob, closeJob } = useOpenJob();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
+  usePublishJobCounts(jobBoardEntries);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
@@ -234,7 +236,7 @@ const SheetPageContent = () => {
 
   return (
     <>
-      <div className="mx-auto max-w-screen-2xl w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 min-w-0">
+      <div className="mx-auto max-w-[1536px] w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 min-w-0">
         <JobsHeader title="Sheet" description="View your job applications in a table" onAddJob={openAddJob}>
           <BoardFilters
             jobBoardEntries={jobBoardEntries}

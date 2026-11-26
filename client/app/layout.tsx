@@ -47,7 +47,8 @@ const RootLayout = ({ children }: RootLayoutProps) => {
               </div>
             </TooltipProvider>
           
-            <Toaster position="bottom-right" toastOptions={{ duration: 3000 }} />
+            {/* On mobile, sit above the bottom tab bar. */}
+            <Toaster position="bottom-right" containerClassName="max-md:!bottom-20" toastOptions={{ duration: 3000 }} />
           </JobsRefreshProvider>
         </AuthProvider>
       </body>
