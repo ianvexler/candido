@@ -186,7 +186,7 @@ const ApplicationsPageContent = () => {
           />
         </JobsHeader>
 
-        <div className="mt-4 grid min-w-0 overflow-hidden rounded-xl border bg-background sm:mt-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,40%)] xl:grid-cols-[minmax(0,1fr)_minmax(420px,38%)]">
+        <div className="mt-4 grid min-w-0 overflow-hidden rounded-xl border bg-background sm:mt-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(380px,45%)] xl:grid-cols-[minmax(0,1fr)_minmax(460px,46%)]">
           <SentList
             entries={listedEntries}
             status={status}
