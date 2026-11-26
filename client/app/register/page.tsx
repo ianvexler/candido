@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AxiosError } from "axios";
 import toast from "react-hot-toast";
-import { ArrowRightIcon, MailCheckIcon } from "lucide-react";
+import { MailCheckIcon } from "lucide-react";
+import { AuthLink, AuthSubmit, authCtaClass } from "@/components/auth/AuthControls";
 import AuthField from "@/components/auth/AuthField";
 import AuthShell from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
-
-const linkClass =
-  "font-semibold text-candido-black underline underline-offset-4 decoration-[var(--landing-amber)] decoration-2 hover:decoration-candido-black";
+import { cn } from "@/lib/utils";
+import { safeRedirectPath } from "@/lib/routes";
 
 const RegisterPage = () => {
   const searchParams = useSearchParams();
@@ -24,7 +24,7 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
 
-  const from = searchParams.get("from") ?? "/";
+  const from = safeRedirectPath(searchParams.get("from"), "/");
   const loginHref = `/login?from=${encodeURIComponent(from)}`;
 
   useEffect(() => {
@@ -70,7 +70,7 @@ const RegisterPage = () => {
             We sent a verification link to <strong className="text-candido-black">{email}</strong>. Click it to
             confirm your account, then sign in.
           </p>
-          <Button asChild className="mt-8 h-12 w-full rounded-lg text-[16px] font-semibold hover:bg-black">
+          <Button asChild className={cn("mt-8", authCtaClass)}>
             <Link href={loginHref}>Go to sign in</Link>
           </Button>
         </div>
@@ -79,9 +79,9 @@ const RegisterPage = () => {
           <h1 className="text-[44px]">Create your account</h1>
           <p className="mt-2 text-[15px] text-neutral-600">
             Already have one?{" "}
-            <Link href={loginHref} className={linkClass}>
+            <AuthLink href={loginHref} disabled={loading}>
               Sign in
-            </Link>
+            </AuthLink>
           </p>
 
           <form onSubmit={onSubmit} className="mt-8 space-y-5">
@@ -116,20 +116,7 @@ const RegisterPage = () => {
               disabled={loading}
             />
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="group mt-3 h-12 w-full rounded-lg text-[16px] font-semibold hover:bg-black"
-            >
-              {loading ? (
-                "Creating account…"
-              ) : (
-                <>
-                  Create account
-                  <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
-                </>
-              )}
-            </Button>
+            <AuthSubmit loading={loading} label="Create account" loadingLabel="Creating account…" />
           </form>
         </>
       )}

@@ -29,7 +29,8 @@ const AuthShell = ({ headline, tagline, children }: AuthShellProps) => (
           <Image src={Logo} alt="" priority className="h-auto w-[120px] lg:w-[196px]" />
         </Link>
 
-        <h2 className="mt-6 max-w-[9em] text-[clamp(36px,4.4vw,60px)] lg:mt-10">{headline}</h2>
+        {/* Styled as a heading but not one: the form's h1 is the page title. */}
+        <p className="display-heading mt-6 max-w-[9em] text-[clamp(36px,4.4vw,60px)] lg:mt-10">{headline}</p>
         <p className="mt-4 hidden max-w-[24em] text-[17px] lg:block">{tagline}</p>
 
         <Image
@@ -42,9 +43,10 @@ const AuthShell = ({ headline, tagline, children }: AuthShellProps) => (
       <div className="hazard h-3 shrink-0 lg:h-4" aria-hidden />
     </aside>
 
-    <main className="flex flex-1 items-start justify-center px-4 py-10 sm:px-8 lg:items-center lg:justify-start lg:py-16 lg:pl-[clamp(56px,9vw,180px)]">
+    {/* The root layout already provides <main>. */}
+    <div className="flex flex-1 items-start justify-center px-4 py-10 sm:px-8 lg:items-center lg:justify-start lg:py-16 lg:pl-[clamp(56px,9vw,180px)]">
       <div className="w-full max-w-[380px]">{children}</div>
-    </main>
+    </div>
   </div>
 );
 

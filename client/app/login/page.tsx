@@ -2,15 +2,14 @@
 
 import { SubmitEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { AxiosError } from "axios";
 import toast from "react-hot-toast";
-import { ArrowRightIcon } from "lucide-react";
+import { AuthLink, AuthSubmit } from "@/components/auth/AuthControls";
 import AuthField from "@/components/auth/AuthField";
 import AuthShell from "@/components/auth/AuthShell";
 import Loader from "@/components/common/Loader";
-import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
+import { safeRedirectPath } from "@/lib/routes";
 
 const LoginPage = () => {
   const searchParams = useSearchParams();
@@ -21,7 +20,7 @@ const LoginPage = () => {
 
   const router = useRouter();
 
-  const from = searchParams.get("from") ?? "/dashboard";
+  const from = safeRedirectPath(searchParams.get("from"), "/dashboard");
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -67,9 +66,9 @@ const LoginPage = () => {
       <h1 className="text-[44px]">Sign in</h1>
       <p className="mt-2 text-[15px] text-neutral-600">
         New to Candido?{" "}
-        <Link href={`/register?from=${encodeURIComponent(from)}`} className="font-semibold text-candido-black underline underline-offset-4 decoration-[var(--landing-amber)] decoration-2 hover:decoration-candido-black">
+        <AuthLink href={`/register?from=${encodeURIComponent(from)}`} disabled={loading}>
           Create an account
-        </Link>
+        </AuthLink>
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
@@ -94,16 +93,7 @@ const LoginPage = () => {
           disabled={loading}
         />
 
-        <Button type="submit" disabled={loading} className="group mt-3 h-12 w-full rounded-lg text-[16px] font-semibold hover:bg-black">
-          {loading ? (
-            "Signing in…"
-          ) : (
-            <>
-              Sign in
-              <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
-            </>
-          )}
-        </Button>
+        <AuthSubmit loading={loading} label="Sign in" loadingLabel="Signing in…" />
       </form>
     </AuthShell>
   );
