@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { isBareRoute } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 
 interface MainContentProps {
@@ -17,16 +18,18 @@ const MainContent = ({ children }: MainContentProps) => {
   }
 
   const isLanding = pathname === "/";
+  const hasNav = isAuthenticated && !isLanding;
   // Pages that manage their own scrolling panes.
   const isFullHeight = pathname === "/board" || pathname.startsWith("/board/") || pathname.startsWith("/resume/");
 
   return (
     <div
-      className={`flex flex-1 flex-col min-w-0 ${
-        isLanding ? "pl-0 pt-0 min-h-screen overflow-y-auto" : `pl-0 pt-14 md:pt-0 ${isAuthenticated ? "md:pl-18" : ""}`
-      } ${
+      className={cn(
+        "flex flex-1 flex-col min-w-0",
+        // Room for the sidebar on desktop and the tab bar on mobile.
+        hasNav && "pb-16 md:pb-0 md:pl-60",
         isFullHeight ? "h-screen overflow-hidden" : "min-h-screen overflow-y-auto"
-      }`}
+      )}
     >
       {children}
     </div>

@@ -1,27 +1,28 @@
-import Link, { LinkProps } from "next/link";
-import { usePathname } from "next/navigation";
-import { PropsWithChildren } from "react";
+import Link from "next/link";
+import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-interface NavbarLinkProps extends LinkProps, PropsWithChildren {
-  label?: string;
-  title?: string;
+interface NavbarLinkProps {
   href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
 }
 
-const NavbarLink = ({ href, children, label, title, ...props }: NavbarLinkProps) => {
-  const pathname = usePathname();
-  const tooltip = title ?? label ?? "";
-
-  const linkClass = (path: string) =>
-    pathname === path || (path !== "/" && pathname.startsWith(path))
-    ? "bg-white/10 text-white"
-    : "text-gray-400 hover:bg-white/5 hover:text-white";
-  
-  return (
-    <Link href={href} title={tooltip} className={`flex size-12 items-center justify-center rounded-lg transition-colors ${linkClass(href)}`} {...props}>
-      {children}
-    </Link>
-  );
-};
+const NavbarLink = ({ href, label, icon: Icon, active }: NavbarLinkProps) => (
+  <Link
+    href={href}
+    aria-current={active ? "page" : undefined}
+    className={cn(
+      "relative flex h-10 items-center gap-3 rounded-md px-3 text-[15px] transition-colors",
+      active
+        ? "bg-white/[0.08] font-medium text-white before:absolute before:inset-y-2 before:-left-3 before:w-1.5 before:rounded-r-sm before:hazard-stripes"
+        : "text-gray-200 hover:bg-white/5 hover:text-white"
+    )}
+  >
+    <Icon className="size-5 shrink-0" strokeWidth={1.75} />
+    <span className="truncate">{label}</span>
+  </Link>
+);
 
 export default NavbarLink;
