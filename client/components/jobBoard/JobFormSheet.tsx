@@ -97,7 +97,6 @@ const PaneField = ({
   label,
   htmlFor,
   hint,
-  action,
   wide = false,
   className,
   children,
@@ -108,16 +107,12 @@ const PaneField = ({
   wide?: boolean;
   className?: string;
   hint?: string | null;
-  action?: ReactNode;
   children: ReactNode;
 }) => (
   <div className={cn("min-w-0 bg-background px-4 py-2.5", wide && "col-span-full", className)}>
-    <div className="flex items-center justify-between gap-2">
-      <label htmlFor={htmlFor} className="text-xs text-muted-foreground">
-        {label}
-      </label>
-      {action}
-    </div>
+    <label htmlFor={htmlFor} className="block text-xs text-muted-foreground">
+      {label}
+    </label>
     {children}
     {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
   </div>
@@ -735,19 +730,19 @@ const JobFormSheet = (props: JobFormSheetProps) => {
         <PaneField label="Closing date" htmlFor="closingDate" hint={closing} className="col-span-2 @md:col-span-1">
           <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={paneFieldInput} />
         </PaneField>
-        <PaneField
-          label="Link"
-          htmlFor="url"
-          wide
-          action={
-            posting && (
-              <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the posting" className="text-muted-foreground hover:text-foreground">
-                <ArrowUpRightIcon className="size-4" />
-              </a>
-            )
-          }
-        >
-          <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+        <PaneField label="Link" htmlFor="url" wide>
+          <div className="flex items-center gap-2">
+            <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={cn(paneFieldInput, "min-w-0 flex-1")} />
+            {/* Only once it's an address a browser can open. */}
+            {posting && (
+              <Button asChild type="button" variant="outline" size="xs" className="shrink-0">
+                <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the link in a new tab">
+                  Open
+                  <ArrowUpRightIcon />
+                </a>
+              </Button>
+            )}
+          </div>
         </PaneField>
         <PaneField label="Tags" wide>
           <TagsInput
