@@ -1,41 +1,37 @@
 "use client";
 
 import { SubmitEvent, useEffect, useState } from "react";
-import { redirect, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { AxiosError } from "axios";
-import { Button } from "@/components/ui/Button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { useAuth } from "@/contexts/AuthContext";
-import { Label } from "@/components/ui/Label";
-import Logo from "@/lib/images/MainLogo.png";
-import Image from "next/image";
 import toast from "react-hot-toast";
+import { ArrowRightIcon, MailCheckIcon } from "lucide-react";
+import AuthField from "@/components/auth/AuthField";
+import AuthShell from "@/components/auth/AuthShell";
+import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
+
+const linkClass =
+  "font-semibold text-candido-black underline underline-offset-4 decoration-[var(--landing-amber)] decoration-2 hover:decoration-candido-black";
 
 const RegisterPage = () => {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { handleRegister, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const from = searchParams.get("from") ?? "/";
-
-  const [registered, setRegistered] = useState(false);
+  const loginHref = `/login?from=${encodeURIComponent(from)}`;
 
   useEffect(() => {
     if (isAuthenticated) {
-      redirect(from);
+      router.push(from);
     }
-  }, [isAuthenticated, from]);
+  }, [isAuthenticated, from, router]);
 
   const onSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
@@ -60,111 +56,84 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-center bg-muted/50 px-4">
-      <div className="mb-8 text-center">
-        <h1 className="text-2xl font-semibold text-foreground">Get started</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Create an account to track your job applications</p>
-      </div>
+    <AuthShell
+      headline="Build your way to the offer"
+      tagline="Track every application on one board, and tailor your CV to each job before you send it."
+    >
+      {registered ? (
+        <div>
+          <span className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-[var(--landing-amber)]">
+            <MailCheckIcon className="size-7" strokeWidth={1.75} />
+          </span>
+          <h1 className="text-[44px]">Check your email</h1>
+          <p className="mt-3 text-[15px] leading-relaxed text-neutral-600">
+            We sent a verification link to <strong className="text-candido-black">{email}</strong>. Click it to
+            confirm your account, then sign in.
+          </p>
+          <Button asChild className="mt-8 h-12 w-full rounded-lg text-[16px] font-semibold hover:bg-black">
+            <Link href={loginHref}>Go to sign in</Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          <h1 className="text-[44px]">Create your account</h1>
+          <p className="mt-2 text-[15px] text-neutral-600">
+            Already have one?{" "}
+            <Link href={loginHref} className={linkClass}>
+              Sign in
+            </Link>
+          </p>
 
-      <Card className="max-w-md w-full pt-0 shadow-lg border-border/80">
-        <form onSubmit={onSubmit}>
-          <CardHeader className="bg-candido-black p-6 rounded-t-xl flex flex-col items-center justify-center gap-2">
-            <Image src={Logo} alt="Candido" height={44} className="rounded" />
-          </CardHeader>
+          <form onSubmit={onSubmit} className="mt-8 space-y-5">
+            <AuthField
+              id="name"
+              label="Name"
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <AuthField
+              id="email"
+              label="Email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <AuthField
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
 
-          <CardContent className="space-y-4 mt-6 mb-6 px-6">
-            <div className="mb-5">
-              <CardTitle className="text-lg">
-                {registered ? "Check your email" : "Create an account"}
-              </CardTitle>
-
-              <CardDescription className="mt-1">
-                {registered
-                  ? "We sent a verification link to your email. Click the link to verify your account, then sign in."
-                  : "Enter your details to get started"}
-              </CardDescription>
-            </div>
-
-            {!registered && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    autoComplete="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                </div>
-              </div>
-            )}
-          </CardContent>
-
-          <CardFooter className="flex flex-col gap-3 px-6 pb-6 mt-8">
-            {!registered ? (
-              <>
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? "Creating account..." : "Create account"}
-                </Button>
-                <div className="relative w-full">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or</span>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading}
-                  className="w-full"
-                  onClick={() => redirect(`/login?from=${from}`)}
-                >
-                  Sign in
-                </Button>
-              </>
-            ) : (
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => redirect(`/login?from=${from}`)}
-              >
-                Go to sign in
-              </Button>
-            )}
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="group mt-3 h-12 w-full rounded-lg text-[16px] font-semibold hover:bg-black"
+            >
+              {loading ? (
+                "Creating account…"
+              ) : (
+                <>
+                  Create account
+                  <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </>
+              )}
+            </Button>
+          </form>
+        </>
+      )}
+    </AuthShell>
   );
 };
 
