@@ -2,7 +2,7 @@
 
 import { DesignSettings, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, KeptPlace, ResumeDocument } from "@/lib/resume/exportDocument";
-import { showHiddenText, withoutBlankEnd } from "@/lib/resume/items";
+import { showHiddenText } from "@/lib/resume/items";
 import type { EntryVersions } from "@/lib/resume/sectionDrafts";
 import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@/lib/types";
 import {
@@ -155,12 +155,12 @@ const Page = ({
       editors,
       openCard,
       hasEntry: (sectionId, entryId) => entryAt(sections, sectionId, entryId) !== null,
-      onLost: (sectionId, entryId) =>
+      onLost: (sectionId, entryId, drop) =>
         changeEntry(
           onSectionChange,
           sectionId,
           entryId,
-          ({ content }) => ({ content: withoutBlankEnd(content) }),
+          ({ content }) => ({ content: drop(content) }),
           versions[sectionId]?.[entryId] ?? 0,
           true
         ),

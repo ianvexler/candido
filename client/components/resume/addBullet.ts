@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { closeHistory, undoNoScroll } from "@tiptap/pm/history";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Selection, TextSelection, type Transaction } from "@tiptap/pm/state";
+import { withoutBlankAt, withoutBlankEnd } from "@/lib/resume/items";
 import { HIDDEN_MARK } from "./HiddenMark";
 import { whenLeft } from "./whenLeft";
 
@@ -17,6 +18,24 @@ const lastList = (doc: PMNode) => {
   return found as { node: PMNode; pos: number } | null;
 };
 
+/** Drops a block left empty from the saved content, which may have more than its editor. */
+export type DropLost = (content: string) => string;
+
+/** The block's place among those its editor shows, as withoutBlankAt counts; null for one nested deeper. */
+const shownIndex = (doc: PMNode, start: number): number | null => {
+  let index = 0;
+  let found: number | null = null;
+  const count = (at: number) => {
+    if (at === start) found = index;
+    index++;
+  };
+  doc.forEach((node, pos) => {
+    if (LISTS.includes(node.type.name)) node.forEach((_, offset) => count(pos + 1 + offset));
+    else count(pos);
+  });
+  return found;
+};
+
 // Where the bullet is that each editor's is watched for, while it is empty.
 const watched = new WeakMap<Editor, () => number | null>();
 
@@ -28,7 +47,7 @@ const dropIfLeftEmpty = (
   editor: Editor,
   caret: number,
   isNew: boolean,
-  onLost: () => void,
+  onLost: (drop: DropLost) => void,
   kind: "bullet" | "paragraph" = "bullet"
 ) => {
   // In its text: the bullet itself may be indented.
@@ -89,7 +108,10 @@ const dropIfLeftEmpty = (
   // Its text loads anew elsewhere, with the bullet.
   const onDestroy = () => {
     stop();
-    if (block()) setTimeout(onLost);
+    const found = block();
+    if (!found) return;
+    const at = shownIndex(editor.state.doc, found.start);
+    setTimeout(() => onLost((content) => (at === null ? withoutBlankEnd(content) : withoutBlankAt(content, at))));
   };
   watched.set(editor, startOf);
   editor.on("transaction", onTransaction);
@@ -101,7 +123,7 @@ const dropIfLeftEmpty = (
  * One left empty goes, also one that was there, or if the editor goes first is
  * reported: see withoutBlankEnd.
  */
-export const addBullet = (editor: Editor, onLost: () => void) => {
+export const addBullet = (editor: Editor, onLost: (drop: DropLost) => void) => {
   const { view, state } = editor;
   const { doc, schema } = state;
   const list = lastList(doc);
@@ -162,7 +184,12 @@ const paragraphPlace = (doc: PMNode, item: { node: PMNode; pos: number }) => {
  * a bullet after one goes in its list, or else in a new list; a paragraph after one
  * splits its list. False, changing nothing, without the item. One left empty goes.
  */
-export const insertBlock = (editor: Editor, after: string | null, kind: "bullet" | "paragraph", onLost: () => void) => {
+export const insertBlock = (
+  editor: Editor,
+  after: string | null,
+  kind: "bullet" | "paragraph",
+  onLost: (drop: DropLost) => void
+) => {
   const { view, state } = editor;
   const { doc, schema } = state;
   const item = after === null ? null : findItem(doc, after);

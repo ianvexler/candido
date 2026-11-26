@@ -1,7 +1,7 @@
 import { Editor } from "@tiptap/core";
 import { redo, undo, undoDepth } from "@tiptap/pm/history";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withoutBlankEnd } from "@/lib/resume/items";
+import { withoutBlankAt, withoutBlankEnd } from "@/lib/resume/items";
 import { addBullet, caretAtItem, insertBlock } from "./addBullet";
 import { editInEditor } from "./placeCaret";
 import { contentExtensions } from "./review/replaceInContent";
@@ -178,12 +178,14 @@ describe("a bullet left empty", () => {
     expect(editor.state.doc.firstChild!.childCount).toBe(1);
   });
 
-  it("is reported if its editor goes first", () => {
+  it("is reported if its editor goes first, with how to drop it from the saved text", () => {
     open(`<ul><li data-cv-item="a"><p>A</p></li></ul>`);
     add();
+    const saved = html();
     editor.destroy();
     vi.advanceTimersByTime(1);
     expect(onLost).toHaveBeenCalledTimes(1);
+    expect(onLost.mock.calls[0][0](saved)).toBe('<ul><li data-cv-item="a"><p>A</p></li></ul>');
   });
 });
 
@@ -272,6 +274,31 @@ describe("a block put at a place", () => {
     expect(html()).toBe(before);
   });
 
+  it.each([
+    ["bullet", '<ul><li data-cv-item="b1"><p>One</p></li><li data-cv-item="b2"><p>Two</p></li></ul>'],
+    ["paragraph", '<ul><li data-cv-item="b1"><p>One</p></li><li data-cv-item="b2"><p>Two</p></li></ul>'],
+  ] as const)("is reported as a %s in the middle if its editor goes first, and dropped from the saved text", (kind, wanted) => {
+    open(LIST);
+    insert("b1", kind);
+    const saved = html();
+    editor.destroy();
+    vi.advanceTimersByTime(1);
+    expect(onLost).toHaveBeenCalledTimes(1);
+    expect(onLost.mock.calls[0][0](saved)).toBe(wanted);
+  });
+
+  it("is dropped from saved text that has left out items the editor doesn't", () => {
+    open('<p data-cv-item="p1">Intro</p><ul><li data-cv-item="b2"><p>Two</p></li></ul>');
+    insert("p1", "bullet");
+    editor.destroy();
+    vi.advanceTimersByTime(1);
+    const saved =
+      '<p data-cv-item="z" data-cv-off="true">Out</p><p data-cv-item="p1">Intro</p><ul><li><p></p></li></ul><ul><li data-cv-item="b2"><p>Two</p></li></ul>';
+    expect(onLost.mock.calls[0][0](saved)).toBe(
+      '<p data-cv-item="z" data-cv-off="true">Out</p><p data-cv-item="p1">Intro</p><ul><li data-cv-item="b2"><p>Two</p></li></ul>'
+    );
+  });
+
   it("stays with text", () => {
     open(LIST);
     insert("b1", "paragraph");
@@ -288,6 +315,17 @@ describe("a block put at a place", () => {
     expect(plain()).toBe("<ul><li><p>One</p></li><li><p>Two</p></li><li><p>new</p></li></ul>");
     expect(editInEditor(editor, { ...target, after: "gone" }, onLost)).toBe(false);
   });
+});
+
+describe("withoutBlankAt", () => {
+  it.each([
+    ["a bullet", "<ul><li><p>A</p></li><li><p></p></li><li><p>B</p></li></ul>", 1, "<ul><li><p>A</p></li><li><p>B</p></li></ul>"],
+    ["a list it was alone in", "<p>A</p><ul><li><p></p></li></ul>", 1, "<p>A</p>"],
+    ["a paragraph, joining the list it split", "<ul><li><p>A</p></li></ul><p></p><ul><li><p>B</p></li></ul>", 1, "<ul><li><p>A</p></li><li><p>B</p></li></ul>"],
+    ["nothing with text", "<p>A</p><p>B</p>", 1, "<p>A</p><p>B</p>"],
+    ["nothing that isn't there", "<p>A</p>", 3, "<p>A</p>"],
+    ["what shows, past left out items", '<p data-cv-off="true">X</p><p></p><p>A</p>', 0, '<p data-cv-off="true">X</p><p>A</p>'],
+  ])("drops %s", (_, content, shown, wanted) => expect(withoutBlankAt(content, shown)).toBe(wanted));
 });
 
 describe("caretAtItem", () => {

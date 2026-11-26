@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { addBullet, caretAtItem, insertBlock } from "./addBullet";
+import { addBullet, caretAtItem, type DropLost, insertBlock } from "./addBullet";
 import type { EditTarget } from "./editChannel";
 import { scrollParent, viewOf } from "./page/scrolling";
 
@@ -29,7 +29,7 @@ export const focusText = (element: HTMLElement, selected = false) => {
 };
 
 /** Puts the caret in an item, or a new bullet or paragraph. False if it isn't there. */
-export const editInEditor = (editor: Editor, target: EditTarget, onLost: () => void): boolean => {
+export const editInEditor = (editor: Editor, target: EditTarget, onLost: (drop: DropLost) => void): boolean => {
   const { view } = editor;
   if (target.what === "bullet") {
     addBullet(editor, onLost);

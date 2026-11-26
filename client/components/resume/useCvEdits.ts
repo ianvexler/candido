@@ -133,6 +133,11 @@ export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEd
       );
     };
 
+    const newEntry = (sectionId: number, afterEntryId: string | null) => {
+      const entry = emptyEntry();
+      add({ sectionId, entryId: entry.id, what: "title" }, "entry", (section) => insertEntry(section, afterEntryId, entry));
+    };
+
     return {
       edit: (target) => {
         const last = goOn(target);
@@ -150,17 +155,14 @@ export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEd
       addBullet: (sectionId, entryId) =>
         add({ sectionId, entryId, what: "bullet" }, "bullet", (section) => showForBullet(section, entryId)),
       addAt: ({ sectionId, entryId, after }, what) => {
-        if (what === "entry") {
-          const entry = emptyEntry();
-          add({ sectionId, entryId: entry.id, what: "title" }, "entry", (section) => insertEntry(section, entryId, entry));
-          return;
-        }
         const section = find(sectionId);
-        // Under the heading: the top of the first entry.
-        const into = entryId ?? section?.entries[0]?.id;
-        if (!section || into === undefined) return;
-        // One that is left out shows with none of its items, so at its top.
-        const at = entryId !== null && isIn(section, into) ? after : null;
+        if (!section) return;
+        // Under the heading: the top of the first entry, or a new one without any.
+        const into = entryId ?? section.entries[0]?.id;
+        if (what === "entry" || into === undefined) return newEntry(sectionId, entryId);
+        // Its editor has only the items that show: one that is left out shows with none.
+        const shows = after !== null && isIn(section, into, after) && known(sectionId, into).includes(after);
+        const at = entryId !== null && shows ? after : null;
         const target: EditTarget = { sectionId, what: "insert", entryId: into, after: at, kind: what };
         add(target, "bullet", (section) => showForBullet(section, into));
       },

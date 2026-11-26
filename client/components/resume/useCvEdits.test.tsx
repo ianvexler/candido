@@ -1,3 +1,4 @@
+import { withoutBlankAt } from "@/lib/resume/items";
 import { createMonthDrafts } from "@/lib/resume/monthDrafts";
 import { createDrafts } from "@/lib/resume/sectionDrafts";
 import { emptyEntry } from "@/lib/resume/sectionEntries";
@@ -34,11 +35,13 @@ let root: Root;
 let setView: (view: "cards" | "page") => void;
 /** What the views were asked to go to. */
 let asked: EditTarget[];
+/** What the hook takes the drafts to be. */
+let current: () => CurriculumSection[];
 
 const Cv = () => {
   const [view, set] = useState<"cards" | "page">("cards");
   const result = useCvEdits({
-    current: drafts.current,
+    current: () => current(),
     change: drafts.change,
     view,
     showCv: () => {},
@@ -114,6 +117,7 @@ beforeEach(() => {
   document.hasFocus = () => true;
   months = createMonthDrafts();
   drafts = createDrafts<CurriculumSection>({ save: async (each) => each, onChange: () => {}, onError: () => {} });
+  current = drafts.current;
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -336,6 +340,35 @@ describe("adding at a place", () => {
     expect(shown()).toBe("a");
     press();
     expect(now().hidden).toBe(true);
+    expect(now().entries).toEqual(before.entries);
+  });
+
+  it.each([["y"], ["gone"]])("asks for the entry's top for an item that isn't shown: %s", (after) => {
+    load(section(1));
+    addAt("a", after, "bullet");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null });
+  });
+
+  it("adds an entry to a section that has none", () => {
+    load(section(1));
+    // Drafts give a section one; what is passed in may not.
+    current = () => drafts.current().map((each) => ({ ...each, entries: [] }));
+    addAt(null, null, "bullet");
+    current = drafts.current;
+    expect(asked.at(-1)).toMatchObject({ sectionId: 1, what: "title" });
+    expect(hook.added).toMatchObject({ what: "entry" });
+  });
+
+  it("puts ticks back once a paragraph that split a left out entry's list is dropped", () => {
+    const content = '<ul><li data-cv-item="x"><p>X</p></li><li data-cv-item="y"><p>Y</p></li></ul>';
+    const before = section(1, { entries: [entry("a", { content, hidden: true }), entry("b")] });
+    load(before);
+    addAt("a", null, "paragraph");
+    const shownContent = entryNow("a")!.content;
+    // Saved with it, then its editor went and it was dropped again.
+    write("a", { content: shownContent.replace("</li><li", "</li></ul><p></p><ul><li") });
+    write("a", { content: withoutBlankAt(entryNow("a")!.content, 0) });
+    press();
     expect(now().entries).toEqual(before.entries);
   });
 
