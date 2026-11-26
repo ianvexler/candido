@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { deleteDescription, splitCurriculums } from "@/lib/resume/curriculumGroups";
 import { Curriculum } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
-import { FileUpIcon, LayersIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
+import { FileUpIcon, LibraryBigIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -112,7 +112,7 @@ const ResumesPage = () => {
   const libraryLink = (
     <Button variant="ghost" asChild>
       <NextLink href="/resume/sections">
-        <LayersIcon />
+        <LibraryBigIcon />
         Section library
       </NextLink>
     </Button>

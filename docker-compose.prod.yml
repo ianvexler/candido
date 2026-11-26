@@ -1,6 +1,13 @@
 # Live production stack. Images are built in CI. Boot runs db:migrate (in-place
 # table rename). Do not run db:prepare or db:schema:load against production.
 
+# Docker keeps container logs forever by default; keep at most 30MB per container.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   client:
     image: ghcr.io/${GITHUB_REPO_OWNER:-ianvexler}/candido-client:${IMAGE_TAG:-latest}
@@ -8,6 +15,7 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
+    logging: *logging
     restart: unless-stopped
 
   backend:
@@ -18,4 +26,5 @@ services:
     environment:
       RAILS_ENV: production
       PORT: 8000
+    logging: *logging
     restart: unless-stopped

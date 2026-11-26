@@ -32,7 +32,7 @@ import InlineInput from "@/components/ui/InlineInput";
 import { Curriculum, CurriculumSection, CvSuggestion, CvTailoring, MissingSection, ResumeHeader } from "@/lib/types";
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
-import { ArrowLeftIcon, DownloadIcon, LayersIcon } from "lucide-react";
+import { ArrowLeftIcon, DownloadIcon, LibraryBigIcon } from "lucide-react";
 import NextLink from "next/link";
 import { ComponentProps, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -370,7 +370,7 @@ const ResumePage = ({ params }: ResumePageProps) => {
                 href="/resume/sections"
                 className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
               >
-                <LayersIcon className="size-4" />
+                <LibraryBigIcon className="size-4" />
                 Section library
               </NextLink>
               <Tooltip>

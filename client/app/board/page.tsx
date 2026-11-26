@@ -3,8 +3,6 @@
 import { deleteJobBoardEntry } from "@/api/resources/jobBoardEntries/deleteJobBoardEntry";
 import { updateJobBoardEntry } from "@/api/resources/jobBoardEntries/updateJobBoardEntry";
 import { getJobBoardEntries } from "@/api/resources/jobBoardEntries/getJobBoardEntries";
-import Description from "@/components/common/Description";
-import Title from "@/components/common/Title";
 import JobBoardColumn from "@/components/jobBoard/JobBoardColumn";
 import {
   ActionDropZones,
@@ -19,14 +17,15 @@ import { useBoardFilters } from "@/hooks/useBoardFilters";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { move } from "@dnd-kit/helpers";
-import { PlusIcon } from "lucide-react";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
+import { usePublishJobCounts } from "@/lib/jobBoard/useJobCounts";
 import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
 import JobSheet from "@/components/jobBoard/JobSheet";
 import JobFormSheet from "@/components/jobBoard/JobFormSheet";
+import JobsHeader from "@/components/jobBoard/JobsHeader";
 import BoardFilters from "@/components/jobBoard/BoardFilters";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { useJobsRefresh } from "@/contexts/JobsRefreshContext";
@@ -35,6 +34,7 @@ const BoardPageContent = () => {
   const { jobId, openJob, closeJob } = useOpenJob();
   const { refreshTrigger } = useJobsRefresh();
   const [jobBoardEntries, setJobBoardEntries] = useState<JobBoardEntry[]>([]);
+  usePublishJobCounts(jobBoardEntries);
   const [openAddJobModal, setOpenAddJobModal] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -311,30 +311,29 @@ const BoardPageContent = () => {
     }
   };
 
+  const openAddJob = () => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    setOpenAddJobModal(true);
+    setIsSheetOpen(true);
+  };
+
   return (
     <>
-      <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 pt-4 sm:pt-12 pb-8 flex flex-col min-h-0 flex-1 overflow-hidden">
-        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start shrink-0 min-w-0 px-1">
-          <div>
-            <Title>Board</Title>
-            <Description className="mt-1">Track your job applications</Description>
-          </div>
-
-          <div className="flex items-end w-full min-w-0 sm:w-auto">
-            <BoardFilters
-              jobBoardEntries={jobBoardEntries}
-              searchInput={searchInput}
-              onSearchChange={handleSearchChange}
-              tags={tags}
-              onTagToggle={handleTagToggle}
-              onClearTags={handleClearTags}
-              showRejected={showRejected}
-              onToggleRejected={handleToggleRejected}
-              showArchived={showArchived}
-              onToggleArchived={handleToggleArchived}
-            />
-          </div>
-        </div>
+      <div className="w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 overflow-hidden">
+        <JobsHeader title="Board" description="Track your job applications" onAddJob={openAddJob}>
+          <BoardFilters
+            jobBoardEntries={jobBoardEntries}
+            searchInput={searchInput}
+            onSearchChange={handleSearchChange}
+            tags={tags}
+            onTagToggle={handleTagToggle}
+            onClearTags={handleClearTags}
+            showRejected={showRejected}
+            onToggleRejected={handleToggleRejected}
+            showArchived={showArchived}
+            onToggleArchived={handleToggleArchived}
+          />
+        </JobsHeader>
 
         <DragDropProvider
           onDragStart={handleDragStart}
@@ -373,20 +372,6 @@ const BoardPageContent = () => {
             {isDragging && <ActionDropZones showAcceptedZone={draggedFromOffered} />}
           </div>
         </DragDropProvider>
-
-        {!isDragging && (
-          <button
-          onClick={() => {
-            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-            setOpenAddJobModal(true);
-            setIsSheetOpen(true);
-          }}
-            className="cursor-pointer fixed bottom-6 right-6 size-15 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center"
-            aria-label="Add job"
-          >
-            <PlusIcon className="size-7" />
-          </button>
-        )}
       </div>
 
       <ConfirmationModal

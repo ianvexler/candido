@@ -64,14 +64,14 @@ interface ActionDropZonesProps {
 export const ActionDropZones = ({ showAcceptedZone = false }: ActionDropZonesProps) => {
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-9999 flex items-center gap-3">
+      <div className="fixed bottom-22 md:bottom-6 right-6 z-9999 flex items-center gap-3">
         {ZONES.map((zone) => (
           <ActionDropZone key={zone.id} id={zone.id} icon={zone.icon} label={zone.label} />
         ))}
       </div>
 
       {showAcceptedZone && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-9999">
+        <div className="fixed bottom-22 md:bottom-6 left-1/2 -translate-x-1/2 z-9999">
           <ActionDropZone
             id={ACCEPTED_DROPPABLE_ID}
             icon={StarIcon}

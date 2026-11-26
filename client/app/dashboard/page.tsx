@@ -21,6 +21,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { useAuth } from "@/contexts/AuthContext";
 import Logo from "@/lib/images/MainLogo.png";
 import { JobBoardEntriesStats } from "@/lib/types";
+import { activeCount } from "@/lib/jobBoard/useJobCounts";
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -56,7 +57,7 @@ const HomePage = () => {
   }
 
   const firstName = user?.name?.trim().split(/\s+/)[0];
-  const active = stats ? stats.counts.applied + stats.counts.assessment + stats.counts.interview : 0;
+  const active = stats ? activeCount(stats.counts) : 0;
   const weekDifference = stats ? stats.this_week - stats.last_week : 0;
   const offers = stats ? stats.counts.offered + stats.counts.accepted : 0;
   const isEmpty = stats?.counts.total === 0;
