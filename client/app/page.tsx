@@ -12,11 +12,20 @@ import Logo from "@/lib/images/MainLogo.png";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Candido: job application tracker and CV builder",
   description: "Track every job application on one board and tailor your CV to each role.",
 };
+
+/** A section heading with its summary beside it on wide screens. */
+const SectionIntro = ({ title, children }: { title: string; children: ReactNode }) => (
+  <div className="mb-12 grid items-end gap-5 lg:grid-cols-2">
+    <h2 className="text-[clamp(38px,4.2vw,56px)]">{title}</h2>
+    <p className="max-w-[32em] text-[18px] lg:justify-self-end">{children}</p>
+  </div>
+);
 
 const LandingPage = () => (
   <div className={`${display.variable} landing overflow-x-clip bg-white text-[17px] leading-relaxed`}>
@@ -62,13 +71,10 @@ const LandingPage = () => (
     </div>
 
     <section id="cvs" className="mx-auto max-w-[1120px] px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-24">
-      <div className="mb-12 grid items-end gap-5 lg:grid-cols-2">
-        <h2 className="text-[clamp(38px,4.2vw,56px)]">The right CV for every job</h2>
-        <p className="max-w-[32em] text-[18px] lg:justify-self-end">
-          Import the CV you have or build one here. For each job, Candido makes a copy and Claude suggests specific
-          edits. You decide what goes in, and your original stays as it was.
-        </p>
-      </div>
+      <SectionIntro title="The right CV for every job">
+        Import the CV you have or build one here. For each job, Candido makes a copy and Claude suggests specific
+        edits. You decide what goes in, and your original stays as it was.
+      </SectionIntro>
       <TailorDemo />
     </section>
 
@@ -82,15 +88,12 @@ const LandingPage = () => (
       </div>
     </section>
 
-    <section id="import" className="bg-[var(--landing-amber)]">
+    <section className="bg-[var(--landing-amber)]">
       <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 sm:py-24">
-        <div className="mb-12 grid items-end gap-5 lg:grid-cols-2">
-          <h2 className="text-[clamp(38px,4.2vw,56px)]">Bring your spreadsheet with you</h2>
-          <p className="max-w-[32em] text-[18px] lg:justify-self-end">
-            Already tracking jobs in Excel or a CSV? Upload it and each row becomes a card on your board. Candido finds
-            your table even if it doesn&apos;t start at the top, and shows you a preview before anything is added.
-          </p>
-        </div>
+        <SectionIntro title="Bring your spreadsheet with you">
+          Already tracking jobs in Excel or a CSV? Upload it and each row becomes a card on your board. Candido finds
+          your table even if it doesn&apos;t start at the top, and shows you a preview before anything is added.
+        </SectionIntro>
         <ImportDemo />
       </div>
     </section>
