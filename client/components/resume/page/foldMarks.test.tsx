@@ -77,6 +77,22 @@ describe("mergeMarks", () => {
     expect(second.top - first.top).toBe(MARK_SIZE);
   });
 
+  const eye = (top: number, itemId: string): HiddenMarkAt => ({ top, side: "left", places: [{ sectionId: 1, entryId: "a", itemIds: [itemId] }] });
+
+  it("merges hidden-text marks a fold is between", () => {
+    const merged = mergeMarks<HiddenMarkAt | FoldAt>([eye(200, "b1"), { ...fold, top: 205 }, eye(210, "b3")]);
+    expect(merged.map(({ top }) => top)).toEqual([200, 200 + MARK_SIZE]);
+    expect((merged[0] as HiddenMarkAt).places).toHaveLength(2);
+  });
+
+  it("moves folds, never a hidden-text mark from its text", () => {
+    const merged = mergeMarks<HiddenMarkAt | FoldAt>([{ ...fold, top: 195 }, eye(200, "b1"), eye(230, "b2")]);
+    const eyes = merged.filter((mark) => "places" in mark).map(({ top }) => top);
+    expect(eyes).toEqual([200, 230]);
+    const [folded] = merged.filter((mark) => "items" in mark);
+    expect(merged.every((mark) => mark === folded || Math.abs(mark.top - folded.top) >= MARK_SIZE)).toBe(true);
+  });
+
   it("still merges hidden-text marks that would overlap", () => {
     const at = (top: number, itemId: string): HiddenMarkAt => ({ top, side: "left", places: [{ sectionId: 1, entryId: "a", itemIds: [itemId] }] });
     expect(mergeMarks([at(200, "b1"), at(210, "b2")])).toHaveLength(1);

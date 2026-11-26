@@ -34,18 +34,28 @@ const shownItem = (entry: Element, itemId: string): Element | null => {
 
 export const isHiddenMark = (mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
 
-/** Hidden-text marks that would overlap as one; a fold below whatever it would overlap. */
+/**
+ * Hidden-text marks that would overlap as one, each by its text; then each fold in the nearest
+ * free place at or below its own, so it never covers another mark.
+ */
 export const mergeMarks = <T extends HiddenMarkAt | FoldAt>(marks: T[]): T[] => {
   const merged: T[] = [];
-  [...marks]
-    .sort((a, b) => a.top - b.top)
+  const byTop = [...marks].sort((a, b) => a.top - b.top);
+  byTop.forEach((mark) => {
+    if (!isHiddenMark(mark)) return;
+    const last = merged.findLast(({ side }) => side === mark.side) as HiddenMarkAt | undefined;
+    if (last && mark.top - last.top < MARK_SIZE) last.places = [...last.places, ...mark.places];
+    else merged.push({ ...mark });
+  });
+  byTop
+    .filter((mark) => !isHiddenMark(mark))
     .forEach((mark) => {
-      const last = merged.findLast(({ side }) => side === mark.side);
-      if (!last || mark.top - last.top >= MARK_SIZE) merged.push({ ...mark });
-      else if (isHiddenMark(last) && isHiddenMark(mark)) last.places = [...last.places, ...mark.places];
-      else merged.push({ ...mark, top: last.top + MARK_SIZE });
+      let top = mark.top;
+      const near = () => merged.find((other) => other.side === mark.side && Math.abs(other.top - top) < MARK_SIZE);
+      for (let other = near(); other; other = near()) top = other.top + MARK_SIZE;
+      merged.push({ ...mark, top });
     });
-  return merged;
+  return merged.sort((a, b) => a.top - b.top);
 };
 
 /** Where the sections' hidden text is, for an element the marks are placed in. */

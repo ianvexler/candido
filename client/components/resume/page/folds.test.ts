@@ -1,7 +1,8 @@
 import { emptyEntry } from "@/lib/resume/sectionEntries";
 import { CurriculumSection, SectionEntry, SUMMARY_ID } from "@/lib/types";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { findFolds, leftOutRuns } from "./folds";
+import { MARK_SIZE } from "./HiddenTextMarks";
 
 const li = (id: string, off = false, text = `Text ${id}`) =>
   `<li data-cv-item="${id}"${off ? ' data-cv-off="true"' : ""}><p>${text}</p></li>`;
@@ -99,9 +100,26 @@ describe("leftOutRuns", () => {
 });
 
 describe("findFolds", () => {
-  const boxes = new Map<Element, { top: number; bottom: number; left: number; right: number }>();
-  const place = (element: Element | null, top: number, bottom: number, left = 0, right = 600) =>
-    boxes.set(element!, { top, bottom, left, right });
+  const boxes = new Map<Element, { top: number; bottom: number }>();
+
+  /** A page of `html`, with each selector's box; anything not given has none: it didn't print. */
+  const sheet = (html: string, rects: [string, number, number][]) => {
+    document.body.innerHTML = `<div id="root">${html}</div>`;
+    const root = document.getElementById("root")!;
+    boxes.set(root, { top: 0, bottom: 3000 });
+    rects.forEach(([selector, top, bottom]) => boxes.set(root.querySelector(selector)!, { top, bottom }));
+    return root;
+  };
+  const shownLi = (id: string) => `<li data-cv-item="${id}">${id}</li>`;
+
+  beforeEach(() => {
+    // jsdom has none.
+    vi.stubGlobal("CSS", { escape: (id: string) => id });
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const { top = 0, bottom = 0 } = boxes.get(this) ?? {};
+      return { top, bottom, left: 0, right: 600, height: bottom - top, width: 600, x: 0, y: top } as DOMRect;
+    });
+  });
 
   afterEach(() => {
     boxes.clear();
@@ -110,31 +128,137 @@ describe("findFolds", () => {
     document.body.innerHTML = "";
   });
 
-  it("puts a fold at its gap's y, in sheet units, on its column's side", () => {
-    // jsdom has none.
-    vi.stubGlobal("CSS", { escape: (id: string) => id });
-    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
-      const { top = 0, bottom = 0, left = 0, right = 0 } = boxes.get(this) ?? {};
-      return { top, bottom, left, right, height: bottom - top, width: right - left, x: left, y: top } as DOMRect;
-    });
-    document.body.innerHTML = `
-      <div id="root"><div class="resume-classic">
-        <section data-section-id="1"><div data-entry-id="a">
-          <div data-block="head"><h3>Entry a</h3></div>
-          <div class="rc-body"><ul><li data-cv-item="b1">One</li><li data-cv-item="b4">Four</li></ul></div>
-        </div></section>
-      </div></div>`;
-    const root = document.getElementById("root")!;
-    place(root, 100, 900);
-    place(root.querySelector(".resume-classic"), 100, 900, 10, 610);
-    place(root.querySelector('[data-cv-item="b1"]'), 200, 210);
-    place(root.querySelector('[data-cv-item="b4"]'), 214, 224);
+  it("puts a fold at its gap's y, in sheet units", () => {
+    const root = sheet(
+      `<div class="resume-classic"><section data-section-id="1"><div data-entry-id="a">
+        <div class="rc-section-head"><h3 class="rc-title">Entry a</h3></div>
+        <div class="rc-body"><ul>${shownLi("b1")}${shownLi("b4")}</ul></div>
+      </div></section></div>`,
+      [
+        ['[data-cv-item="b1"]', 200, 210],
+        ['[data-cv-item="b4"]', 214, 224],
+      ]
+    );
     const sections = [section(1, [entry("a", ul(li("b1"), li("b2", true), li("b3", true), li("b4")))])];
-
     const [fold] = findFolds(root, 0.5, sections);
-    expect(fold.top).toBe(224);
+    expect(fold.top).toBe(424);
     expect(fold.side).toBe("left");
     expect(fold.items).toHaveLength(2);
-    expect(fold.line.top).toBe(224);
+    expect(fold.line.top).toBe(424);
+  });
+
+  it("puts a left-out entry between the entries on either side", () => {
+    const root = sheet(
+      `<div class="resume-classic"><section data-section-id="1">
+        <div data-entry-id="a"><div class="rc-section-head"><h2 class="rc-heading">S</h2><h3 class="rc-title">A</h3></div>
+          <div class="rc-body"><ul>${shownLi("x")}</ul></div></div>
+        <div data-entry-id="c"><div class="rc-section-head"><h3 class="rc-title">C</h3></div></div>
+      </section></div>`,
+      [
+        ['[data-cv-item="x"]', 100, 110],
+        ['[data-entry-id="c"] .rc-title', 116, 126],
+      ]
+    );
+    const sections = [section(1, [entry("a", ul(li("x"))), entry("b", "", { hidden: true }), entry("c")])];
+    expect(findFolds(root, 1, sections).map(({ top }) => top)).toEqual([113]);
+  });
+
+  it("puts a left-out first entry between the heading and the next title line, not over the heading", () => {
+    const root = sheet(
+      `<div class="resume-classic"><section data-section-id="1"><div data-entry-id="b">
+        <div class="rc-section-head"><h2 class="rc-heading">S</h2><h3 class="rc-title">B</h3></div>
+      </div></section></div>`,
+      [
+        [".rc-heading", 50, 60],
+        [".rc-title", 70, 80],
+      ]
+    );
+    const sections = [section(1, [entry("a", "", { hidden: true }), entry("b")])];
+    expect(findFolds(root, 1, sections).map(({ top }) => top)).toEqual([65]);
+  });
+
+  it("puts a left-out section between the sections on either side", () => {
+    const root = sheet(
+      `<div class="resume-classic">
+        <section data-section-id="1"><div data-entry-id="a"><div class="rc-section-head"><h2 class="rc-heading">One</h2></div>
+          <div class="rc-body"><ul>${shownLi("x")}</ul></div></div></section>
+        <section data-section-id="3"><div data-entry-id="c"><div class="rc-section-head"><h2 class="rc-heading">Three</h2></div></div></section>
+      </div>`,
+      [
+        ['[data-cv-item="x"]', 100, 110],
+        ['[data-section-id="3"] .rc-heading', 126, 136],
+      ]
+    );
+    const sections = [section(1, [entry("a", ul(li("x")))]), section(2, [entry("b")], { hidden: true }), section(3, [entry("c")])];
+    expect(findFolds(root, 1, sections).map(({ top }) => top)).toEqual([118]);
+  });
+
+  it("keeps a fold across a page break by the block above it", () => {
+    const root = sheet(
+      `<div class="resume-classic"><section data-section-id="1"><div data-entry-id="a">
+        <div class="rc-body"><ul>${shownLi("b1")}${shownLi("b3")}</ul></div>
+      </div></section></div>`,
+      [
+        ['[data-cv-item="b1"]', 190, 200],
+        ['[data-cv-item="b3"]', 300, 310],
+      ]
+    );
+    const sections = [section(1, [entry("a", ul(li("b1"), li("b2", true), li("b3")))])];
+    expect(findFolds(root, 1, sections).map(({ top }) => top)).toEqual([200 + MARK_SIZE / 2]);
+  });
+
+  it("finds a place by what did print when what it follows didn't", () => {
+    // Entry a prints nothing: its title is empty and its summary is left out.
+    const root = sheet(
+      `<div class="resume-classic"><section data-section-id="1">
+        <div data-entry-id="x"><div class="rc-body"><ul>${shownLi("x1")}</ul></div></div>
+      </section></div>`,
+      [['[data-cv-item="x1"]', 100, 110]]
+    );
+    const sections = [
+      section(1, [entry("x", ul(li("x1"))), entry("a", "", { title: "", description: "Led it", description_off: true })]),
+    ];
+    const folds = findFolds(root, 1, sections);
+    expect(folds.map(({ top, items }) => [top, items.map(({ label }) => label)])).toEqual([[110, ["Summary"]]]);
+  });
+
+  it("puts a section run at the top of its column after the header", () => {
+    const root = sheet(
+      `<div class="resume-classic"><header class="rc-header">Name</header>
+        <section data-section-id="2"><div data-entry-id="b"><div class="rc-section-head"><h2 class="rc-heading">Two</h2></div></div></section>
+      </div>`,
+      [
+        [".rc-header", 0, 60],
+        [".rc-heading", 66, 76],
+      ]
+    );
+    const sections = [section(1, [entry("a")], { hidden: true }), section(2, [entry("b")])];
+    expect(findFolds(root, 1, sections).map(({ top }) => top)).toEqual([63]);
+  });
+
+  it("keeps each column's folds in that column, with nothing shown there", () => {
+    const root = sheet(
+      `<div class="resume-classic resume-sidebar">
+        <aside class="rs-side"><header class="rc-header">Name</header></aside>
+        <div class="rs-main"><section data-section-id="1"><div data-entry-id="a">
+          <div class="rc-section-head"><h2 class="rc-heading">One</h2></div></div></section></div>
+      </div>`,
+      [
+        [".rs-side", 0, 1000],
+        [".rc-header", 20, 80],
+        [".rs-main", 30, 1000],
+      ]
+    );
+    // Neither prints: the side column has only its header, and section 1 has nothing that shows.
+    const sections = [
+      section(1, [entry("a")]),
+      section(2, [entry("b")], { hidden: true }),
+      section(3, [entry("c")], { hidden: true, placement: "sidebar" }),
+    ];
+    const folds = findFolds(root, 1, sections);
+    expect(folds.map(({ top, side, items }) => [items[0].sectionId, top, side]).sort()).toEqual([
+      [2, 30, "right"],
+      [3, 80, "left"],
+    ]);
   });
 });

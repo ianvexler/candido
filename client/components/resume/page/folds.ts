@@ -20,6 +20,8 @@ export type FoldAt = {
 
 export type LeftOutRun = { after: BlockRef | null; sectionId: number; items: Folded[] };
 
+export const foldKey = ({ sectionId, entryId = "", itemId = "" }: Omit<Folded, "label">) => [sectionId, entryId, itemId].join(":");
+
 /** The items of an entry that it leaves out, with text and an id to tick them back by. */
 export const leftOutItemsOf = (entry: SectionEntry): { id: string; text: string }[] =>
   itemsOf(entry.content)
@@ -34,37 +36,101 @@ const entryLabel = (entry: SectionEntry) =>
 /** Shows something: blank ones don't print. */
 const isWritten = (section: CurriculumSection) => Boolean(section.section_type.trim()) || section.entries.some((entry) => !isEmptyEntry(entry));
 
-/** Each shown block of an entry in order, or what it leaves out. */
-const entryParts = (sectionId: number, entry: SectionEntry): (BlockRef | Folded)[] => {
+/** A heading is its section's; an entry is its title line. */
+type Shown = { kind: "header" } | BlockRef;
+/** A column's content in print order: what it shows and, where it was, what it leaves out. */
+type Part = { shown: Shown } | { folded: Folded };
+
+const levelOf = ({ entryId, itemId }: Folded) => (itemId !== undefined ? "item" : entryId !== undefined ? "entry" : "section");
+/** What a run can't reach past: its entry, its section, or its column. */
+const parentOf = (folded: Folded) => {
+  const level = levelOf(folded);
+  return level === "item" ? `${folded.sectionId}:${folded.entryId}` : level === "entry" ? `${folded.sectionId}` : "";
+};
+
+const entryParts = (sectionId: number, entry: SectionEntry): Part[] => {
   const entryId = entry.id;
-  const parts: (BlockRef | Folded)[] = [{ sectionId, kind: "entry", entryId }];
+  const parts: Part[] = [{ shown: { sectionId, kind: "entry", entryId } }];
   if (entry.description?.trim()) {
-    parts.push(entry.description_off ? { sectionId, entryId, itemId: SUMMARY_ID, label: "Summary" } : { sectionId, kind: "summary", entryId });
+    parts.push(
+      entry.description_off
+        ? { folded: { sectionId, entryId, itemId: SUMMARY_ID, label: "Summary" } }
+        : { shown: { sectionId, kind: "summary", entryId } }
+    );
   }
   itemsOf(entry.content).forEach(({ id, text, off }) => {
     // One without an id can't be ticked back, nor placed by.
     if (id === "") return;
-    parts.push(off ? { sectionId, entryId, itemId: id, label: text } : { sectionId, kind: "item", entryId, itemId: id });
+    parts.push(off ? { folded: { sectionId, entryId, itemId: id, label: text } } : { shown: { sectionId, kind: "item", entryId, itemId: id } });
   });
   return parts;
 };
 
-/** Runs of what is left out, one after another: each after the shown block before it. */
-const runsOf = (sectionId: number, parts: (BlockRef | Folded)[], start: BlockRef | null = null): LeftOutRun[] => {
-  const runs: LeftOutRun[] = [];
-  let after = start;
-  let run: Folded[] = [];
-  const flush = () => {
-    if (run.length > 0) runs.push({ after, sectionId, items: run });
-    run = [];
-  };
-  parts.forEach((part) => {
-    if ("label" in part) return void run.push(part);
-    flush();
-    after = part;
+/** Each column's parts. `byColumn`: the sidebar template's two; otherwise one. */
+const partsOf = (sections: CurriculumSection[], byColumn: boolean): Map<string, Part[]> => {
+  const columns = new Map<string, Part[]>();
+  sections.forEach((section) => {
+    const column = byColumn ? sectionColumn(section) : "main";
+    if (!columns.has(column)) columns.set(column, [{ shown: { kind: "header" } }]);
+    const parts = columns.get(column)!;
+    const sectionId = section.id;
+    if (isLeftOut(section)) {
+      if (isWritten(section)) parts.push({ folded: { sectionId, label: section.section_type.trim() || "Untitled section" } });
+      return;
+    }
+    parts.push({ shown: { sectionId, kind: "heading" } });
+    section.entries
+      .filter((entry) => !isEmptyEntry(entry))
+      .forEach((entry) => {
+        if (entry.hidden) parts.push({ folded: { sectionId, entryId: entry.id, label: entryLabel(entry) } });
+        else parts.push(...entryParts(sectionId, entry));
+      });
   });
-  flush();
-  return runs;
+  return columns;
+};
+
+type Placed = LeftOutRun & { column: string; from: number; to: number };
+
+/** What a run follows: the shown item, entry or section before it at its own level. */
+const afterOf = (parts: Part[], from: number, first: Folded): BlockRef | null => {
+  const level = levelOf(first);
+  for (let at = from - 1; at >= 0; at--) {
+    const part = parts[at];
+    if (!("shown" in part)) continue;
+    const { shown } = part;
+    if (shown.kind === "header") return null;
+    if (level === "section") return { sectionId: shown.sectionId, kind: "heading" };
+    if (level === "entry") return shown.kind === "heading" ? null : { sectionId: shown.sectionId, kind: "entry", entryId: shown.entryId };
+    return shown;
+  }
+  return null;
+};
+
+/** Runs of left-out things side by side, with where each is in its column's parts. */
+const placedRuns = (sections: CurriculumSection[], byColumn: boolean): { runs: Placed[]; columns: Map<string, Part[]> } => {
+  const columns = partsOf(sections, byColumn);
+  const runs: Placed[] = [];
+  columns.forEach((parts, column) =>
+    parts.forEach((part, at) => {
+      if (!("folded" in part)) return;
+      const last = runs[runs.length - 1];
+      const before = parts[at - 1];
+      const joins =
+        last?.column === column &&
+        last.to === at - 1 &&
+        "folded" in before &&
+        parentOf(before.folded) === parentOf(part.folded) &&
+        levelOf(before.folded) === levelOf(part.folded);
+      if (joins) {
+        last.items.push(part.folded);
+        last.to = at;
+        return;
+      }
+      const { sectionId } = part.folded;
+      runs.push({ after: afterOf(parts, at, part.folded), sectionId, items: [part.folded], column, from: at, to: at });
+    })
+  );
+  return { runs, columns };
 };
 
 /**
@@ -72,42 +138,8 @@ const runsOf = (sectionId: number, parts: (BlockRef | Folded)[], start: BlockRef
  * null after nothing: the top of its section, or of its column. `byColumn`: sections are in two
  * columns, and a left-out one follows the section before it in its own.
  */
-export const leftOutRuns = (sections: CurriculumSection[], byColumn = false): LeftOutRun[] => {
-  const runs: LeftOutRun[] = [];
-  const pending = new Map<string, LeftOutRun>();
-  const shownBefore = new Map<string, BlockRef>();
-  const flushColumn = (column: string) => {
-    const run = pending.get(column);
-    if (run) runs.push(run);
-    pending.delete(column);
-  };
-
-  sections.forEach((section) => {
-    const column = byColumn ? sectionColumn(section) : "one";
-    if (isLeftOut(section)) {
-      if (!isWritten(section)) return;
-      const item: Folded = { sectionId: section.id, label: section.section_type.trim() || "Untitled section" };
-      const run = pending.get(column);
-      if (run) run.items.push(item);
-      else pending.set(column, { after: shownBefore.get(column) ?? null, sectionId: section.id, items: [item] });
-      return;
-    }
-    flushColumn(column);
-    shownBefore.set(column, { sectionId: section.id, kind: "heading" });
-
-    const entries = section.entries.filter((entry) => !isEmptyEntry(entry));
-    const parts = entries.map((entry): BlockRef | Folded =>
-      entry.hidden ? { sectionId: section.id, entryId: entry.id, label: entryLabel(entry) } : { sectionId: section.id, kind: "entry", entryId: entry.id }
-    );
-    runs.push(...runsOf(section.id, parts));
-    entries.filter((entry) => !entry.hidden).forEach((entry) => {
-      const [title, ...rest] = entryParts(section.id, entry);
-      runs.push(...runsOf(section.id, rest, title as BlockRef));
-    });
-  });
-  [...pending.keys()].forEach(flushColumn);
-  return runs;
-};
+export const leftOutRuns = (sections: CurriculumSection[], byColumn = false): LeftOutRun[] =>
+  placedRuns(sections, byColumn).runs.map(({ after, sectionId, items }) => ({ after, sectionId, items }));
 
 /** What ticks it back on. */
 export const targetOf = ({ sectionId, entryId, itemId }: Folded): ChecklistTarget => ({
@@ -118,64 +150,53 @@ export const targetOf = ({ sectionId, entryId, itemId }: Folded): ChecklistTarge
   inCv: true,
 });
 
-const firstShownAfter = (list: Element[], from: Element | null) => list.slice(from ? list.indexOf(from) + 1 : 0).find(isShown) ?? null;
-
-/** The shown blocks a run sits between. */
-const boundsOf = (root: HTMLElement, sections: CurriculumSection[], { after, sectionId, items }: LeftOutRun) => {
-  const [{ entryId, itemId }] = items;
-  const sectionOf = (id: number) => root.querySelector(`section[data-section-id="${id}"]`);
-
-  if (entryId === undefined) {
-    // Sections: between the one before it in its column and the next.
-    const columns = columnsOf(root);
-    const left = sections.find(({ id }) => id === sectionId);
-    const column =
-      columns.length > 1 && left ? root.querySelector<HTMLElement>(sectionColumn(left) === "sidebar" ? ".rs-side" : ".rs-main") : columns[0];
-    if (!column) return null;
-    const all = [...column.querySelectorAll("section[data-section-id]")];
-    const above = after ? sectionOf(after.sectionId) : column.querySelector('[data-block="header"], .rc-header');
-    return { above, below: firstShownAfter(all, after ? above : null) };
-  }
-
-  const section = after ? sectionOf(after.sectionId) : sectionOf(sectionId);
+/** A shown part's element on the page, if it printed. */
+const elementOf = (root: HTMLElement, column: HTMLElement, shown: Shown): Element | null => {
+  if (shown.kind === "header") return column.querySelector('[data-block="header"], .rc-header');
+  const section = root.querySelector(`section[data-section-id="${shown.sectionId}"]`);
   if (!section) return null;
-  if (itemId === undefined) {
-    // Entries: between the entry before them and the next, or under the heading.
-    const all = [...section.querySelectorAll("[data-entry-id]")];
-    if (after?.kind !== "entry") return { above: section.querySelector(".rc-heading"), below: firstShownAfter(all, null) };
-    const above = section.querySelector(`[data-entry-id="${CSS.escape(after.entryId)}"]`);
-    return { above, below: firstShownAfter(all, above) };
-  }
+  if (shown.kind === "heading") return section.querySelector(".rc-heading");
+  const entry = section.querySelector(`[data-entry-id="${CSS.escape(shown.entryId)}"]`);
+  if (!entry) return null;
+  if (shown.kind === "summary") return entry.querySelector(".rc-summary");
+  if (shown.kind === "item") return entry.querySelector(`[data-cv-item="${CSS.escape(shown.itemId)}"]`);
+  // Its title line: not the section heading the first entry's head holds, nor its summary.
+  const head = entry.querySelector(".rc-section-head");
+  return [...(head?.children ?? [])].filter((child) => !child.matches(".rc-heading, .rc-summary") && isShown(child)).pop() ?? null;
+};
 
-  // Items: between the title line, summary or item before them and the next item.
-  const entry = section.querySelector(`[data-entry-id="${CSS.escape(entryId)}"]`);
-  if (!entry || !after) return null;
-  const all = [...entry.querySelectorAll("[data-cv-item]")];
-  if (after.kind === "item") {
-    const above = entry.querySelector(`[data-cv-item="${CSS.escape(after.itemId)}"]`);
-    return { above, below: firstShownAfter(all, above) };
+/** The nearest part that printed, walking from `from` by `by`. */
+const printed = (root: HTMLElement, column: HTMLElement, parts: Part[], from: number, by: -1 | 1): Element | null => {
+  for (let at = from; at >= 0 && at < parts.length; at += by) {
+    const part = parts[at];
+    if (!("shown" in part)) continue;
+    const element = elementOf(root, column, part.shown);
+    if (isShown(element)) return element;
   }
-  const above = entry.querySelector(after.kind === "summary" ? ".rc-summary" : '[data-block="head"]');
-  return { above, below: firstShownAfter(all, null) };
+  return null;
 };
 
 /** Where each run of left-out things was on the page, for an element the marks are placed in. */
 export const findFolds = (root: HTMLElement, scale: number, sections: CurriculumSection[]): FoldAt[] => {
   const base = root.getBoundingClientRect().top;
   const at = (y: number) => (y - base) / scale;
-  const columns = columnsOf(root);
-  return leftOutRuns(sections, columns.length > 1).flatMap((run): FoldAt[] => {
-    const bounds = boundsOf(root, sections, run);
-    const above = bounds && isShown(bounds.above) ? bounds.above : null;
-    const below = bounds?.below ?? null;
-    const near = above ?? below;
-    const column = near && columns.find((each) => each.contains(near));
-    if (!near || !column) return [];
-    const from = above ? at(above.getBoundingClientRect().bottom) : null;
-    const to = below ? at(below.getBoundingClientRect().top) : null;
+  const all = columnsOf(root);
+  const byColumn = all.length > 1;
+  const { runs, columns } = placedRuns(sections, byColumn);
+  return runs.flatMap(({ items, column: name, from, to }): FoldAt[] => {
+    const column = byColumn ? root.querySelector<HTMLElement>(name === "sidebar" ? ".rs-side" : ".rs-main") : all[0];
+    if (!column) return [];
+    const parts = columns.get(name)!;
+    // What did print on either side, however far: what it is next to may not have.
+    const above = printed(root, column, parts, from - 1, -1);
+    const below = printed(root, column, parts, to + 1, 1);
+    const fromY = above ? at(above.getBoundingClientRect().bottom) : null;
+    const toY = below ? at(below.getBoundingClientRect().top) : null;
+    const columnTop = () => at(column.getBoundingClientRect().top) + parseFloat(getComputedStyle(column).paddingTop || "0");
     // Across a page break the middle would be between the sheets: keep by the block above.
-    const top = from === null ? to! : to === null ? from : Math.min((from + to) / 2, from + MARK_SIZE / 2);
+    const top =
+      fromY === null ? (toY ?? columnTop()) : toY === null ? fromY : Math.min((fromY + toY) / 2, fromY + MARK_SIZE / 2);
     const { left, right, side } = columnEdges(root, scale, column);
-    return [{ top, side, items: run.items, line: { top, left, right } }];
+    return [{ top, side, items, line: { top, left, right } }];
   });
 };

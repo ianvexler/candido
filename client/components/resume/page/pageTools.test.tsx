@@ -7,6 +7,7 @@ import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CvEdits } from "../useCvEdits";
 import type { Gap } from "./pagePlaces";
+import { MARK_SIZE } from "./HiddenTextMarks";
 import PageTools, { PageToolsHandle } from "./PageTools";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -58,6 +59,8 @@ let actions: { tick: ReturnType<typeof vi.fn>; orderSections: ReturnType<typeof 
 let edits: { addAt: ReturnType<typeof vi.fn> };
 const handle = createRef<PageToolsHandle>();
 
+let taken: { top: number; side: "left" | "right" }[] = [];
+
 const Sheet = () => {
   const rootRef = useRef<HTMLDivElement>(null);
   return (
@@ -75,6 +78,7 @@ const Sheet = () => {
           rootRef={rootRef}
           scale={1}
           sections={sections}
+          taken={taken}
           rows={rows}
           actions={actions as unknown as ChecklistActions}
           edits={edits as unknown as CvEdits}
@@ -161,6 +165,18 @@ describe("PageTools", () => {
     expect(item("Bullet")).not.toBeNull();
     await press(named("Add here"));
     expect(item("Bullet")).toBeNull();
+  });
+
+  it("moves its pill off a mark in its margin, so both can be pressed", async () => {
+    taken = [{ top: addGap.top + 3, side: "left" }];
+    await act(async () => root.render(<Sheet />));
+    await move(document.getElementById("item")!);
+    const pill = named("Add here") as HTMLElement;
+    const middle = parseFloat(pill.style.top) + 10;
+    expect(Math.abs(middle - taken[0].top)).toBeGreaterThanOrEqual(MARK_SIZE);
+    // Its line stays across the gap.
+    expect(parseFloat((pill.previousElementSibling as HTMLElement).style.top)).toBe(addGap.top - 0.75);
+    taken = [];
   });
 
   it("opens the section menu", async () => {

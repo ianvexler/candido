@@ -247,6 +247,8 @@ const Page = ({
   const height = sheetsHeight(pages, paging.metrics);
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
   const marksInside = markRoom < MARK_SIZE + 8;
+  // Within the margins the marks are where an add point's pill would be.
+  const taken = useMemo(() => (marksInside ? [...marks, ...folds].map(({ top, side }) => ({ top, side })) : []), [marksInside, marks, folds]);
 
   return (
     <div ref={outerRef} className="paged-cv">
@@ -310,7 +312,7 @@ const Page = ({
               {tools && (
                 <>
                   <FoldMarks folds={folds} inside={marksInside} actions={tools.actions} onClosed={focusPage} />
-                  <PageTools ref={toolsRef} rootRef={rootRef} scale={scale} sections={sections} {...tools} />
+                  <PageTools ref={toolsRef} rootRef={rootRef} scale={scale} sections={sections} taken={taken} {...tools} />
                 </>
               )}
             </>

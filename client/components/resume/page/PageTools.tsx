@@ -11,6 +11,7 @@ import { textStart } from "../ChecklistRow";
 import IconAction from "../IconAction";
 import type { CvEdits } from "../useCvEdits";
 import AddMenu from "./AddMenu";
+import { MARK_SIZE } from "./HiddenTextMarks";
 import { columnsOf } from "./measureBlocks";
 import { BlockRef, blockAt, columnEdges, Gap, gapAt } from "./pagePlaces";
 import SectionMenu from "./SectionMenu";
@@ -113,13 +114,15 @@ export const ToolMenu = ({ anchor, onClose, keepOpenOn, children }: ToolMenuProp
 
 interface PillProps {
   gap: Gap;
+  /** Where a "+ Add" pill's middle is: its gap's y, unless a mark is there. */
+  at: number;
   open: boolean;
   onOpen: () => void;
   buttonRef?: (element: HTMLButtonElement | null) => void;
 }
 
 /** An add point: the pill and its line across the gap. Neither takes room. */
-const Pill = ({ gap, open, onOpen, buttonRef }: PillProps) => {
+const Pill = ({ gap, at, open, onOpen, buttonRef }: PillProps) => {
   const { left, right } = gap;
   const pill = "absolute h-5 whitespace-nowrap rounded-full border px-2 text-xs/[18px] font-medium shadow-[0_2px_8px_-3px_rgb(0_0_0/0.25)]";
   if (gap.kind === "add") {
@@ -134,7 +137,7 @@ const Pill = ({ gap, open, onOpen, buttonRef }: PillProps) => {
           aria-expanded={open}
           onClick={onOpen}
           className={cn(pill, "-translate-x-full border-[#aab2ba] bg-white text-[#1f2328] hover:border-[#f5a524] hover:bg-[#fff4dc]", open && "border-[#f5a524] bg-[#fff4dc]")}
-          style={{ top: gap.top - PILL / 2, left: left - ROOM }}
+          style={{ top: at - PILL / 2, left: left - ROOM }}
         >
           + Add
         </button>
@@ -173,19 +176,33 @@ export type PageToolsActions = {
   addSection: (name: string, afterSectionId: number | null) => Promise<void>;
 };
 
+/** A mark in a margin: where a "+ Add" pill can't be too. */
+export type Taken = { top: number; side: "left" | "right" };
+
+/** Up from a gap's y, past any mark in its margin: a pill is left of its column, as left marks are of theirs. */
+const pillAt = (gap: Gap, taken: Taken[]) => {
+  let top = gap.top;
+  if (gap.kind !== "add" || gap.side !== "left") return top;
+  const near = () => taken.find(({ top: other, side }) => side === "left" && Math.abs(other - top) < MARK_SIZE);
+  for (let mark = near(); mark; mark = near()) top = mark.top - MARK_SIZE;
+  return top;
+};
+
 interface PageToolsProps extends PageToolsActions {
   ref?: Ref<PageToolsHandle>;
   /** The page's root: what prints. Nothing is put in it. */
   rootRef: RefObject<HTMLElement | null>;
   scale: number;
   sections: CurriculumSection[];
+  /** Marks within the margins, which a pill moves off. */
+  taken?: Taken[];
 }
 
 /**
  * The tick and add point under the pointer, over the page's margins and gaps.
  * Placed in the page's scaled box, beside the page, in sheet units.
  */
-const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSection }: PageToolsProps) => {
+const PageTools = ({ ref, rootRef, scale, sections, taken = [], rows, actions, edits, addSection }: PageToolsProps) => {
   const [hovered, setHovered] = useState<Hovered>(NOTHING);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
@@ -280,7 +297,7 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
         </IconAction>
       )}
       {shownGap && (
-        <Pill gap={shownGap} open={menu !== null} onOpen={() => (menu ? close(false) : open(shownGap))} buttonRef={setAnchor} />
+        <Pill gap={shownGap} at={pillAt(shownGap, taken)} open={menu !== null} onOpen={() => (menu ? close(false) : open(shownGap))} buttonRef={setAnchor} />
       )}
       {menu?.kind === "add" && (
         <ToolMenu anchor={anchor} onClose={close}>
