@@ -146,11 +146,15 @@ export const gapAt = (root: HTMLElement, scale: number, clientX: number, clientY
   const hit = placesOf(spotsOf(blocks, base, origin, scale), sheets, order).find(({ from, to }) => y >= from && y < to);
   if (!hit) return null;
 
+  return { ...hit.gap, top: hit.top, ...columnEdges(root, scale, column) };
+};
+
+/** A column's content edges, in sheet units, and its side. */
+export const columnEdges = (root: HTMLElement, scale: number, column: HTMLElement) => {
+  const box = root.getBoundingClientRect();
   const edges = column.getBoundingClientRect();
   const style = getComputedStyle(column);
   return {
-    ...hit.gap,
-    top: hit.top,
     left: (edges.left - box.left) / scale + parseFloat(style.paddingLeft || "0"),
     right: (edges.right - box.left) / scale - parseFloat(style.paddingRight || "0"),
     side: sideOf(column),

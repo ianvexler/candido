@@ -8,6 +8,7 @@ import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@
 import {
   FocusEvent,
   memo,
+  Ref,
   RefObject,
   useCallback,
   useContext,
@@ -42,6 +43,7 @@ import { useNearEntries } from "./useNearEntries";
 import { usePageCards } from "./usePageCards";
 import { usePageEditing } from "./usePageEditing";
 import { PagePaging, usePaging } from "./usePaging";
+import PageTools, { PageToolsActions, PageToolsHandle } from "./PageTools";
 
 export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** The drafts. */
@@ -65,6 +67,10 @@ export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   leaveRef?: RefObject<(() => boolean) | null>;
   /** Only shown, as it prints. */
   readOnly?: boolean;
+  /** What the page's ticks and add points do; without, it has none. Must stay the same while it has nothing new. */
+  tools?: PageToolsActions | null;
+  /** Opens the add points' menus, as a keyboard shortcut does. */
+  toolsRef?: Ref<PageToolsHandle>;
 }
 
 const samePlace = (a: KeptPlace | null, b: KeptPlace | null) => a?.sectionId === b?.sectionId && a?.entryId === b?.entryId;
@@ -84,6 +90,8 @@ const Page = ({
   suggestionsBySection,
   leaveRef,
   readOnly = false,
+  tools = null,
+  toolsRef,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
@@ -286,6 +294,7 @@ const Page = ({
                     : null
                 }
               />
+              {tools && <PageTools ref={toolsRef} rootRef={rootRef} scale={scale} sections={sections} {...tools} />}
             </>
           )}
         </div>

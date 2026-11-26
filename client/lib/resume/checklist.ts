@@ -456,6 +456,15 @@ export const isIn = (section: SectionDraft, entryId?: string, itemId?: string): 
 /** Section ids in their new order; entries move with moveEntry. */
 export const moveSection = (ids: number[], id: number, by: -1 | 1): number[] => moveAt(ids, ids.indexOf(id), by);
 
+/** Section ids with one put after another, or first for null. */
+export const placeSection = (ids: number[], id: number, afterId: number | null): number[] => {
+  const others = ids.filter((each) => each !== id);
+  const at = afterId === null ? 0 : others.indexOf(afterId) + 1;
+  // One that is gone since leaves it where it was.
+  if (afterId !== null && at === 0) return ids;
+  return [...others.slice(0, at), id, ...others.slice(at)];
+};
+
 /** What was just added: a section, or an entry or items that weren't known. */
 type Kept = { sectionId: number; entryId: string | null; known: string[] };
 

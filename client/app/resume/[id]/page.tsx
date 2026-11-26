@@ -20,7 +20,7 @@ import { showSuggestion } from "@/components/resume/review/showSuggestion";
 import { CvView, useCvView } from "@/components/resume/useCvView";
 import { useCvEdits } from "@/components/resume/useCvEdits";
 import { useRoomForPage } from "@/components/resume/useRoomForPage";
-import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
+import { buildChecklist, placeSection, tickSuggestion } from "@/lib/resume/checklist";
 import { isLeftOut, sectionColumn } from "@/lib/resume/exportDocument";
 import { createMonthDrafts, MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { useCv } from "@/lib/resume/useCv";
@@ -35,7 +35,7 @@ interface ResumePageProps {
 
 const CvPage = ({ id }: { id: string }) => {
   const { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf } = useCv(id);
-  const { sections, versions, change } = drafts;
+  const { sections, versions, change, current: currentSections } = drafts;
   const { pending, actions, addSection } = checklist;
   const [view, setView] = useCvView();
   const roomForPage = useRoomForPage(view);
@@ -63,12 +63,15 @@ const CvPage = ({ id }: { id: string }) => {
     isUnfinished,
   });
 
-  // Stays the same, for the checklist's memo.
-  const addNamedSection = useCallback(async (name: string) => {
+  // Stays the same, for the checklist's memo. Without `afterSectionId` it goes last.
+  const addNamedSection = useCallback(async (name: string, afterSectionId?: number | null) => {
     setAdding(true);
     const movedOn = watchMovedOn();
     try {
       const section = await addSection(name);
+      if (section && afterSectionId !== undefined) {
+        actions.orderSections(placeSection(currentSections().map(({ id }) => id), section.id, afterSectionId));
+      }
       if (section && !movedOn()) goToNew(section.id);
       return true;
     } catch (error) {
@@ -79,8 +82,12 @@ const CvPage = ({ id }: { id: string }) => {
       movedOn();
       setAdding(false);
     }
-  }, [addSection, goToNew]);
+  }, [addSection, goToNew, actions, currentSections]);
   const addPlainSection = useCallback(() => void addNamedSection("Section"), [addNamedSection]);
+  const addSectionAfter = useCallback(
+    async (name: string, afterSectionId: number | null) => void (await addNamedSection(name, afterSectionId)),
+    [addNamedSection]
+  );
 
   const libraryLoaded = !library.loading && !library.failed;
   const createdAt = curriculum?.created_at;
@@ -98,6 +105,12 @@ const CvPage = ({ id }: { id: string }) => {
     const section = known.current.rows.find((row) => row.sectionId === sectionId);
     return deletionNote(section, known.current.libraryLoaded, entryId);
   }, []);
+
+  // Stays the same while they do, for the page's memo.
+  const tools = useMemo(
+    () => ({ rows, actions, edits, addSection: addSectionAfter }),
+    [rows, actions, edits, addSectionAfter]
+  );
 
   const twoColumn = look.design.template === "sidebar";
   const columns = useMemo(
@@ -251,6 +264,7 @@ const CvPage = ({ id }: { id: string }) => {
               {...page}
               {...suggestions}
               headerBinding={headerBinding}
+              tools={tools}
               open={added}
               leaveRef={leaveRef}
               look={designPanel}
