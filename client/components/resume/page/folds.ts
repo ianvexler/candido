@@ -150,8 +150,8 @@ export const targetOf = ({ sectionId, entryId, itemId }: Folded): ChecklistTarge
   inCv: true,
 });
 
-/** A shown part's element on the page, if it printed. */
-const elementOf = (root: HTMLElement, column: HTMLElement, shown: Shown): Element | null => {
+/** A shown part's element on the page, if it printed: from above its last line, from below its first. */
+const elementOf = (root: HTMLElement, column: HTMLElement, shown: Shown, by: -1 | 1): Element | null => {
   if (shown.kind === "header") return column.querySelector('[data-block="header"], .rc-header');
   const section = root.querySelector(`section[data-section-id="${shown.sectionId}"]`);
   if (!section) return null;
@@ -160,9 +160,10 @@ const elementOf = (root: HTMLElement, column: HTMLElement, shown: Shown): Elemen
   if (!entry) return null;
   if (shown.kind === "summary") return entry.querySelector(".rc-summary");
   if (shown.kind === "item") return entry.querySelector(`[data-cv-item="${CSS.escape(shown.itemId)}"]`);
-  // Its title line: not the section heading the first entry's head holds, nor its summary.
+  // Its title line, and role and dates under it: not the section heading the first entry's head holds, nor its summary.
   const head = entry.querySelector(".rc-section-head");
-  return [...(head?.children ?? [])].filter((child) => !child.matches(".rc-heading, .rc-summary") && isShown(child)).pop() ?? null;
+  const lines = [...(head?.children ?? [])].filter((child) => !child.matches(".rc-heading, .rc-summary") && isShown(child));
+  return (by === -1 ? lines.pop() : lines[0]) ?? null;
 };
 
 /** The nearest part that printed, walking from `from` by `by`. */
@@ -170,7 +171,7 @@ const printed = (root: HTMLElement, column: HTMLElement, parts: Part[], from: nu
   for (let at = from; at >= 0 && at < parts.length; at += by) {
     const part = parts[at];
     if (!("shown" in part)) continue;
-    const element = elementOf(root, column, part.shown);
+    const element = elementOf(root, column, part.shown, by);
     if (isShown(element)) return element;
   }
   return null;

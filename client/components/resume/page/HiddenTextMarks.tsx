@@ -98,7 +98,7 @@ const HiddenTextMarks = memo(({ marks, inside, onShow }: HiddenTextMarksProps) =
       label="Show hidden text"
       side={side}
       onClick={() => onShow(places)}
-      className="absolute size-6 text-muted-foreground/70 print:hidden [&_svg]:size-3.5"
+      className="absolute z-10 size-6 text-muted-foreground/70 print:hidden [&_svg]:size-3.5"
       style={{ top: top - MARK_SIZE / 2, [side]: inside ? 2 : -MARK_SIZE - 6 }}
     >
       <EyeOffIcon />

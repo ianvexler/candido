@@ -152,11 +152,12 @@ describe("findFolds", () => {
       `<div class="resume-classic"><section data-section-id="1">
         <div data-entry-id="a"><div class="rc-section-head"><h2 class="rc-heading">S</h2><h3 class="rc-title">A</h3></div>
           <div class="rc-body"><ul>${shownLi("x")}</ul></div></div>
-        <div data-entry-id="c"><div class="rc-section-head"><h3 class="rc-title">C</h3></div></div>
+        <div data-entry-id="c"><div class="rc-section-head"><h3 class="rc-title">C</h3><div class="rc-entry-line">Role</div></div></div>
       </section></div>`,
       [
         ['[data-cv-item="x"]', 100, 110],
         ['[data-entry-id="c"] .rc-title', 116, 126],
+        ['[data-entry-id="c"] .rc-entry-line', 128, 138],
       ]
     );
     const sections = [section(1, [entry("a", ul(li("x"))), entry("b", "", { hidden: true }), entry("c")])];
@@ -166,11 +167,12 @@ describe("findFolds", () => {
   it("puts a left-out first entry between the heading and the next title line, not over the heading", () => {
     const root = sheet(
       `<div class="resume-classic"><section data-section-id="1"><div data-entry-id="b">
-        <div class="rc-section-head"><h2 class="rc-heading">S</h2><h3 class="rc-title">B</h3></div>
+        <div class="rc-section-head"><h2 class="rc-heading">S</h2><h3 class="rc-title">B</h3><div class="rc-entry-line">Role</div></div>
       </div></section></div>`,
       [
         [".rc-heading", 50, 60],
         [".rc-title", 70, 80],
+        [".rc-entry-line", 82, 92],
       ]
     );
     const sections = [section(1, [entry("a", "", { hidden: true }), entry("b")])];

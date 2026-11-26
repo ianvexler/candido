@@ -248,7 +248,10 @@ const Page = ({
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
   const marksInside = markRoom < MARK_SIZE + 8;
   // Within the margins the marks are where an add point's pill would be.
-  const taken = useMemo(() => (marksInside ? [...marks, ...folds].map(({ top, side }) => ({ top, side })) : []), [marksInside, marks, folds]);
+  const taken = useMemo(
+    () => (marksInside ? [...marks, ...folds, ...datesMarks].map(({ top, side }) => ({ top, side })) : []),
+    [marksInside, marks, folds, datesMarks]
+  );
 
   return (
     <div ref={outerRef} className="paged-cv">
