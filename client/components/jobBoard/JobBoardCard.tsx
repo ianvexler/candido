@@ -59,8 +59,9 @@ const JobBoardCard = ({ entry, index, onSelectJob, displayStatus }: JobBoardCard
 
         <div className="px-4 text-xs mt-4">
           {entry.job_board_tags?.length > 0 && (
-            <div className="flex items-center gap-1 my-2">
-              <TagIcon className="size-4" strokeWidth={1} />
+            // Lined up with the first line when the tags wrap, and never squeezed by them.
+            <div className="flex items-start gap-1 my-2">
+              <TagIcon className="size-4 shrink-0" strokeWidth={1} />
               <p>{entry.job_board_tags.map((tag) => tag.name).join(", ")}</p>
             </div>
           )}
@@ -99,7 +100,7 @@ const JobBoardCard = ({ entry, index, onSelectJob, displayStatus }: JobBoardCard
                 <div>
                   {entry.closing_date && (
                     <div className="flex items-center gap-1">
-                      <CalendarIcon className={classNames("size-4", closingDateColor(entry.closing_date))} strokeWidth={1} />
+                      <CalendarIcon className={classNames("size-4 shrink-0", closingDateColor(entry.closing_date))} strokeWidth={1} />
                       <p className={classNames("text-xs", closingDateColor(entry.closing_date))}>
                         {format(new Date(entry.closing_date), "MMM d, yyyy")}
                       </p>
