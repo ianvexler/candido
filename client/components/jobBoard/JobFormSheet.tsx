@@ -804,20 +804,23 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                 leading={<DocStateIcon filled={coverLetterSlotState(entry) !== "empty"} icon={<FileTextIcon />} />}
               />
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={ready && ready.state !== "no_cv" ? "candido" : "outline"}
-              className="mt-3 w-full sm:w-auto"
-              disabled={opening}
-              onClick={() => {
-                const open = props.onPrepare;
-                if (open) beforeLeave(() => startOpening(open));
-              }}
-            >
-              {opening ? "Opening…" : prepare.label}
-              {opening ? <Loader2Icon className="animate-spin" /> : <ArrowUpRightIcon />}
-            </Button>
+            {/* The way on from here: at the end of the row, like a form's next step. */}
+            <div className="mt-3 flex sm:justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant={ready && ready.state !== "no_cv" ? "candido" : "outline"}
+                className="w-full sm:w-auto"
+                disabled={opening}
+                onClick={() => {
+                  const open = props.onPrepare;
+                  if (open) beforeLeave(() => startOpening(open));
+                }}
+              >
+                {opening ? "Opening…" : prepare.label}
+                {opening ? <Loader2Icon className="animate-spin" /> : <ArrowUpRightIcon />}
+              </Button>
+            </div>
           </PaneSection>
 
           {descriptionEditor}
