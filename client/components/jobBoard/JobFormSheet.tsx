@@ -758,7 +758,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     </div>
   );
   const descriptionEditor = (
-    <PaneSection title="Job description">
+    <PaneSection title="Description">
       <div className="simple-editor-wrapper flex flex-col overflow-hidden rounded-lg border border-border bg-background">
         {editor && <SimpleMenuBar editor={editor} />}
         <EditorContent
@@ -783,6 +783,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           )}
 
           {factsBox}
+
+          {descriptionEditor}
 
           <PaneSection
             title="Documents"
@@ -823,7 +825,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             </div>
           </PaneSection>
 
-          {descriptionEditor}
 
           <PaneSection title="Notes">{notesArea}</PaneSection>
 
