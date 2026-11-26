@@ -193,6 +193,28 @@ user's, and may be corrected.
   and the pins all read one review state (`useCvReview`), so resolving in any
   of them updates all.
 
+## Change after testing (26 Nov): a block gutter instead of gap pills
+
+The user tried the gap pills and found "+ Add" hard to reach and the pills
+small and badly aligned. They chose a block gutter (Notion / Google Docs
+style), which replaces Goal 4's "+ Add" and the margin tick of Goal 2:
+
+- Hovering anywhere on a block (heading, entry title line, summary, bullet or
+  paragraph) shows two controls in its column's margin beside its first
+  line: **+** (add right after this block) and **✓** (leave it out).
+- The hover area is the block plus the margin beside it, so moving to the
+  controls never loses them. They linger briefly after the pointer leaves,
+  and stay while a menu is open.
+- **+** opens the same menu (Bullet, Paragraph, Entry, Put back a left-out
+  bullet). After a bullet or paragraph it adds after that item; after an
+  entry's title line or summary, at the top of its body; on a section
+  heading, at the top of the section. Entry adds after this entry (on a
+  heading, a new first entry).
+- "+ Section" stays in the gap between sections, with the whole gap as its
+  hover area, in a lighter style.
+- Controls are drawn at screen size whatever the zoom, in the app's font,
+  and never past the sheet's edge; folds likewise.
+
 ## Stages
 
 1. **Page tools:** Page as default, margin ticks, folded marks, add points.
