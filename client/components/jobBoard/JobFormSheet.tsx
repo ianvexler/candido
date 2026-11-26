@@ -591,194 +591,6 @@ const JobFormSheet = (props: JobFormSheetProps) => {
     </span>
   );
 
-  // Adding a job; an existing job is edited in the pane layout below.
-  const createForm = (
-    <>
-      <div className="shrink-0 border-b border-border bg-muted/30">
-        <div className="flex items-start justify-between gap-4 px-6 py-5">
-          <div className="min-w-0 flex-1 flex flex-col gap-1">
-            <div className="flex items-center gap-3 pt-1">
-              <div
-                className={`shrink-0 w-5 h-5 rounded-sm ${jobStatusColors[status]}`}
-                title={status.toLowerCase()}
-              />
-
-              <InlineInput
-                id="title"
-                type="text"
-                autoComplete="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={loading}
-                placeholder="Job title..."
-                className={`text-2xl font-semibold tracking-tight bg-transparent border-b-0 ${formSubmitted && !isTitleValid ? "border-b-2! border-red-500!" : ""}`}
-              />
-            </div>
-            {formSubmitted && !isTitleValid && (
-              <p className="text-xs text-red-500 ml-8">Title is required</p>
-            )}
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={handleCancelClick}
-            className="cursor-pointer shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Close"
-          >
-            <XIcon className="size-5" />
-          </button>
-          </div>
-        </div>
-      </div>
-
-      <form
-        onSubmit={handleCreateSubmit}
-        className="flex flex-col gap-6 overflow-y-auto flex-1 min-h-0 px-6 py-6"
-      >
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-5">
-            <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Company
-              </h3>
-
-              <div className="flex flex-col gap-1">
-                <InlineInput
-                  id="company"
-                  type="text"
-                  autoComplete="company"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  disabled={loading}
-                  placeholder="Company name..."
-                  className={formSubmitted && !isCompanyValid ? "border-red-500!" : ""}
-                />
-                {formSubmitted && !isCompanyValid && (
-                  <p className="text-xs text-red-500">Company is required</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Status
-              </h3>
-
-              <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
-                <SelectTrigger className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-
-                <SelectContent position="popper">
-                  <SelectGroup>
-                    {Object.values(JobStatus).map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {capitalize(s.toLowerCase())}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Location
-              </h3>
-
-              <InlineInput
-                id="location"
-                type="text"
-                autoComplete="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                disabled={loading}
-                placeholder="e.g. Remote, New York"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Closing Date
-              </h3>
-
-              <InlineInput
-                id="closingDate"
-                type="date"
-                autoComplete="closingDate"
-                value={closingDate}
-                onChange={(e) => setClosingDate(e.target.value)}
-                disabled={loading}
-                placeholder="e.g. 2001-01-01"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Salary
-              </h3>
-
-              <InlineInput
-                id="salary"
-                type="text"
-                autoComplete="salary"
-                value={salary}
-                onChange={(e) => setSalary(e.target.value)}
-                disabled={loading}
-                placeholder="e.g. $120k - $150k"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              URL
-            </h3>
-
-            <InlineInput
-              id="url"
-              type="text"
-              autoComplete="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={loading}
-              placeholder="https://example.com"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Tags
-          </h3>
-
-          <TagsInput
-            allEntries={props.allEntries}
-            tags={tags}
-            onTagsChange={setTags}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Description
-          </h3>
-          <div className="simple-editor-wrapper rounded-lg border border-border bg-background overflow-hidden">
-            {editor && <SimpleMenuBar editor={editor} />}
-            <EditorContent editor={editor} className="min-h-[140px]" />
-          </div>
-        </div>
-
-        <Button type="submit" disabled={loading} className="w-fit">
-          {loading ? "Creating..." : "Create"}
-        </Button>
-      </form>
-    </>
-  );
-
   const prompts = (
     <>
       <ConfirmationModal
@@ -849,25 +661,110 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const posting = postingUrl(url);
   const closing = status === JobStatus.PENDING ? closingLabel(closingDate ? parseISO(closingDate) : null) : null;
   // The job's fields, edited in place: beside the applications list, and in the board's side panel.
+  // Shared by the pane (editing a job) and the form for adding one, so the two look the same.
+  const statusPill = (
+    <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
+      <SelectTrigger size="sm" className="w-auto gap-2 rounded-full bg-background" aria-label="Status">
+        <i className={cn("size-2 rounded-full", jobStatusColors[status])} aria-hidden />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent position="popper" align="start">
+        <SelectGroup>
+          {Object.values(JobStatus).map((s) => (
+            <SelectItem key={s} value={s}>
+              {capitalize(s.toLowerCase())}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+  // A new job's empty fields are only wrong once adding it is tried; an edited job's, straight away.
+  const showInvalid = !isCreate || formSubmitted;
+  const titleFields = (
+    <>
+      <InlineInput
+        id="title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        disabled={loading}
+        aria-label="Job title"
+        aria-invalid={(showInvalid && !isTitleValid) || undefined}
+        placeholder="Job title"
+        className={cn(paneInput, "mt-4 py-0.5 text-2xl font-bold leading-tight tracking-tight")}
+      />
+      {formSubmitted && !isTitleValid && <p className="text-xs text-destructive">A job needs a title.</p>}
+      <InlineInput
+        id="company"
+        value={company}
+        onChange={(e) => setCompany(e.target.value)}
+        disabled={loading}
+        aria-label="Company"
+        aria-invalid={(showInvalid && !isCompanyValid) || undefined}
+        placeholder="Company"
+        className={cn(paneInput, "mt-0.5 py-0.5 text-muted-foreground focus:text-foreground")}
+      />
+      {formSubmitted && !isCompanyValid && <p className="text-xs text-destructive">A job needs a company.</p>}
+    </>
+  );
+  const factsBox = (
+    <div className="@container mt-5">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border @md:grid-cols-3">
+        <PaneField label="Location" htmlFor="location">
+          <InlineInput id="location" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+        </PaneField>
+        <PaneField label="Salary" htmlFor="salary">
+          <InlineInput id="salary" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+        </PaneField>
+        {/* Beside location and salary when there's room; its own row in a narrow pane. */}
+        <PaneField label="Closing date" htmlFor="closingDate" hint={closing} className="col-span-2 @md:col-span-1">
+          <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={paneFieldInput} />
+        </PaneField>
+        <PaneField
+          label="Link"
+          htmlFor="url"
+          wide
+          action={
+            posting && (
+              <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the posting" className="text-muted-foreground hover:text-foreground">
+                <ArrowUpRightIcon className="size-4" />
+              </a>
+            )
+          }
+        >
+          <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+        </PaneField>
+        <PaneField label="Tags" wide>
+          <TagsInput
+            compact
+            wrap
+            allEntries={props.allEntries}
+            tags={tags}
+            onTagsChange={setTags}
+            className="mt-1.5 min-h-7 py-0.5 text-sm font-medium hover:bg-transparent hover:border-border border-transparent"
+          />
+        </PaneField>
+    </div>
+    </div>
+  );
+  const descriptionEditor = (
+    <PaneSection title="Job description">
+      <div className="simple-editor-wrapper flex flex-col overflow-hidden rounded-lg border border-border bg-background">
+        {editor && <SimpleMenuBar editor={editor} />}
+        <EditorContent
+          editor={editor}
+          onClick={(event) => event.target === event.currentTarget && editor?.commands.focus("end")}
+          className="max-h-80 min-h-28 cursor-text overflow-y-auto leading-relaxed"
+        />
+      </div>
+    </PaneSection>
+  );
+
   const paneBody = (headerAction: ReactNode, padding: string) =>
     entry && (
         <div className={cn("flex flex-col", padding)}>
           <div className="flex items-center justify-between gap-2">
-            <Select value={status} onValueChange={(v) => setStatus(v as JobStatus)} disabled={loading}>
-              <SelectTrigger size="sm" className="w-auto gap-2 rounded-full bg-background" aria-label="Status">
-                <i className={cn("size-2 rounded-full", jobStatusColors[status])} aria-hidden />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="start">
-                <SelectGroup>
-                  {Object.values(JobStatus).map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {capitalize(s.toLowerCase())}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            {statusPill}
             <div className="flex items-center gap-1">
               {saveStatus}
               {moreMenu}
@@ -875,65 +772,9 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             </div>
           </div>
 
-          <InlineInput
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={loading}
-            aria-label="Job title"
-            aria-invalid={!isTitleValid || undefined}
-            placeholder="Job title"
-            className={cn(paneInput, "mt-4 py-0.5 text-2xl font-bold leading-tight tracking-tight")}
-          />
-          <InlineInput
-            id="company"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            disabled={loading}
-            aria-label="Company"
-            aria-invalid={!isCompanyValid || undefined}
-            placeholder="Company"
-            className={cn(paneInput, "mt-0.5 py-0.5 text-muted-foreground focus:text-foreground")}
-          />
+          {titleFields}
 
-          <div className="@container mt-5">
-            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border @md:grid-cols-3">
-              <PaneField label="Location" htmlFor="location">
-                <InlineInput id="location" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
-              </PaneField>
-              <PaneField label="Salary" htmlFor="salary">
-                <InlineInput id="salary" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
-              </PaneField>
-              {/* Beside location and salary when there's room; its own row in a narrow pane. */}
-              <PaneField label="Closing date" htmlFor="closingDate" hint={closing} className="col-span-2 @md:col-span-1">
-                <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={paneFieldInput} />
-              </PaneField>
-              <PaneField
-                label="Link"
-                htmlFor="url"
-                wide
-                action={
-                  posting && (
-                    <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the posting" className="text-muted-foreground hover:text-foreground">
-                      <ArrowUpRightIcon className="size-4" />
-                    </a>
-                  )
-                }
-              >
-                <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
-              </PaneField>
-              <PaneField label="Tags" wide>
-                <TagsInput
-                  compact
-                  wrap
-                  allEntries={props.allEntries}
-                  tags={tags}
-                  onTagsChange={setTags}
-                  className="mt-1.5 min-h-7 py-0.5 text-sm font-medium hover:bg-transparent hover:border-border border-transparent"
-                />
-              </PaneField>
-          </div>
-          </div>
+          {factsBox}
 
           <PaneSection
             title="Documents"
@@ -971,16 +812,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             </Button>
           </PaneSection>
 
-          <PaneSection title="Job description">
-            <div className="simple-editor-wrapper flex flex-col overflow-hidden rounded-lg border border-border bg-background">
-              {editor && <SimpleMenuBar editor={editor} />}
-              <EditorContent
-                editor={editor}
-                onClick={(event) => event.target === event.currentTarget && editor?.commands.focus("end")}
-                className="max-h-80 min-h-28 cursor-text overflow-y-auto leading-relaxed"
-              />
-            </div>
-          </PaneSection>
+          {descriptionEditor}
 
           <PaneSection title="Notes">{notesArea}</PaneSection>
 
@@ -991,6 +823,26 @@ const JobFormSheet = (props: JobFormSheetProps) => {
           </p>
         </div>
     );
+
+  // Adding a job: the pane's fields, with the job added by its own button.
+  const createForm = (
+    <form onSubmit={handleCreateSubmit} className="min-h-0 flex-1 overflow-y-auto bg-muted/30">
+      <div className="flex flex-col px-6 pb-8 pt-6 sm:px-9 sm:pt-7">
+        <div className="flex items-center justify-between gap-2">
+          {statusPill}
+          <Button type="button" variant="ghost" size="icon-sm" onClick={handleCancelClick} aria-label="Close">
+            <XIcon />
+          </Button>
+        </div>
+        {titleFields}
+        {factsBox}
+        {descriptionEditor}
+        <Button type="submit" disabled={loading} className="mt-7 w-full sm:w-auto sm:self-start">
+          {loading ? "Adding…" : "Add job"}
+        </Button>
+      </div>
+    </form>
+  );
 
   if (isPane) {
     return (
