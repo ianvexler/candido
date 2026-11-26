@@ -76,7 +76,7 @@ const Sheet = () => {
           <div className="resume-classic">
             <section data-section-id="1">
               <div data-entry-id="e1">
-                <p id="item" data-cv-item="i1">
+                <p id="item" data-cv-item="i1" tabIndex={-1}>
                   Cut latency
                 </p>
                 <p id="next" data-cv-item="i2">
@@ -423,5 +423,49 @@ describe("PageTools", () => {
     expect(named("Add below")).toBeNull();
     await press(pill);
     expect(document.activeElement?.getAttribute("placeholder")).toBe("Search your sections…");
+  });
+
+  describe("from the keyboard", () => {
+    /** The caret in the item's text, as the editor would have it. */
+    const caretIn = (element: HTMLElement) => {
+      element.focus();
+      document.getSelection()?.collapse(element.firstChild, 3);
+    };
+    const keys = (init: KeyboardEventInit) =>
+      act(async () => {
+        itemText().dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter", ...init }));
+      });
+
+    it("opens the add menu by the caret's block on Alt+Enter, with nothing hovered", async () => {
+      caretIn(itemText());
+      await keys({ altKey: true });
+      expect(named("Add below")?.getAttribute("aria-expanded")).toBe("true");
+      await press(item("Paragraph"));
+      expect(edits.addAt).toHaveBeenCalledWith({ sectionId: 1, entryId: "e1", after: "i1" }, "paragraph");
+    });
+
+    it("opens the section menu after the caret's section on Alt+Shift+Enter", async () => {
+      caretIn(itemText());
+      await keys({ altKey: true, shiftKey: true });
+      expect(document.activeElement?.getAttribute("placeholder")).toBe("Search your sections…");
+    });
+
+    it("does nothing for a plain Enter", async () => {
+      caretIn(itemText());
+      await keys({});
+      expect(named("Add below")).toBeNull();
+      expect(item("Bullet")).toBeNull();
+    });
+
+    it("puts the caret back where it was on Escape", async () => {
+      caretIn(itemText());
+      await keys({ altKey: true });
+      expect(document.activeElement).not.toBe(itemText());
+      await act(async () => {
+        document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" }));
+      });
+      expect(item("Bullet")).toBeNull();
+      expect(document.activeElement).toBe(itemText());
+    });
   });
 });

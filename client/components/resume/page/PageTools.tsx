@@ -357,15 +357,52 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
     };
   }, [areaRef]);
 
+  // Where the caret was when a shortcut opened a menu: Escape goes back to it, not to the page.
+  const caretIn = useRef<HTMLElement | null>(null);
   const close = (back: boolean) => {
     setMenu(null);
     setAiming(false);
     hovered.hide();
     pointed.hide();
-    if (back) rootRef.current?.focus({ preventScroll: true });
+    const editor = caretIn.current;
+    caretIn.current = null;
+    if (!back) return;
+    if (editor?.isConnected) editor.focus({ preventScroll: true });
+    else rootRef.current?.focus({ preventScroll: true });
   };
 
   const openFor = (block: PlacedBlock, place = addPlaceOf(block)) => setMenu({ kind: "add", block, place });
+
+  // One handler on the page, not in its editors. Capture: before an editor takes the key.
+  const onShortcut = useEffectEvent((event: KeyboardEvent) => {
+    const root = rootRef.current;
+    if (!root || event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+    const node = document.getSelection()?.anchorNode ?? (event.target instanceof Node ? event.target : null);
+    const at = node instanceof Element ? node : node?.parentElement;
+    if (!at || !root.contains(at)) return;
+    const active = document.activeElement;
+    const from = active instanceof HTMLElement && root.contains(active) ? active : null;
+    if (event.shiftKey) {
+      const sectionId = at.closest("[data-section-id]")?.getAttribute("data-section-id");
+      if (sectionId == null) return;
+      const gap = sectionGap(root, scale, order, Number(sectionId));
+      if (!gap) return;
+      setMenu({ kind: "section", gap, afterSectionId: Number(sectionId) });
+    } else {
+      const block = blockAt(root, scale, at);
+      if (!block) return;
+      openFor(block);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    caretIn.current = from;
+  });
+
+  useEffect(() => {
+    const root = rootRef.current;
+    root?.addEventListener("keydown", onShortcut, true);
+    return () => root?.removeEventListener("keydown", onShortcut, true);
+  }, [rootRef]);
 
   useImperativeHandle(ref, () => ({
     openAdd: (at) => {
