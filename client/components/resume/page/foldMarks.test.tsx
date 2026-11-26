@@ -5,7 +5,7 @@ import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FoldMarks from "./FoldMarks";
 import type { FoldAt } from "./folds";
-import { HiddenMarkAt, MARK_SIZE, mergeMarks } from "./HiddenTextMarks";
+import { freeBelow, HiddenMarkAt, MARK_SIZE, mergeMarks } from "./HiddenTextMarks";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,16 +23,17 @@ let host: HTMLDivElement;
 let root: Root;
 let tick: ReturnType<typeof vi.fn>;
 
-const render = (folds: FoldAt[], scale = 1) =>
+const render = (folds: FoldAt[], scale = 1, deskRoom = 100) =>
   act(async () =>
     root.render(
       <TooltipProvider>
-        <FoldMarks folds={folds} scale={scale} sheetWidth={794} actions={{ tick } as unknown as ChecklistActions} />
+        <FoldMarks folds={folds} scale={scale} sheetWidth={794} deskRoom={deskRoom} actions={{ tick } as unknown as ChecklistActions} />
       </TooltipProvider>
     )
   );
 const press = (element: Element | null | undefined) => act(async () => (element as HTMLElement).click());
-const mark = () => [...document.querySelectorAll("button")].find((button) => button.textContent === "2 left out");
+const mark = () =>
+  [...document.querySelectorAll("button")].find((button) => button.textContent === "2 left out" || button.getAttribute("aria-label") === "2 left out");
 const rows = () => [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')];
 
 beforeEach(async () => {
@@ -53,20 +54,38 @@ describe("FoldMarks", () => {
     expect(mark()).toBeDefined();
   });
 
-  it("is drawn at screen size in its column's margin, placed from sheet units by the scale", async () => {
-    await render([fold], 0.75);
+  it("is beside the sheet, level with its place, when there is room there", async () => {
+    await render([fold], 0.75, 100);
     const button = mark()!;
+    expect(button.textContent).toBe("2 left out");
     expect(button.className).toContain("h-[24px]");
     expect(button.className).toContain("text-[12px]");
     const slot = button.parentElement!;
-    // Its middle on its line; from the sheet's edge to its text, less room.
     expect(parseFloat(slot.style.top)).toBeCloseTo(200 * 0.75 - 12);
+    expect(slot.style.right).toBe("calc(100% + 4px)");
+    await render([{ ...fold, side: "right" }], 0.75, 100);
+    expect(mark()!.parentElement!.style.left).toBe("calc(100% + 4px)");
+  });
+
+  it("is in its column's margin with no room beside the sheet, placed from sheet units by the scale", async () => {
+    await render([{ ...fold, line: { top: 200, left: 120, right: 726 } }], 0.75, 0);
+    const slot = mark()!.parentElement!;
+    expect(mark()!.textContent).toBe("2 left out");
     expect(parseFloat(slot.style.left)).toBe(2);
-    expect(parseFloat(slot.style.width)).toBeCloseTo(68 * 0.75 - 4 - 2);
+    expect(parseFloat(slot.style.width)).toBeCloseTo(120 * 0.75 - 4 - 2);
+  });
+
+  it("is a count in a margin too narrow for its words, named in full, opening the same list", async () => {
+    await render([fold], 0.75, 0);
+    const button = mark()!;
+    expect(button.textContent).toBe("2");
+    expect(button.className).toContain("w-[24px]");
+    await press(button);
+    expect(rows()).toHaveLength(2);
   });
 
   it("never reaches past the sheet: on the right, from its text to the sheet's edge", async () => {
-    await render([{ ...fold, side: "right", line: { top: 200, left: 300, right: 740 } }], 0.75);
+    await render([{ ...fold, side: "right", line: { top: 200, left: 300, right: 740 } }], 0.75, 0);
     const slot = mark()!.parentElement!;
     const left = parseFloat(slot.style.left);
     expect(left).toBeCloseTo(740 * 0.75 + 4);
@@ -90,6 +109,14 @@ describe("FoldMarks", () => {
     expect(rows()).toHaveLength(2);
     expect(rows()[0].getAttribute("aria-checked")).toBe("true");
     expect(rows()[1].getAttribute("aria-checked")).toBe("false");
+  });
+});
+
+describe("freeBelow", () => {
+  it("is the nearest middle at or below, size from every other", () => {
+    expect(freeBelow(100, [], 24)).toBe(100);
+    expect(freeBelow(100, [90, 115], 24)).toBe(139);
+    expect(freeBelow(100, [140], 24)).toBe(100);
   });
 });
 

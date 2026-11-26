@@ -6,19 +6,26 @@ import { CurriculumSection, SUMMARY_ID } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { autoUpdate, flip, FloatingPortal, offset, shift, useFloating } from "@floating-ui/react";
 import { CheckIcon, PlusIcon } from "lucide-react";
-import { ReactNode, Ref, RefObject, useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from "react";
+import { ComponentProps, ReactNode, Ref, RefObject, useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from "react";
 import { textStart } from "../ChecklistRow";
-import IconAction from "../IconAction";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import type { AddPlace, CvEdits } from "../useCvEdits";
 import AddMenu from "./AddMenu";
-import { HAIR, MARK_SIZE } from "./HiddenTextMarks";
+import { freeBelow, MARK_SIZE } from "./HiddenTextMarks";
 import { columnsOf } from "./measureBlocks";
 import { addPlaceOf, BlockRef, blockAt, blockBeside, columnEdges, Gap, gapAt, PlacedBlock } from "./pagePlaces";
 import SectionMenu from "./SectionMenu";
+import "./page.css";
 
 /** In screen px: the tools are drawn out of the page's scale. A gutter is two buttons side by side. */
 const BUTTON = 24;
-const GUTTER = 2 * BUTTON + 2;
+/** In a margin too narrow for BUTTON stacked. */
+const SMALL = 20;
+const BETWEEN = 2;
+const GUTTER = 2 * BUTTON + BETWEEN;
+/** How far past its block and its gutter the pointer may stray and keep them; how far into another to take that one. */
+const SLACK = 6;
+const EDGE = 3;
 /** Room between a gutter and its column's text, and between it and the sheet's edge. */
 const ROOM = 4;
 const INSET = 2;
@@ -72,9 +79,15 @@ const elementOf = (root: HTMLElement, block: BlockRef): Element | null => {
   return entry.querySelector(`[data-cv-item="${CSS.escape(block.itemId)}"]`);
 };
 
-/** Where the gutter is for: the block and the margin beside it, from the sheet's edge, in sheet units. */
-const holds = (block: PlacedBlock, x: number, y: number, sheetWidth: number) =>
-  y >= block.top && y <= block.bottom && (block.side === "left" ? x >= 0 && x <= block.right : x >= block.left && x <= sheetWidth);
+/**
+ * Where the gutter is for, in sheet units: the block's rows, and its gutter's, give or take a
+ * little, from its column's far edge out past the sheet's.
+ */
+const holds = (block: PlacedBlock, gutter: GutterPlace, x: number, y: number, scale: number) => {
+  const top = Math.min(block.top, gutter.top / scale) - SLACK / scale;
+  const bottom = Math.max(block.bottom, (gutter.top + gutter.height) / scale) + SLACK / scale;
+  return y >= top && y <= bottom && (block.side === "left" ? x <= block.right : x >= block.left);
+};
 
 /** A value shown while pointed at, and for a while after. */
 const useLingering = <T,>() => {
@@ -171,25 +184,63 @@ export type PageToolsActions = {
 /** A mark in a margin, in sheet units: where a gutter can't be too. */
 export type Taken = { top: number; side: "left" | "right" };
 
-/** The gutter's middle, in sheet units: by the block's first line, or down past any mark there. */
-const gutterAt = (block: PlacedBlock, taken: Taken[], scale: number) => {
-  // A mark is at most as tall as a tool on screen.
-  const room = Math.max(MARK_SIZE, (BUTTON + 2) / scale);
-  let middle = block.top + block.line / 2;
-  // Less a hair: a fraction added and taken away may come back a hair short, and find the same mark again.
-  const near = () => taken.find(({ top, side }) => side === block.side && Math.abs(top - middle) < room - HAIR);
-  for (let mark = near(); mark; mark = near()) middle = mark.top + room;
-  return middle;
+/** Where a gutter is drawn, in screen px from the sheet's top left. */
+type GutterPlace = { left: number; top: number; height: number; size: number; stacked: boolean; desk: boolean };
+
+/**
+ * Never over the text: beside the sheet when there is room there; else in the margin, its two
+ * side by side, or stacked, or smaller, against the text and never past the sheet's edge. Level
+ * with the block's first line, or down past any mark on its side.
+ */
+const placeGutter = (block: PlacedBlock, taken: Taken[], scale: number, sheetWidth: number, deskRoom: number): GutterPlace => {
+  const left = block.side === "left";
+  const margin = left ? block.left * scale : (sheetWidth - block.right) * scale;
+  const desk = deskRoom >= GUTTER + ROOM + INSET;
+  const row = desk || margin >= GUTTER + ROOM + INSET;
+  const size = row || margin >= BUTTON + ROOM + INSET ? BUTTON : SMALL;
+  const room = size === BUTTON ? ROOM : INSET;
+  const width = row ? GUTTER : size;
+  const height = row ? size : 2 * size + BETWEEN;
+  const x = desk
+    ? left
+      ? -room - width
+      : sheetWidth * scale + room
+    : left
+      ? Math.max(INSET, block.left * scale - room - width)
+      : Math.min(sheetWidth * scale - INSET - width, block.right * scale + room);
+  // Its middle, its first button's by the first line; a mark is at most as tall as a tool on screen.
+  const middle = block.top + block.line / 2 + (height - size) / 2 / scale;
+  const apart = (height / 2 + Math.max(MARK_SIZE * scale, BUTTON) / 2 + 1) / scale;
+  const others = taken.filter(({ side }) => side === block.side).map(({ top }) => top);
+  const top = freeBelow(middle, others, apart) * scale - height / 2;
+  return { left: x, top, height, size, stacked: !row, desk };
 };
 
-/** The gutter's left, in screen px: by the text, and never past the sheet's edge. */
-const gutterLeft = (block: PlacedBlock, scale: number, sheetWidth: number) =>
-  block.side === "left"
-    ? Math.max(INSET, block.left * scale - ROOM - GUTTER)
-    : Math.min(sheetWidth * scale - INSET - GUTTER, block.right * scale + ROOM);
-
 // In px, not rem: the app's rem isn't 16px.
-const TOOL = "inline-flex size-[24px] min-w-0 items-center justify-center rounded-md p-0 leading-none shadow-[0_1px_4px_-1px_rgb(0_0_0/0.2)] [&_svg]:size-[14px]";
+const TOOL = "inline-flex min-w-0 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#f5a524]/60 items-center justify-center rounded-md p-0 leading-none shadow-[0_1px_4px_-1px_rgb(0_0_0/0.2)]";
+const SIZES: Record<number, string> = { [BUTTON]: "size-[24px] [&_svg]:size-[14px]", [SMALL]: "size-[20px] [&_svg]:size-[12px]" };
+
+interface GutterButtonProps extends ComponentProps<"button"> {
+  label: string;
+  side: "top" | "left" | "right";
+}
+
+/**
+ * A gutter's button and its tooltip. The tooltip is out of the sheets' box: if it took the
+ * pointer, moving over it would leave the tools on the block they were for.
+ */
+const GutterButton = ({ label, side, children, ...props }: GutterButtonProps) => (
+  <Tooltip disableHoverableContent>
+    <TooltipTrigger asChild>
+      <button type="button" aria-label={label} {...props}>
+        {children}
+      </button>
+    </TooltipTrigger>
+    <TooltipContent side={side} data-page-tip className="pointer-events-none">
+      {label}
+    </TooltipContent>
+  </Tooltip>
+);
 
 interface PageToolsProps extends PageToolsActions {
   ref?: Ref<PageToolsHandle>;
@@ -201,15 +252,17 @@ interface PageToolsProps extends PageToolsActions {
   /** In sheet units. */
   sheetWidth: number;
   sections: CurriculumSection[];
-  /** Marks within the margins, which a gutter moves off. */
+  /** Marks within the margins and beside the sheet, which a gutter moves off. */
   taken?: Taken[];
+  /** Room beside the sheet, in screen px. */
+  deskRoom?: number;
 }
 
 /**
  * The gutter by the block under the pointer, and the "+ Section" of the gap between sections.
  * Drawn at screen size in the sheets' unscaled box, placed from sheet units by the scale.
  */
-const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken = [], rows, actions, edits, addSection }: PageToolsProps) => {
+const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken = [], deskRoom = 0, rows, actions, edits, addSection }: PageToolsProps) => {
   const hovered = useLingering<PlacedBlock>();
   const pointed = useLingering<Gap>();
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -218,6 +271,8 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
   const [addAnchor, setAddAnchor] = useState<HTMLButtonElement | null>(null);
   const [sectionAnchor, setSectionAnchor] = useState<HTMLButtonElement | null>(null);
   const order = sections.map(({ id }) => id);
+
+  const gutterOf = (block: PlacedBlock) => placeGutter(block, taken, scale, sheetWidth, deskRoom);
 
   const follow = useEffectEvent((event: PointerEvent) => {
     const root = rootRef.current;
@@ -234,11 +289,13 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
     const y = (event.clientY - box.top) / scale;
 
     const current = hovered.value;
-    if (current && (target.closest("[data-page-gutter]") || holds(current, x, y, sheetWidth))) hovered.show(current);
+    const kept = current && (target.closest("[data-page-gutter]") || holds(current, gutterOf(current), x, y, scale));
+    if (current && kept) hovered.show(current);
     else {
       const found = (root.contains(target) ? blockAt(root, scale, target) : null) ?? blockBeside(root, scale, event.clientX, event.clientY);
-      // Between an entry's lines and its items is no block's.
-      if (found && y >= found.top && y <= found.bottom) hovered.show(found);
+      // Between an entry's lines and its items is no block's; from another, only a little way in.
+      const edge = current ? EDGE / scale : 0;
+      if (found && y >= found.top + edge && y <= found.bottom - edge) hovered.show(found);
       else hovered.linger();
     }
 
@@ -320,29 +377,37 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
   const block = menu?.kind === "add" ? menu.block : menu ? null : hovered.value;
   const gap = menu?.kind === "section" ? menu.gap : menu ? null : pointed.value;
   const adding = menu?.kind === "add";
+  const gutter = block && gutterOf(block);
+  // Above when side by side; stacked, away from the page, so neither covers the other.
+  const tipSide = gutter?.stacked && block ? block.side : "top";
 
   return (
     <div data-page-tools className="print:hidden">
-      {block && (
+      {block && gutter && (
         <>
           {(aiming || adding) && (
             <div
               aria-hidden
               data-add-line
               className="pointer-events-none absolute z-20 h-[1.5px] bg-[#f5a524]"
-              style={{ top: block.bottom * scale, left: block.left * scale, width: (block.right - block.left) * scale }}
+              style={{ top: block.aim * scale, left: block.left * scale, width: (block.right - block.left) * scale }}
             />
           )}
           <div
             data-page-gutter
-            className="pointer-events-auto absolute z-20 flex gap-0.5"
-            style={{ top: gutterAt(block, taken, scale) * scale - BUTTON / 2, left: gutterLeft(block, scale, sheetWidth) }}
+            className={cn(
+              "pointer-events-auto absolute z-20 flex gap-[2px]",
+              gutter.stacked && "flex-col",
+              // Beside the sheet: a bridge over the gap to it, so going there never leaves.
+              gutter.desk && "before:absolute before:inset-y-0 before:w-[4px]",
+              gutter.desk && (block.side === "left" ? "before:left-full" : "before:right-full")
+            )}
+            style={{ top: gutter.top, left: gutter.left }}
           >
-            <IconAction
+            <GutterButton
               label="Add below"
-              // Above: beside, it would cover the other button.
-              side="top"
-              buttonRef={setAddAnchor}
+              side={tipSide}
+              ref={setAddAnchor}
               aria-haspopup="menu"
               aria-expanded={adding}
               onPointerEnter={() => setAiming(true)}
@@ -350,24 +415,25 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
               onClick={() => (adding ? close(false) : openFor(block))}
               className={cn(
                 TOOL,
+                SIZES[gutter.size],
                 "border border-[#d5dade] bg-white text-[#5f6770] hover:border-[#aab2ba] hover:bg-white hover:text-[#1f2328]",
                 adding && "border-[#f5a524] bg-[#fff4dc] text-[#1f2328] hover:bg-[#fff4dc]"
               )}
             >
               <PlusIcon strokeWidth={2.5} />
-            </IconAction>
-            <IconAction
+            </GutterButton>
+            <GutterButton
               label={`Leave out ${textStart(nameOf(rows, block))}`}
-              side="top"
+              side={tipSide}
               onClick={() => {
                 close(false);
                 void actions.tick(targetOf(block), false);
                 rootRef.current?.focus({ preventScroll: true });
               }}
-              className={cn(TOOL, "bg-[#1f2328] text-white hover:bg-[#3a4047] hover:text-white")}
+              className={cn(TOOL, SIZES[gutter.size], "bg-[#1f2328] text-white hover:bg-[#3a4047] hover:text-white")}
             >
               <CheckIcon strokeWidth={3} />
-            </IconAction>
+            </GutterButton>
           </div>
         </>
       )}

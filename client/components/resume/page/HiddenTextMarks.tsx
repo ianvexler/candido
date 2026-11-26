@@ -35,6 +35,15 @@ const shownItem = (entry: Element, itemId: string): Element | null => {
   return [item, ...above, head, entry].find(isShown) ?? null;
 };
 
+/** The nearest middle at or below `from` that is `size` or more from each of `others`. */
+export const freeBelow = (from: number, others: number[], size: number) => {
+  let at = from;
+  // Less a hair: a fraction added and taken away may come back a hair short, and find the same one again.
+  const near = () => others.find((other) => Math.abs(other - at) < size - HAIR);
+  for (let other = near(); other !== undefined; other = near()) at = other + size;
+  return at;
+};
+
 export const isHiddenMark = (mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
 
 /**
@@ -54,11 +63,8 @@ export const mergeMarks = <T extends HiddenMarkAt | FoldAt>(marks: T[], foldSize
   byTop
     .filter((mark) => !isHiddenMark(mark))
     .forEach((mark) => {
-      let top = mark.top;
-      // Less a hair: a fraction added and taken away may come back a hair short, and find the same one again.
-      const near = () => merged.find((other) => other.side === mark.side && Math.abs(other.top - top) < foldSize - HAIR);
-      for (let other = near(); other; other = near()) top = other.top + foldSize;
-      merged.push({ ...mark, top });
+      const others = merged.filter(({ side }) => side === mark.side).map(({ top }) => top);
+      merged.push({ ...mark, top: freeBelow(mark.top, others, foldSize) });
     });
   return merged.sort((a, b) => a.top - b.top);
 };

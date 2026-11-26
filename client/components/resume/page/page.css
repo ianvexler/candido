@@ -115,3 +115,11 @@
 .paged-cv .resume-sidebar .rs-side {
   background: none;
 }
+
+/*
+ * A page tool's tooltip is outside the sheets' box: taking the pointer, it would keep the tools
+ * on the block they were for. Its positioning wrapper gets no class, so it is found by its content.
+ */
+[data-radix-popper-content-wrapper]:has(> [data-page-tip]) {
+  pointer-events: none;
+}

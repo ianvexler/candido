@@ -15,7 +15,9 @@ const places = vi.hoisted(() => ({ gapAt: vi.fn(), blockAt: vi.fn(), blockBeside
 vi.mock("./pagePlaces", async (actual) => ({ ...(await actual<typeof import("./pagePlaces")>()), ...places }));
 
 /** An item at 120 to 140, a 16px line, in a column from 68 to 726, in sheet units. */
-const itemBlock: PlacedBlock = { sectionId: 1, kind: "item", entryId: "e1", itemId: "i1", top: 120, bottom: 140, line: 16, left: 68, right: 726, side: "left" };
+const itemBlock: PlacedBlock = { sectionId: 1, kind: "item", entryId: "e1", itemId: "i1", top: 120, bottom: 140, line: 16, aim: 140, left: 68, right: 726, side: "left" };
+/** The next item, below it. */
+const nextBlock: PlacedBlock = { ...itemBlock, itemId: "i2", top: 142, bottom: 160, aim: 160 };
 const sectionGap: Gap = { afterSectionId: 1, top: 300, left: 68, right: 726, side: "left" };
 
 const rows = [
@@ -62,6 +64,7 @@ const handle = createRef<PageToolsHandle>();
 
 let taken: { top: number; side: "left" | "right" }[] = [];
 let scale = 1;
+let deskRoom = 0;
 
 const Sheet = () => {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -87,6 +90,7 @@ const Sheet = () => {
           areaRef={areaRef}
           scale={scale}
           sheetWidth={794}
+          deskRoom={deskRoom}
           sections={sections}
           taken={taken}
           rows={rows}
@@ -136,7 +140,13 @@ afterEach(async () => {
   vi.useRealTimers();
   taken = [];
   scale = 1;
+  deskRoom = 0;
 });
+
+const gutterBox = () => {
+  const gutter = document.querySelector<HTMLElement>("[data-page-gutter]")!;
+  return { gutter, left: parseFloat(gutter.style.left), top: parseFloat(gutter.style.top), stacked: gutter.className.includes("flex-col") };
+};
 
 const margin = () => document.getElementById("margin")!;
 const itemText = () => document.getElementById("item")!;
@@ -253,13 +263,68 @@ describe("PageTools", () => {
     for (let at: HTMLElement | null = gutter; at && at.id !== "area"; at = at.parentElement) expect(at.style.transform).toBe("");
   });
 
-  it("stays on the sheet when the margin is narrower than it", async () => {
-    places.blockAt.mockReturnValue({ ...itemBlock, left: 20 });
+  it("is beside the sheet, level with the block, when there is room there", async () => {
+    deskRoom = 100;
+    await render();
     await move(itemText());
-    expect(parseFloat(document.querySelector<HTMLElement>("[data-page-gutter]")!.style.left)).toBe(2);
-    places.blockAt.mockReturnValue({ ...itemBlock, top: 400, bottom: 420, side: "right", left: 300, right: 780 });
+    const { left, top, stacked } = gutterBox();
+    expect(left).toBe(-4 - 50);
+    expect(top).toBeCloseTo(128 - 12);
+    expect(stacked).toBe(false);
+    places.blockAt.mockReturnValue({ ...itemBlock, top: 400, bottom: 420, side: "right", left: 300, right: 760 });
     await move(itemText(), 400, 410);
-    expect(parseFloat(document.querySelector<HTMLElement>("[data-page-gutter]")!.style.left)).toBe(794 - 2 - 50);
+    expect(gutterBox().left).toBe(794 + 4);
+  });
+
+  it("stacks in a narrow margin, never over the text", async () => {
+    scale = 0.924;
+    places.blockAt.mockReturnValue({ ...itemBlock, left: 40 });
+    await render();
+    await move(itemText());
+    const { gutter, left, stacked } = gutterBox();
+    expect(stacked).toBe(true);
+    gutter.querySelectorAll("button").forEach((button) => expect(button.className).toContain("size-[24px]"));
+    expect(left + 24).toBeLessThanOrEqual(40 * 0.924 - 4);
+    expect(left).toBeGreaterThanOrEqual(2);
+  });
+
+  it("is smaller in a margin too narrow even for that, 2px from the text and the sheet's edge", async () => {
+    places.blockAt.mockReturnValue({ ...itemBlock, left: 26 });
+    await move(itemText());
+    const { gutter, left } = gutterBox();
+    gutter.querySelectorAll("button").forEach((button) => expect(button.className).toContain("size-[20px]"));
+    expect(left).toBe(4);
+    expect(left + 20).toBeLessThanOrEqual(26 - 2);
+    places.blockAt.mockReturnValue({ ...itemBlock, top: 400, bottom: 420, side: "right", left: 300, right: 770 });
+    await move(itemText(), 400, 410);
+    expect(gutterBox().left).toBe(772);
+  });
+
+  it("keeps its block as the pointer goes into the margin just below it, by the next block", async () => {
+    places.blockBeside.mockReturnValue(nextBlock);
+    await move(itemText());
+    await move(margin(), 10, 144);
+    expect(named("Leave out Cut latency")).not.toBeNull();
+    // Well into the next one, it is that one's.
+    await move(margin(), 10, 152);
+    expect(named("Leave out Rebuilt the checkout")).not.toBeNull();
+  });
+
+  it("has tooltips that never take the pointer from the page", async () => {
+    await move(itemText());
+    await act(async () => named("Add below")!.focus());
+    const tip = document.querySelector<HTMLElement>('[data-slot="tooltip-content"]');
+    expect(tip?.textContent).toContain("Add below");
+    expect(tip?.className).toContain("pointer-events-none");
+    // Its positioning wrapper too, by page.css.
+    expect(tip?.parentElement?.matches("[data-radix-popper-content-wrapper]:has(> [data-page-tip])")).toBe(true);
+  });
+
+  it("aims where an entry's addition goes: under its summary", async () => {
+    places.blockAt.mockReturnValue({ ...itemBlock, kind: "entry", bottom: 132, aim: 150 });
+    await move(itemText());
+    await act(async () => named("Add below")!.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(parseFloat(document.querySelector<HTMLElement>("[data-add-line]")!.style.top)).toBeCloseTo(150);
   });
 
   it("moves off a mark in its margin, so both can be pressed", async () => {

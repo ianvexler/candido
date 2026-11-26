@@ -24,8 +24,11 @@ export type Gap = {
   side: Side;
 };
 
-/** A block under the pointer: its first line's top and height, its foot, and its column's content edges, in sheet units. */
-export type PlacedBlock = BlockRef & { top: number; bottom: number; line: number; left: number; right: number; side: Side };
+/**
+ * A block under the pointer: its first line's top and height, its foot, where what "+" adds by it
+ * goes (`aim`), and its column's content edges, in sheet units.
+ */
+export type PlacedBlock = BlockRef & { top: number; bottom: number; line: number; aim: number; left: number; right: number; side: Side };
 
 /** The least a gap's hover area is, in screen px. */
 export const LEAST_GAP = 16;
@@ -177,6 +180,8 @@ export const blockAt = (root: HTMLElement, scale: number, target: Element): Plac
   let ref: BlockRef;
   let element: Element;
   let last: Element | null = null;
+  // At the top of the entry's body: below its head, summary and all.
+  let aimAt: Element | null = null;
   const heading = target.closest('.rc-heading, [data-block="heading"]');
   const item = inEntry("[data-cv-item]");
   const summary = inEntry(".rc-summary");
@@ -191,6 +196,7 @@ export const blockAt = (root: HTMLElement, scale: number, target: Element): Plac
   } else if (summary) {
     ref = { sectionId, kind: "summary", entryId };
     element = summary;
+    aimAt = entry.querySelector('[data-block="head"]');
   } else {
     ref = { sectionId, kind: "entry", entryId };
     const head = entry.querySelector('[data-block="head"]');
@@ -198,15 +204,19 @@ export const blockAt = (root: HTMLElement, scale: number, target: Element): Plac
     const lines = [...(head?.children ?? [])].filter((child) => !child.matches(".rc-heading, .rc-summary") && isShown(child));
     element = lines[0] ?? entry;
     last = lines[lines.length - 1] ?? null;
+    aimAt = head;
   }
   // A line box: a block's own box has any break's padding, and its first child may be on a later line.
   const origin = root.getBoundingClientRect().top;
   const line = lineBox(element);
+  const bottom = ((last ?? element).getBoundingClientRect().bottom - origin) / scale;
+  const aim = isShown(aimAt) ? (aimAt.getBoundingClientRect().bottom - origin) / scale : bottom;
   return {
     ...ref,
     top: (line.top - origin) / scale,
-    bottom: ((last ?? element).getBoundingClientRect().bottom - origin) / scale,
+    bottom,
     line: line.height / scale,
+    aim: Math.max(aim, bottom),
     ...columnEdges(root, scale, column),
   };
 };

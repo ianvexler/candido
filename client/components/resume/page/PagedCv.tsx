@@ -248,11 +248,9 @@ const Page = ({
   const height = sheetsHeight(pages, paging.metrics);
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
   const marksInside = markRoom < MARK_SIZE + 8;
-  // Marks within the margins are where a gutter would be: folds always are.
-  const taken = useMemo(
-    () => [...(marksInside ? [...marks, ...datesMarks] : []), ...folds].map(({ top, side }) => ({ top, side })),
-    [marksInside, marks, folds, datesMarks]
-  );
+  // Each mark is in a margin or beside the sheet, where a gutter may be too.
+  const taken = useMemo(() => [...marks, ...datesMarks, ...folds].map(({ top, side }) => ({ top, side })), [marks, folds, datesMarks]);
+  const deskRoom = Math.max(0, markRoom);
 
   return (
     <div ref={outerRef} className="paged-cv">
@@ -319,7 +317,7 @@ const Page = ({
         {!readOnly && tools && (
           // Out of the page's scale: tools are as big at any zoom, placed from sheet units by it.
           <div className="pointer-events-none absolute inset-0 font-[family-name:var(--font-dm-sans)]">
-            <FoldMarks folds={folds} scale={scale} sheetWidth={width} actions={tools.actions} onClosed={focusPage} />
+            <FoldMarks folds={folds} scale={scale} sheetWidth={width} deskRoom={deskRoom} actions={tools.actions} onClosed={focusPage} />
             <PageTools
               ref={toolsRef}
               rootRef={rootRef}
@@ -328,6 +326,7 @@ const Page = ({
               sheetWidth={width}
               sections={sections}
               taken={taken}
+              deskRoom={deskRoom}
               {...tools}
             />
           </div>

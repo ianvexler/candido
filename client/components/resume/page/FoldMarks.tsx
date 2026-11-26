@@ -3,7 +3,8 @@
 import type { ChecklistActions } from "@/lib/resume/useCvChecklist";
 import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
-import { KeyboardEvent, memo, useEffect, useRef, useState } from "react";
+import { CSSProperties, KeyboardEvent, memo, useEffect, useRef, useState } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { foldKey, FoldAt, targetOf } from "./folds";
 import { ToolMenu } from "./PageTools";
 
@@ -17,23 +18,30 @@ const INSET = 2;
 
 const cut = (text: string) => (text.length > LABEL_LENGTH ? `${text.slice(0, LABEL_LENGTH).trimEnd()}…` : text);
 
-/**
- * The margin a mark sits in, from the sheet's edge to its column's text, in screen px. It is by
- * the text; in a margin narrower than it, against the sheet's edge, so never past the sheet.
- */
-const slotOf = ({ top, side, line }: FoldAt, scale: number, sheetWidth: number) => {
-  const y = top * scale - FOLD_HEIGHT / 2;
-  if (side === "left") return { top: y, left: INSET, width: Math.max(0, line.left * scale - ROOM - INSET) };
-  const left = line.right * scale + ROOM;
-  return { top: y, left, width: Math.max(0, sheetWidth * scale - INSET - left) };
-};
+/** How wide a mark's words are at most, for a count of that many digits, in screen px. */
+const wordsWidth = (count: number) => 60 + 8 * String(count).length;
+
+type Place = { style: CSSProperties; dir: "ltr" | "rtl"; compact: boolean };
 
 /**
- * Placed in a slot: by the text, or overflowing it rather than the sheet. Too wide, `safe` puts
- * it at the slot's start: on the right, right to left, so that is the sheet's edge.
+ * Beside the sheet, level with its place, when there is room there. Otherwise in its column's
+ * margin, by the text: a count alone when its words would cover the text, and in a margin too
+ * narrow even for that, against the sheet's edge, never past it. In screen px.
  */
-const slotClass = "absolute flex h-[24px] [justify-content:safe_flex-end]";
-const slotDir = (side: "left" | "right") => (side === "right" ? "rtl" : "ltr");
+export const placeOf = ({ top, side, line, items }: FoldAt, scale: number, sheetWidth: number, deskRoom: number): Place => {
+  const y = top * scale - FOLD_HEIGHT / 2;
+  const width = wordsWidth(items.length);
+  if (deskRoom >= width + ROOM + INSET) {
+    const out = `calc(100% + ${ROOM}px)`;
+    return { style: side === "left" ? { top: y, right: out } : { top: y, left: out }, dir: "ltr", compact: false };
+  }
+  const left = side === "left" ? INSET : line.right * scale + ROOM;
+  const room = Math.max(0, side === "left" ? line.left * scale - ROOM - INSET : sheetWidth * scale - INSET - left);
+  // Too wide, `safe` puts it at the slot's start: on the right, right to left, so that is the sheet's edge.
+  return { style: { top: y, left, width: room }, dir: side === "right" ? "rtl" : "ltr", compact: room < width };
+};
+
+const SLOT = "absolute flex h-[24px] [justify-content:safe_flex-end]";
 
 // In px, not rem: the app's rem isn't 16px.
 const MARK =
@@ -45,19 +53,22 @@ interface FoldMarksProps {
   scale: number;
   /** In sheet units. */
   sheetWidth: number;
+  /** Room beside the sheet, in screen px. */
+  deskRoom: number;
   actions: Pick<ChecklistActions, "tick">;
   /** The list was closed from the keyboard. */
   onClosed?: () => void;
 }
 
 /** Where the CV leaves things out, each run folded into a mark: `<n> left out`. */
-const FoldMarks = memo(({ folds, scale, sheetWidth, actions, onClosed }: FoldMarksProps) => {
+const FoldMarks = memo(({ folds, scale, sheetWidth, deskRoom, actions, onClosed }: FoldMarksProps) => {
   // What it held when opened: it stays listed as each goes back, until closed.
   const [open, setOpen] = useState<FoldAt | null>(null);
   const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const leftOut = new Set(folds.flatMap(({ items }) => items.map(foldKey)));
   const opened = open && new Set(open.items.map(foldKey));
+  const openPlace = open && placeOf(open, scale, sheetWidth, deskRoom);
   const isOpen = (fold: FoldAt) => Boolean(opened && fold.items.some((item) => opened.has(foldKey(item))));
 
   useEffect(() => {
@@ -88,25 +99,39 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, actions, onClosed }: FoldMar
       {folds.map((fold) => {
         const { top, left, right } = fold.line;
         const expanded = isOpen(fold);
+        const place = placeOf(fold, scale, sheetWidth, deskRoom);
+        const label = `${fold.items.length} left out`;
         return (
           // Only the mark takes the pointer; the gutter is drawn over it.
           <div key={foldKey(fold.items[0])} data-page-tools className="group pointer-events-none absolute inset-0 z-10 print:hidden">
-            <div dir={slotDir(fold.side)} className={slotClass} style={slotOf(fold, scale, sheetWidth)}>
-              <button
-                dir="ltr"
-                type="button"
-                data-fold-mark
-                aria-haspopup="menu"
-                aria-expanded={expanded}
-                onClick={() => setOpen(expanded ? null : fold)}
-                className={cn(
-                  MARK,
-                  "pointer-events-auto border-[#c3c9cf] bg-white text-[#5f6770] outline-none hover:border-[#8a929a] hover:text-[#1f2328] focus-visible:border-[#8a929a] focus-visible:text-[#1f2328]",
-                  expanded && "border-[#8a929a] text-[#1f2328]"
+            <div dir={place.dir} className={SLOT} style={place.style}>
+              {/* Its tooltip never takes the pointer from the page. */}
+              <Tooltip disableHoverableContent>
+                <TooltipTrigger asChild>
+                  <button
+                    dir="ltr"
+                    type="button"
+                    data-fold-mark
+                    aria-label={place.compact ? label : undefined}
+                    aria-haspopup="menu"
+                    aria-expanded={expanded}
+                    onClick={() => setOpen(expanded ? null : fold)}
+                    className={cn(
+                      MARK,
+                      "pointer-events-auto border-[#c3c9cf] bg-white text-[#5f6770] outline-none hover:border-[#8a929a] hover:text-[#1f2328] focus-visible:border-[#8a929a] focus-visible:text-[#1f2328]",
+                      place.compact && "w-[24px] px-0",
+                      expanded && "border-[#8a929a] text-[#1f2328]"
+                    )}
+                  >
+                    {place.compact ? fold.items.length : label}
+                  </button>
+                </TooltipTrigger>
+                {place.compact && (
+                  <TooltipContent side="top" data-page-tip className="pointer-events-none">
+                    {label}
+                  </TooltipContent>
                 )}
-              >
-                {fold.items.length} left out
-              </button>
+              </Tooltip>
             </div>
             <div
               aria-hidden
@@ -116,17 +141,12 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, actions, onClosed }: FoldMar
           </div>
         );
       })}
-      {open && (
+      {open && openPlace && (
         <>
           {/* Where it was opened: it stays there when the mark goes. */}
-          <div
-            aria-hidden
-            dir={slotDir(open.side)}
-            className={cn(slotClass, "pointer-events-none invisible")}
-            style={slotOf(open, scale, sheetWidth)}
-          >
-            <span ref={setAnchor} dir="ltr" className={MARK}>
-              {open.items.length} left out
+          <div aria-hidden dir={openPlace.dir} className={cn(SLOT, "pointer-events-none invisible")} style={openPlace.style}>
+            <span ref={setAnchor} dir="ltr" className={cn(MARK, openPlace.compact && "w-[24px] px-0")}>
+              {openPlace.compact ? open.items.length : `${open.items.length} left out`}
             </span>
           </div>
           <ToolMenu anchor={anchor} onClose={close} keepOpenOn="[data-fold-mark]">

@@ -184,6 +184,7 @@ describe("blockAt", () => {
       top: 144,
       bottom: 160,
       line: 16,
+      aim: 160,
       left: 0,
       right: 800,
       side: "left",
@@ -208,6 +209,12 @@ describe("blockAt", () => {
   it("takes an entry's title line down to its last line, not its summary", () => {
     page(classic.replace('<h3 data-box="100,116"></h3>', '<h3 data-box="100,108"></h3><p data-box="108,116"></p>'));
     expect(blockAt(root, 1, target('[data-section-id="1"] h3'))).toMatchObject({ kind: "entry", top: 100, bottom: 116, line: 8 });
+  });
+
+  it("aims an entry's title line under its summary, where the top of its body is", () => {
+    page(classic);
+    expect(blockAt(root, 1, target('[data-section-id="1"] h3'))).toMatchObject({ kind: "entry", bottom: 116, aim: 120 });
+    expect(blockAt(root, 1, target(".rc-summary"))).toMatchObject({ kind: "summary", aim: 120 });
   });
 
   it("has none for the header", () => {
