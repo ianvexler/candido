@@ -16,7 +16,7 @@ describe("safeRedirectPath", () => {
     expect(safeRedirectPath(from, "/dashboard")).toBe(from);
   });
 
-  it.each([null, "", "https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)", "board"])(
+  it.each([null, "", "https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)", "board", "/\t/evil.example", "/\n/evil.example", "/ /evil.example"])(
     "falls back for %s",
     (from) => {
       expect(safeRedirectPath(from, "/dashboard")).toBe("/dashboard");
