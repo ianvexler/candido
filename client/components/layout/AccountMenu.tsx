@@ -47,18 +47,21 @@ const AccountMenu = ({ variant, collapsed = false }: AccountMenuProps) => {
         {variant === "sidebar" ? (
           <button
             className={cn(
-              "flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1.5 text-left text-[15px] text-gray-100 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10",
-              collapsed ? "justify-center" : "px-2"
+              // Fixed padding keeps the avatar centred in the collapsed bar too.
+              "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-[15px] text-gray-100 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10"
             )}
             aria-label="Account"
           >
             {avatar}
-            {!collapsed && (
-              <>
-                <span className="min-w-0 flex-1 truncate">{user?.name || user?.email}</span>
-                <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400" />
-              </>
-            )}
+            <span
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity duration-200",
+                collapsed && "opacity-0"
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate whitespace-nowrap">{user?.name || user?.email}</span>
+              <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400" />
+            </span>
           </button>
         ) : (
           <button
