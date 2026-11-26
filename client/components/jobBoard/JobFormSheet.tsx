@@ -1,9 +1,9 @@
-import { MoreHorizontalIcon, XIcon, ArchiveIcon, XCircleIcon, Trash2Icon, ArrowUpRightIcon } from "lucide-react";
+import { MoreHorizontalIcon, XIcon, ArchiveIcon, XCircleIcon, Trash2Icon, ArrowUpRightIcon, FileUserIcon, FileTextIcon, Loader2Icon } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 import { SheetContent, SheetTitle } from "../ui/Sheet";
 import { JobBoardEntry, JobStatus, jobStatusColors } from "@/lib/types";
 import { capitalize, cn } from "@/lib/utils";
-import { ReactNode, useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { ReactNode, useState, useMemo, useEffect, useRef, useCallback, useTransition } from "react";
 import toast from "react-hot-toast";
 import debounce from "lodash.debounce";
 import InlineInput from "../ui/InlineInput";
@@ -29,7 +29,7 @@ import { closingLabel } from "@/lib/jobBoard/sentLog";
 import FitBadge from "../common/FitBadge";
 import { leaveAfterSave } from "@/lib/jobBoard/leaveAfterSave";
 import DocSlot from "./entry/DocSlot";
-import { EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
+import { coverLetterSlotState, cvSlotState, EntryPatch, jobSavePatch, jobSaveStarted } from "@/lib/jobBoard/docSlot";
 import type { Note } from "@/lib/types";
 import { format, parse, parseISO } from "date-fns";
 
@@ -100,17 +100,19 @@ const PaneField = ({
   hint,
   action,
   wide = false,
+  className,
   children,
 }: {
   label: string;
   htmlFor?: string;
-  /** Spans both columns. */
+  /** Spans every column. */
   wide?: boolean;
+  className?: string;
   hint?: string | null;
   action?: ReactNode;
   children: ReactNode;
 }) => (
-  <div className={cn("min-w-0 bg-background px-4 py-2.5", wide && "col-span-2")}>
+  <div className={cn("min-w-0 bg-background px-4 py-2.5", wide && "col-span-full", className)}>
     <div className="flex items-center justify-between gap-2">
       <label htmlFor={htmlFor} className="text-xs text-muted-foreground">
         {label}
@@ -120,6 +122,19 @@ const PaneField = ({
     {children}
     {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
   </div>
+);
+
+/** A document's state at a glance: amber while it's missing, green once it's attached. */
+const DocStateIcon = ({ filled, icon }: { filled: boolean; icon: ReactNode }) => (
+  <span
+    aria-hidden
+    className={cn(
+      "mr-1 grid size-8 shrink-0 place-items-center rounded-md [&_svg]:size-4",
+      filled ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-candido/25 text-candido-ink dark:text-candido"
+    )}
+  >
+    {icon}
+  </span>
 );
 
 const PaneSection = ({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) => (
@@ -571,6 +586,8 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   
   const ready = entry ? readiness(entry, user?.reviews_available ?? true) : null;
   const prepare = prepareAction(ready);
+  // Pending until the full page has loaded, so a slow load shows progress instead of a dead click.
+  const [opening, startOpening] = useTransition();
   const notesArea = (
               <NotesArea
                 jobBoardEntry={entry}
@@ -991,57 +1008,78 @@ const JobFormSheet = (props: JobFormSheetProps) => {
             className={cn(paneInput, "mt-0.5 py-0.5 text-muted-foreground focus:text-foreground")}
           />
 
-          <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">
-            <PaneField label="Location" htmlFor="location">
-              <InlineInput id="location" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
-            </PaneField>
-            <PaneField label="Salary" htmlFor="salary">
-              <InlineInput id="salary" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
-            </PaneField>
-            <PaneField label="Closing date" htmlFor="closingDate" hint={closing}>
-              <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={paneFieldInput} />
-            </PaneField>
-            <PaneField
-              label="Posting link"
-              htmlFor="url"
-              action={
-                posting && (
-                  <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the posting" className="text-muted-foreground hover:text-foreground">
-                    <ArrowUpRightIcon className="size-4" />
-                  </a>
-                )
-              }
-            >
-              <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
-            </PaneField>
-            <PaneField label="Tags" wide>
-              <TagsInput
-                compact
-                allEntries={props.allEntries}
-                tags={tags}
-                onTagsChange={setTags}
-                className="mt-1.5 h-7 text-sm font-medium hover:bg-transparent hover:border-border border-transparent"
-              />
-            </PaneField>
+          <div className="@container mt-5">
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border @md:grid-cols-3">
+              <PaneField label="Location" htmlFor="location">
+                <InlineInput id="location" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+              </PaneField>
+              <PaneField label="Salary" htmlFor="salary">
+                <InlineInput id="salary" value={salary} onChange={(e) => setSalary(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+              </PaneField>
+              {/* Beside location and salary when there's room; its own row in a narrow pane. */}
+              <PaneField label="Closing date" htmlFor="closingDate" hint={closing} className="col-span-2 @md:col-span-1">
+                <InlineInput id="closingDate" type="date" value={closingDate} onChange={(e) => setClosingDate(e.target.value)} disabled={loading} className={paneFieldInput} />
+              </PaneField>
+              <PaneField
+                label="Link"
+                htmlFor="url"
+                wide
+                action={
+                  posting && (
+                    <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open the posting" className="text-muted-foreground hover:text-foreground">
+                      <ArrowUpRightIcon className="size-4" />
+                    </a>
+                  )
+                }
+              >
+                <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={paneFieldInput} />
+              </PaneField>
+              <PaneField label="Tags" wide>
+                <TagsInput
+                  compact
+                  wrap
+                  allEntries={props.allEntries}
+                  tags={tags}
+                  onTagsChange={setTags}
+                  className="mt-1.5 min-h-7 py-0.5 text-sm font-medium hover:bg-transparent hover:border-border border-transparent"
+                />
+              </PaneField>
+          </div>
           </div>
 
           <PaneSection
-            title={status === JobStatus.PENDING ? "What you'll send" : "What you sent"}
+            title="Documents"
             aside={entry.cv_curriculum?.fit ? <FitBadge fit={entry.cv_curriculum.fit} /> : null}
           >
             <div className="divide-y divide-border rounded-lg border border-border bg-background [&>*]:px-4 [&>*]:py-3">
-              <DocSlot kind="cv" entry={entry} onPatchEntry={props.onPatchJob} beforeLeave={beforeLeave} />
-              <DocSlot kind="cover_letter" entry={entry} onPatchEntry={props.onPatchJob} />
+              <DocSlot
+                kind="cv"
+                entry={entry}
+                onPatchEntry={props.onPatchJob}
+                beforeLeave={beforeLeave}
+                isNext={cvSlotState(entry) === "empty"}
+                leading={<DocStateIcon filled={cvSlotState(entry) !== "empty"} icon={<FileUserIcon />} />}
+              />
+              <DocSlot
+                kind="cover_letter"
+                entry={entry}
+                onPatchEntry={props.onPatchJob}
+                leading={<DocStateIcon filled={coverLetterSlotState(entry) !== "empty"} icon={<FileTextIcon />} />}
+              />
             </div>
             <Button
               type="button"
               size="sm"
               variant={ready && ready.state !== "no_cv" ? "candido" : "outline"}
               className="mt-3 w-full sm:w-auto"
-              onClick={() => props.onPrepare && beforeLeave(props.onPrepare)}
+              disabled={opening}
+              onClick={() => {
+                const open = props.onPrepare;
+                if (open) beforeLeave(() => startOpening(open));
+              }}
             >
-              {prepare.label}
-              <ArrowUpRightIcon />
+              {opening ? "Opening…" : prepare.label}
+              {opening ? <Loader2Icon className="animate-spin" /> : <ArrowUpRightIcon />}
             </Button>
           </PaneSection>
 
@@ -1127,7 +1165,7 @@ const JobFormSheet = (props: JobFormSheetProps) => {
                 <InlineInput id="url" value={url} onChange={(e) => setUrl(e.target.value)} disabled={loading} placeholder="Add" className={factInput} />
               </Fact>
               <Fact label="Tags" wide>
-                <TagsInput compact allEntries={props.allEntries} tags={tags} onTagsChange={setTags} />
+                <TagsInput compact wrap allEntries={props.allEntries} tags={tags} onTagsChange={setTags} />
               </Fact>
               </div>
               <div className="flex min-h-72 shrink-0 flex-1 flex-col gap-1.5">
