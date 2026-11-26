@@ -22,6 +22,8 @@ import { move } from "@dnd-kit/helpers";
 import { PlusIcon } from "lucide-react";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
 import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
+import { pageGutter } from "@/lib/jobBoard/pageGutter";
+import { cn } from "@/lib/utils";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
@@ -313,7 +315,7 @@ const BoardPageContent = () => {
 
   return (
     <>
-      <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 pt-4 sm:pt-12 pb-8 flex flex-col min-h-0 flex-1 overflow-hidden">
+      <div className={cn("w-full pt-6 sm:pt-12 pb-6 flex flex-col min-h-0 flex-1 overflow-hidden", pageGutter)}>
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start shrink-0 min-w-0 px-1">
           <div>
             <Title>Board</Title>

@@ -1,5 +1,6 @@
 "use client";
 
+import { pageGutter } from "@/lib/jobBoard/pageGutter";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import InlineInput from "@/components/ui/InlineInput";
@@ -39,8 +40,8 @@ interface JobApplicationViewProps {
 }
 
 // Rem, not px: Tailwind only orders breakpoints of the same unit, and `sm:` is in rem.
-const sidePadding = "px-4 sm:px-6 min-[90rem]:px-14 min-[106rem]:px-20";
-const areaPadding = `${sidePadding} py-5 min-[90rem]:py-8`;
+const sidePadding = pageGutter;
+const areaPadding = `${sidePadding} py-6 lg:py-8 min-[90rem]:py-10`;
 
 const Fact = ({ label, htmlFor, className, children }: { label: string; htmlFor?: string; className?: string; children: ReactNode }) => (
   <div className={cn("min-w-0", className)}>
@@ -90,7 +91,7 @@ const JobApplicationView = ({
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
-        <header className={cn("shrink-0 border-b border-border pt-4 pb-5", sidePadding)}>
+        <header className={cn("shrink-0 border-b border-border pt-6 pb-6 lg:pt-8", sidePadding)}>
           <button
             type="button"
             onClick={() => form.beforeLeave(onBack)}
