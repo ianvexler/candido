@@ -20,6 +20,8 @@ import { move } from "@dnd-kit/helpers";
 import { usePatchJob } from "@/lib/jobBoard/usePatchJob";
 import { usePublishJobCounts } from "@/lib/jobBoard/useJobCounts";
 import { useOpenJob } from "@/lib/jobBoard/useOpenJob";
+import { pageGutter } from "@/lib/jobBoard/pageGutter";
+import { cn } from "@/lib/utils";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Sheet } from "@/components/ui/Sheet";
@@ -319,7 +321,7 @@ const BoardPageContent = () => {
 
   return (
     <>
-      <div className="w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 overflow-hidden">
+      <div className={cn("w-full pt-4 sm:pt-10 pb-8 flex flex-col min-h-0 flex-1 overflow-hidden", pageGutter)}>
         <JobsHeader title="Board" description="Track your job applications" onAddJob={openAddJob}>
           <BoardFilters
             jobBoardEntries={jobBoardEntries}
