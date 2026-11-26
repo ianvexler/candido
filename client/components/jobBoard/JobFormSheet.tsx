@@ -683,15 +683,23 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const showInvalid = !isCreate || formSubmitted;
   const titleFields = (
     <>
-      <InlineInput
+      {/* Grows to a second line, so a long title isn't cut off beside the status. */}
+      <textarea
         id="title"
+        rows={1}
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        // One line of text: no line breaks, typed or pasted.
+        onChange={(e) => setTitle(e.target.value.replace(/\s*\n\s*/g, " "))}
+        onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
         disabled={loading}
         aria-label="Job title"
         aria-invalid={(showInvalid && !isTitleValid) || undefined}
         placeholder="Job title"
-        className={cn(paneInput, "mt-4 py-0.5 text-2xl font-bold leading-tight tracking-tight")}
+        className={cn(
+          "block w-full resize-none rounded-none border-b bg-transparent px-0 outline-none [field-sizing:content] placeholder:text-muted-foreground aria-invalid:border-destructive disabled:opacity-50",
+          paneInput,
+          "py-0.5 text-2xl font-bold leading-tight tracking-tight"
+        )}
       />
       {formSubmitted && !isTitleValid && <p className="text-xs text-destructive">A job needs a title.</p>}
       <InlineInput
@@ -706,6 +714,13 @@ const JobFormSheet = (props: JobFormSheetProps) => {
       />
       {formSubmitted && !isCompanyValid && <p className="text-xs text-destructive">A job needs a company.</p>}
     </>
+  );
+  // The title and company, with the status and actions on the title's line.
+  const header = (actions: ReactNode) => (
+    <div className="flex items-start gap-3">
+      <div className="min-w-0 flex-1">{titleFields}</div>
+      <div className="flex shrink-0 items-center gap-1 pt-0.5">{actions}</div>
+    </div>
   );
   const factsBox = (
     <div className="@container mt-5">
@@ -763,16 +778,14 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const paneBody = (headerAction: ReactNode, padding: string) =>
     entry && (
         <div className={cn("flex flex-col", padding)}>
-          <div className="flex items-center justify-between gap-2">
-            {statusPill}
-            <div className="flex items-center gap-1">
+          {header(
+            <>
               {saveStatus}
+              {statusPill}
               {moreMenu}
               {headerAction}
-            </div>
-          </div>
-
-          {titleFields}
+            </>
+          )}
 
           {factsBox}
 
@@ -828,13 +841,14 @@ const JobFormSheet = (props: JobFormSheetProps) => {
   const createForm = (
     <form onSubmit={handleCreateSubmit} className="min-h-0 flex-1 overflow-y-auto bg-muted/30">
       <div className="flex flex-col px-6 pb-8 pt-6 sm:px-9 sm:pt-7">
-        <div className="flex items-center justify-between gap-2">
-          {statusPill}
-          <Button type="button" variant="ghost" size="icon-sm" onClick={handleCancelClick} aria-label="Close">
-            <XIcon />
-          </Button>
-        </div>
-        {titleFields}
+        {header(
+          <>
+            {statusPill}
+            <Button type="button" variant="ghost" size="icon-sm" onClick={handleCancelClick} aria-label="Close">
+              <XIcon />
+            </Button>
+          </>
+        )}
         {factsBox}
         {descriptionEditor}
         <Button type="submit" disabled={loading} className="mt-7 w-full sm:w-auto sm:self-start">
