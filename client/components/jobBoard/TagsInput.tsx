@@ -17,9 +17,11 @@ interface TagsInputProps {
   onTagsChange: (tags: string[]) => void;
   /** One line, underlined like the fields beside it. */
   compact?: boolean;
+  /** Extra classes for the button that opens the picker. */
+  className?: string;
 }
 
-const TagsInput = ({ allEntries, tags, onTagsChange, compact = false }: TagsInputProps) => {  
+const TagsInput = ({ allEntries, tags, onTagsChange, compact = false, className }: TagsInputProps) => {  
   const [newTagInput, setNewTagInput] = useState("");
   const [filterValue, setFilterValue] = useState("");
 
@@ -82,7 +84,8 @@ const TagsInput = ({ allEntries, tags, onTagsChange, compact = false }: TagsInpu
           className={cn(
             "flex w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50",
             tags.length > 0 ? "gap-2" : "text-muted-foreground",
-            compact && "h-9 text-base rounded-none border-0 border-b border-border bg-transparent px-0 py-0"
+            compact && "h-9 text-base rounded-none border-0 border-b border-border bg-transparent px-0 py-0",
+            className
           )}
         >
           {tags.length > 0 ? (
