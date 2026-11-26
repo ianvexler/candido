@@ -13,7 +13,7 @@ import type { CvEdits } from "../useCvEdits";
 import AddMenu from "./AddMenu";
 import { columnsOf } from "./measureBlocks";
 import { BlockRef, blockAt, columnEdges, Gap, gapAt } from "./pagePlaces";
-import SectionMenu, { useOrderWhenIn } from "./SectionMenu";
+import SectionMenu from "./SectionMenu";
 
 /** Sizes in sheet px. */
 const TICK = 18;
@@ -187,7 +187,6 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
   const [menu, setMenu] = useState<Menu | null>(null);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const order = sections.map(({ id }) => id);
-  const orderWhenIn = useOrderWhenIn(sections, actions.orderSections);
 
   const find = useEffectEvent((event: PointerEvent): Hovered | null => {
     const root = rootRef.current;
@@ -268,7 +267,7 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
           side="left"
           onClick={() => {
             setHovered(NOTHING);
-            actions.tick(targetOf(block), false);
+            void actions.tick(targetOf(block), false);
             rootRef.current?.focus({ preventScroll: true });
           }}
           className="absolute size-[18px] min-w-0 rounded-[4px] bg-[#1f2328] p-0 text-white hover:bg-[#3a4047] hover:text-white [&_svg]:size-3"
@@ -277,7 +276,9 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
           <CheckIcon strokeWidth={3} />
         </IconAction>
       )}
-      {shownGap && <Pill gap={shownGap} open={menu !== null} onOpen={() => open(shownGap)} buttonRef={setAnchor} />}
+      {shownGap && (
+        <Pill gap={shownGap} open={menu !== null} onOpen={() => (menu ? close(false) : open(shownGap))} buttonRef={setAnchor} />
+      )}
       {menu?.kind === "add" && (
         <ToolMenu anchor={anchor} onClose={close}>
           <AddMenu
@@ -285,7 +286,7 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
             rows={rows}
             edits={edits}
             onPutBack={(entryId, itemId) =>
-              actions.tick({ sectionId: menu.gap.place.sectionId, templateId: null, entryId, itemId, inCv: true }, true)
+              void actions.tick({ sectionId: menu.gap.place.sectionId, templateId: null, entryId, itemId, inCv: true }, true)
             }
             onClose={close}
           />
@@ -299,7 +300,6 @@ const PageTools = ({ ref, rootRef, scale, sections, rows, actions, edits, addSec
             afterSectionId={menu.afterSectionId}
             actions={actions}
             addSection={addSection}
-            orderWhenIn={orderWhenIn}
             onClose={close}
           />
         </ToolMenu>

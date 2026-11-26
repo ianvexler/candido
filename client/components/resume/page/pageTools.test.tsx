@@ -141,6 +141,14 @@ describe("PageTools", () => {
     expect(actions.tick).toHaveBeenCalledWith({ sectionId: 1, templateId: null, entryId: "e1", itemId: "i2", inCv: true }, true);
   });
 
+  it("closes a menu from its pill", async () => {
+    await move(document.getElementById("item")!);
+    await press(named("Add here"));
+    expect(item("Bullet")).not.toBeNull();
+    await press(named("Add here"));
+    expect(item("Bullet")).toBeNull();
+  });
+
   it("opens the section menu", async () => {
     places.gapAt.mockReturnValue({ ...addGap, kind: "section", afterSectionId: 1 });
     await move(document.getElementById("item")!);

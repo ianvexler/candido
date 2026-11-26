@@ -85,7 +85,8 @@ export const createCvRequests = ({
     return request;
   };
 
-  const includeNow = async (payload: IncludePayload) => {
+  /** The id of the section it is in, if any. */
+  const includeNow = async (payload: IncludePayload): Promise<number | null> => {
     for (let count = 0; count < MAX_INCLUDES; count += 1) {
       if (!(await flush())) throw new RequestStopped(UNSAVED);
       const before = current();
@@ -95,10 +96,13 @@ export const createCvRequests = ({
       if (ours && !isSaved(ours.id)) continue;
 
       const copy = copyOf(await sendInclude(payload), payload.section_template_id);
-      if (!copy) return;
+      if (!copy) return null;
       const edited = byId(before, copy.id) !== byId(current(), copy.id);
       // Edited meanwhile: save that and include again, for the same reason.
-      if (!edited) return replace(copy);
+      if (!edited) {
+        replace(copy);
+        return copy.id;
+      }
     }
     throw new RequestStopped(KEPT_CHANGING);
   };

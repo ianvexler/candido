@@ -4,16 +4,25 @@ import type { CurriculumSection } from "@/lib/types";
 import { act } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import SectionMenu, { useOrderWhenIn } from "./SectionMenu";
+import SectionMenu from "./SectionMenu";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const row = (name: string, sectionId: number | null, templateId: number | null, ticked: boolean, entries = 1) =>
-  ({ key: name, name, sectionId, templateId, ticked, hidden: !ticked, entries: Array.from({ length: entries }, () => ({})) }) as ChecklistSection;
+const row = (name: string, sectionId: number | null, templateId: number | null, ticked: boolean, entries = 1, libraryOnly = 0) =>
+  ({
+    key: name,
+    name,
+    sectionId,
+    templateId,
+    ticked,
+    hidden: !ticked,
+    entries: Array.from({ length: entries + libraryOnly }, (_, index) => ({ inCv: sectionId !== null && index < entries })),
+  }) as ChecklistSection;
 
 const rows = [
   row("Experience", 1, null, true),
-  row("Volunteering", 2, 20, false, 3),
+  // Its library section has another entry, which isn't in this CV.
+  row("Volunteering", 2, 20, false, 3, 1),
   row("Talks", null, 30, false),
   row("Awards", null, 40, false, 2),
 ];
@@ -22,24 +31,20 @@ const section = (id: number, templateId: number | null = null) => ({ id, section
 
 let host: HTMLDivElement;
 let root: Root;
-let actions: { tick: ReturnType<typeof vi.fn>; orderSections: ReturnType<typeof vi.fn> };
+let actions: { tick: ReturnType<typeof vi.fn>; placeSection: ReturnType<typeof vi.fn> };
 let addSection: ReturnType<typeof vi.fn>;
 let onClose: ReturnType<typeof vi.fn>;
 
-const Harness = ({ sections }: { sections: CurriculumSection[] }) => {
-  const orderWhenIn = useOrderWhenIn(sections, actions.orderSections);
-  return (
-    <SectionMenu
-      rows={rows}
-      order={sections.map(({ id }) => id)}
-      afterSectionId={1}
-      actions={actions as unknown as ChecklistActions}
-      addSection={addSection}
-      orderWhenIn={orderWhenIn}
-      onClose={onClose}
-    />
-  );
-};
+const Harness = ({ sections }: { sections: CurriculumSection[] }) => (
+  <SectionMenu
+    rows={rows}
+    order={sections.map(({ id }) => id)}
+    afterSectionId={1}
+    actions={actions as unknown as ChecklistActions}
+    addSection={addSection}
+    onClose={onClose}
+  />
+);
 
 const render = (sections = [section(1), section(2)]) => act(async () => root.render(<Harness sections={sections} />));
 const input = () => host.querySelector<HTMLInputElement>("input")!;
@@ -53,7 +58,7 @@ const key = (name: string) =>
   act(async () => void input().dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true })));
 
 beforeEach(() => {
-  actions = { tick: vi.fn(), orderSections: vi.fn() };
+  actions = { tick: vi.fn(async () => null), placeSection: vi.fn() };
   addSection = vi.fn(async () => {});
   onClose = vi.fn();
   host = document.createElement("div");
@@ -100,20 +105,30 @@ describe("SectionMenu", () => {
     await render([section(2), section(1)]);
     await key("Enter");
     expect(actions.tick).toHaveBeenCalledWith({ sectionId: 2, templateId: 20, inCv: true }, true);
-    expect(actions.orderSections).toHaveBeenCalledWith([1, 2]);
+    expect(actions.placeSection).toHaveBeenCalledWith(2, 1);
   });
 
-  it("ticks a library section in, then orders it after the given section once it is in the CV", async () => {
+  const chooseLibrary = async (included: number | null) => {
+    actions.tick.mockResolvedValue(included);
     await render([section(1), section(2)]);
     await key("ArrowDown");
     await key("Enter");
     expect(actions.tick).toHaveBeenCalledWith({ sectionId: null, templateId: 30, inCv: false }, true);
-    expect(actions.orderSections).not.toHaveBeenCalled();
-    // The include appends its copy.
-    await render([section(1), section(2), section(9, 30)]);
-    expect(actions.orderSections).toHaveBeenCalledWith([1, 9, 2]);
-    await render([section(1), section(2), section(9, 30), section(10)]);
-    expect(actions.orderSections).toHaveBeenCalledTimes(1);
+  };
+
+  it("ticks a library section in, then places its copy after the given section", async () => {
+    await chooseLibrary(9);
+    expect(actions.placeSection).toHaveBeenCalledWith(9, 1);
+  });
+
+  it("places nothing when the include fails, or was already under way", async () => {
+    await chooseLibrary(null);
+    expect(actions.placeSection).not.toHaveBeenCalled();
+  });
+
+  it("leaves a copy the CV already had where it is", async () => {
+    await chooseLibrary(2);
+    expect(actions.placeSection).not.toHaveBeenCalled();
   });
 
   it("closes on Escape, giving the focus back", async () => {

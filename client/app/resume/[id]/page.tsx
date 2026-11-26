@@ -20,7 +20,7 @@ import { showSuggestion } from "@/components/resume/review/showSuggestion";
 import { CvView, useCvView } from "@/components/resume/useCvView";
 import { useCvEdits } from "@/components/resume/useCvEdits";
 import { useRoomForPage } from "@/components/resume/useRoomForPage";
-import { buildChecklist, placeSection, tickSuggestion } from "@/lib/resume/checklist";
+import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
 import { isLeftOut, sectionColumn } from "@/lib/resume/exportDocument";
 import { createMonthDrafts, MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { useCv } from "@/lib/resume/useCv";
@@ -35,7 +35,7 @@ interface ResumePageProps {
 
 const CvPage = ({ id }: { id: string }) => {
   const { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf } = useCv(id);
-  const { sections, versions, change, current: currentSections } = drafts;
+  const { sections, versions, change } = drafts;
   const { pending, actions, addSection } = checklist;
   const [view, setView] = useCvView();
   const roomForPage = useRoomForPage(view);
@@ -69,9 +69,7 @@ const CvPage = ({ id }: { id: string }) => {
     const movedOn = watchMovedOn();
     try {
       const section = await addSection(name);
-      if (section && afterSectionId !== undefined) {
-        actions.orderSections(placeSection(currentSections().map(({ id }) => id), section.id, afterSectionId));
-      }
+      if (section && afterSectionId !== undefined) actions.placeSection(section.id, afterSectionId);
       if (section && !movedOn()) goToNew(section.id);
       return true;
     } catch (error) {
@@ -82,7 +80,7 @@ const CvPage = ({ id }: { id: string }) => {
       movedOn();
       setAdding(false);
     }
-  }, [addSection, goToNew, actions, currentSections]);
+  }, [addSection, goToNew, actions]);
   const addPlainSection = useCallback(() => void addNamedSection("Section"), [addNamedSection]);
   const addSectionAfter = useCallback(
     async (name: string, afterSectionId: number | null) => void (await addNamedSection(name, afterSectionId)),

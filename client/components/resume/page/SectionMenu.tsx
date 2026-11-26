@@ -1,32 +1,9 @@
 "use client";
 
-import { ChecklistSection, placeSection } from "@/lib/resume/checklist";
+import type { ChecklistSection } from "@/lib/resume/checklist";
 import type { ChecklistActions } from "@/lib/resume/useCvChecklist";
-import type { CurriculumSection } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from "react";
-
-type Waiting = { templateId: number; afterSectionId: number | null; known: Set<number> };
-
-/**
- * Orders a library section after another once its copy is in the CV: an include
- * says nothing of where it went, and appends it.
- */
-export const useOrderWhenIn = (sections: CurriculumSection[], orderSections: ChecklistActions["orderSections"]) => {
-  const waiting = useRef<Waiting | null>(null);
-  const latest = useRef(sections);
-  useEffect(() => {
-    latest.current = sections;
-    const wanted = waiting.current;
-    const copy = wanted && sections.find((section) => section.section_template_id === wanted.templateId && !wanted.known.has(section.id));
-    if (!wanted || !copy) return;
-    waiting.current = null;
-    orderSections(placeSection(sections.map(({ id }) => id), copy.id, wanted.afterSectionId));
-  }, [sections, orderSections]);
-  return useCallback((templateId: number, afterSectionId: number | null) => {
-    waiting.current = { templateId, afterSectionId, known: new Set(latest.current.map(({ id }) => id)) };
-  }, []);
-};
+import { KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
 type Choice =
   | { kind: "cv"; row: ChecklistSection & { sectionId: number } }
@@ -41,15 +18,14 @@ interface SectionMenuProps {
   /** The CV's section ids, in order. */
   order: number[];
   afterSectionId: number | null;
-  actions: Pick<ChecklistActions, "tick" | "orderSections">;
+  actions: Pick<ChecklistActions, "tick" | "placeSection">;
   addSection: (name: string, afterSectionId: number | null) => Promise<void>;
-  orderWhenIn: ReturnType<typeof useOrderWhenIn>;
   /** `back`: the focus goes back to the page. */
   onClose: (back: boolean) => void;
 }
 
 /** What a "+ Section" adds: a left-out or library section, or a new one, searched by name. */
-const SectionMenu = ({ rows, order, afterSectionId, actions, addSection, orderWhenIn, onClose }: SectionMenuProps) => {
+const SectionMenu = ({ rows, order, afterSectionId, actions, addSection, onClose }: SectionMenuProps) => {
   const listId = useId();
   const [text, setText] = useState("");
   const [active, setActive] = useState(0);
@@ -74,11 +50,14 @@ const SectionMenu = ({ rows, order, afterSectionId, actions, addSection, orderWh
     onClose(false);
     if (choice.kind === "cv") {
       const { sectionId, templateId } = choice.row;
-      actions.tick({ sectionId, templateId, inCv: true }, true);
-      actions.orderSections(placeSection(order, sectionId, afterSectionId));
+      void actions.tick({ sectionId, templateId, inCv: true }, true);
+      actions.placeSection(sectionId, afterSectionId);
     } else if (choice.kind === "library") {
-      actions.tick({ sectionId: null, templateId: choice.row.templateId, inCv: false }, true);
-      orderWhenIn(choice.row.templateId, afterSectionId);
+      const known = new Set(order);
+      // Only a copy this include made: one the CV had stays where it is. Nothing if it failed.
+      void actions.tick({ sectionId: null, templateId: choice.row.templateId, inCv: false }, true).then((id) => {
+        if (id !== null && !known.has(id)) actions.placeSection(id, afterSectionId);
+      });
     } else {
       void addSection(choice.kind === "new" ? choice.name : "Section", afterSectionId);
     }
@@ -144,7 +123,7 @@ const SectionMenu = ({ rows, order, afterSectionId, actions, addSection, orderWh
           >
             <span className="min-w-0 truncate">{label(choice)}</span>
             {(choice.kind === "cv" || choice.kind === "library") && (
-              <span className="ml-auto shrink-0 text-xs text-muted-foreground">{entries(choice.row.entries.length)}</span>
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground">{entries(choice.row.entries.filter(({ inCv }) => inCv === (choice.kind === "cv")).length)}</span>
             )}
           </div>
         ))}
