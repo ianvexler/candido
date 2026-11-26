@@ -142,8 +142,12 @@ jobs:
             export IMAGE_TAG="$REF"
             export GITHUB_REPO_OWNER="${{ github.repository_owner }}"
 
+            # Free space before pulling: the old images stay on disk until this, and a full disk fails the pull.
+            # Images used by running containers are kept; volumes are never touched (data lives outside Docker).
             docker container prune -f || true
-            docker image prune -f || true
+            docker image prune -af || true
+            docker builder prune -af || true
+            df -h /
 
             docker-compose -f docker-compose.prod.yml --env-file backend/.env pull
 
