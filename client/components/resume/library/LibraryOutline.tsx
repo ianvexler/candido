@@ -135,6 +135,7 @@ const EntryRow = ({ sectionId, entry, index, ids, sortable, selected, onSelect, 
       draggable={canMove}
       menu={
         <RowMenu
+          lazy
           label={label}
           move={{
             canMoveUp: canMove && index > 0,
@@ -211,9 +212,10 @@ const SectionRows = ({
         rowId={String(section.id)}
         rowRef={targetRef}
         handleRef={handleRef}
-      draggable={canMove}
+        draggable={canMove}
         menu={
           <RowMenu
+            lazy
             label={label}
             move={{
               canMoveUp: canMove && index > 0,
