@@ -1,5 +1,7 @@
 FROM node:24-alpine AS dev
 WORKDIR /app
+# Chrome makes the CV PDFs (lib/pdf).
+RUN apk add --no-cache chromium font-noto
 COPY package*.json ./
 RUN npm install
 COPY . .
