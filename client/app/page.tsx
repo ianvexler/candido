@@ -53,7 +53,7 @@ const LandingPage = () => (
             <h1 className="text-[clamp(48px,6vw,80px)]">Build your way to the offer</h1>
             <p className="mt-8 max-w-[26em] text-[17px] sm:text-[18px]">
               Every application, CV and cover letter together, with AI that tailors your application to each role.
-              Less time on admin, more on the jobs you want.
+              Less time on admin, more time for you.
             </p>
             <CtaLink href="/register" className="mt-7">Create account</CtaLink>
           </div>
