@@ -15,7 +15,7 @@ type CardProps = ComponentProps<typeof CurriculumSectionCard>;
 
 interface CvCardsProps
   extends Omit<SuggestionProps, "suggestions">,
-    Pick<CardProps, "onChange" | "onRemove" | "describeDeletion" | "twoColumn"> {
+    Pick<CardProps, "onChange" | "onRemove" | "describeDeletion" | "twoColumn" | "leaveOutLocked"> {
   header: HeaderDraft;
   sections: CurriculumSection[];
   versions: Record<number, EntryVersions>;

@@ -2,13 +2,15 @@ import { addEmptyCurriculumSection } from "@/api/resources/curriculums/addEmptyC
 import { deleteCurriculumSection } from "@/api/resources/curriculums/deleteCurriculumSection";
 import { includeFromLibrary } from "@/api/resources/curriculums/includeFromLibrary";
 import { reorderCurriculumSections } from "@/api/resources/curriculums/reorderCurriculumSections";
+import { setCurriculumPurpose } from "@/api/resources/curriculums/setCurriculumPurpose";
 import { TransferDirection, transferWithLibrary } from "@/api/resources/curriculums/transferWithLibrary";
 import { CurriculumSection } from "@/lib/types";
 import { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { moveSection, placeSection, tickEntry, tickItem, tickSection } from "./checklist";
+import { Fits, moveSection, placeSection, tickEntry, tickItem, tickSection } from "./checklist";
 import { createCvRequests, RequestStopped, TextKept } from "./cvRequests";
 import { sectionColumn } from "./exportDocument";
+import { itemFits } from "./purposes";
 import { apiErrorMessage } from "./reviewPanel";
 import { moveEntry } from "./sectionEntries";
 import type { TransferTarget } from "./transfer";
@@ -55,16 +57,21 @@ type Drafts = Pick<
 const NOTHING_PENDING: ReadonlySet<string> = new Set();
 type Library = Pick<ReturnType<typeof useSectionLibrary>, "current" | "take" | "refresh">;
 
-/** What the checklist does to a CV. The functions stay the same. */
+/**
+ * What the checklist does to a CV. The functions stay the same, apart from
+ * `tick`, which changes with `purposeId` (null: Everything).
+ */
 export const useCvChecklist = (
   curriculumId: number,
   { current, saved, isSaved, change, setRecord, flush, replace, add, reorder, remove }: Drafts,
-  { current: templates, take: takeTemplate, refresh: refreshLibrary }: Library
+  { current: templates, take: takeTemplate, refresh: refreshLibrary }: Library,
+  purposeId: number | null = null
 ) => {
   const [pending, setPending] = useState(NOTHING_PENDING);
+  const [changingPurpose, setChangingPurpose] = useState(false);
 
   // As with the drafts: these go by the CV first given, and a page has only one.
-  const [{ enqueue, include, transfer: sendTransfer, orderSections: saveOrder }] = useState(() =>
+  const [requests] = useState(() =>
     createCvRequests({
       current,
       flush,
@@ -79,8 +86,12 @@ export const useCvChecklist = (
       templates,
       takeTemplate,
       sendTransfer: (sectionId, payload) => transferWithLibrary(curriculumId, sectionId, payload),
+      sendPurpose: async (labelId, force) => (await setCurriculumPurpose(curriculumId, labelId, force)).curriculum,
+      onChangingPurpose: setChangingPurpose,
     })
   );
+  const { enqueue, include, transfer: sendTransfer, orderSections: saveOrder, changePurpose } = requests;
+  const ticksLocked = requests.changingPurpose;
 
   const pendingKeys = useRef(new Set<string>());
   const setBusy = useCallback((key: string, busy: boolean) => {
@@ -92,10 +103,19 @@ export const useCvChecklist = (
   const tick = useCallback(
     (target: ChecklistTarget, on: boolean) => {
       const { sectionId, templateId, entryId, itemId, inCv } = target;
+      // The rows show they can't be ticked; see changingPurpose.
+      if (ticksLocked()) {
+        toast("Wait until the purpose has changed, then try again.");
+        return Promise.resolve(null);
+      }
       if (inCv && sectionId !== null) {
+        // What fits the purpose, as the library labels it. Everything and CV-only sections tick all.
+        const template = templateId === null ? undefined : templates().find(({ id }) => id === templateId);
+        const fits: Fits | undefined =
+          template && purposeId !== null ? (entry, item) => itemFits(template, entry, item, purposeId) : undefined;
         change(sectionId, (section) => {
-          if (entryId === undefined) return tickSection(section, on);
-          if (itemId === undefined) return tickEntry(section, entryId, on);
+          if (entryId === undefined) return tickSection(section, on, fits);
+          if (itemId === undefined) return tickEntry(section, entryId, on, fits);
           return tickItem(section, entryId, itemId, on);
         });
         return Promise.resolve(sectionId);
@@ -117,7 +137,7 @@ export const useCvChecklist = (
         })
         .finally(() => setBusy(key, false));
     },
-    [change, include, refreshLibrary, setBusy]
+    [change, include, refreshLibrary, setBusy, templates, purposeId, ticksLocked]
   );
 
   const transfer = useCallback(
@@ -202,5 +222,6 @@ export const useCvChecklist = (
     [tick, orderSections, removeSection, transfer, current, change]
   );
 
-  return { pending, actions, addSection };
+  /** While true, nothing may be ticked or left out: see createCvRequests' changingPurpose. */
+  return { pending, actions, addSection, changePurpose, changingPurpose };
 };

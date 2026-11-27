@@ -1,5 +1,7 @@
 "use client";
 
+import { getCvLabels } from "@/api/resources/cvLabels/getCvLabels";
+import ConfirmationModal from "@/components/common/ConfirmationModal";
 import Loader from "@/components/common/Loader";
 import AddSheetButton from "@/components/resume/AddSheetButton";
 import CvCards from "@/components/resume/CvCards";
@@ -12,6 +14,7 @@ import { watchMovedOn } from "@/components/resume/movedOn";
 import { createPageEditors } from "@/components/resume/page/pageEditors";
 import PagePreview from "@/components/resume/page/PagePreview";
 import PageView from "@/components/resume/page/PageView";
+import PurposeSelect from "@/components/resume/PurposeSelect";
 import { useHeaderBinding } from "@/components/resume/page/useHeaderBinding";
 import { EditChannelContext } from "@/components/resume/editChannel";
 import { deletionNote } from "@/components/resume/removeSection";
@@ -21,11 +24,14 @@ import { CvView, useCvView } from "@/components/resume/useCvView";
 import { useCvEdits } from "@/components/resume/useCvEdits";
 import { useRoomForPage } from "@/components/resume/useRoomForPage";
 import { buildChecklist, tickSuggestion } from "@/lib/resume/checklist";
+import { PurposeKeptChanging, RequestStopped } from "@/lib/resume/cvRequests";
 import { isLeftOut, sectionColumn } from "@/lib/resume/exportDocument";
 import { createMonthDrafts, MonthDraftsContext } from "@/lib/resume/monthDrafts";
+import { apiErrorMessage, isConflict } from "@/lib/resume/reviewPanel";
 import { useCv } from "@/lib/resume/useCv";
-import { CvSuggestion, MissingSection } from "@/lib/types";
+import { CvLabel, CvSuggestion, MissingSection } from "@/lib/types";
 import NextLink from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -34,9 +40,32 @@ interface ResumePageProps {
 }
 
 const CvPage = ({ id }: { id: string }) => {
-  const { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf, exporting } = useCv(id);
+  const { curriculum, setCurriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf, exporting } = useCv(id);
   const { sections, versions, change } = drafts;
-  const { pending, actions, addSection } = checklist;
+  const { pending, actions, addSection, changePurpose, changingPurpose } = checklist;
+  const [labels, setLabels] = useState<CvLabel[]>([]);
+  /** The purpose asked about, while asking whether to reset ticks changed by hand. */
+  const [resetTo, setResetTo] = useState<{ labelId: number | null; name: string } | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // A CV just made opens ready to rename; a reload doesn't.
+  const [justMade] = useState(() => searchParams.has("rename"));
+  useEffect(() => {
+    if (justMade) router.replace(`/resume/${id}`, { scroll: false });
+  }, [justMade, router, id]);
+
+  // Without them the purpose can't be changed, but the CV still opens.
+  useEffect(() => {
+    let cancelled = false;
+    getCvLabels()
+      .then((response) => {
+        if (!cancelled) setLabels(response.cv_labels);
+      })
+      .catch((error) => console.error(error));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [view, setView] = useCvView();
   const roomForPage = useRoomForPage(view);
   const [tab, setTab] = useState<CvTab>("cv");
@@ -151,7 +180,33 @@ const CvPage = ({ id }: { id: string }) => {
     else openSuggestion(s);
   };
 
+  // Ticks by the purpose. Asks first if ticks were changed by hand since it last did.
+  const choosePurpose = async (labelId: number | null, force = false) => {
+    try {
+      setCurriculum(await changePurpose(labelId, force));
+    } catch (error) {
+      if (!force && isConflict(error)) {
+        const name = labels.find((label) => label.id === labelId)?.name ?? "Everything";
+        setResetTo({ labelId, name });
+      } else if (error instanceof RequestStopped) {
+        // The server has the new purpose even so.
+        if (error instanceof PurposeKeptChanging) {
+          const { labelId: changedTo } = error;
+          setCurriculum((now) => now && { ...now, cv_label_id: changedTo });
+        }
+        toast.error(error.message);
+      } else {
+        console.error(error);
+        toast.error(apiErrorMessage(error, "Couldn't change the purpose. Try again."));
+      }
+    }
+  };
+
   const includeSuggestion = (s: CvSuggestion) => {
+    if (changingPurpose) {
+      toast("Wait until the purpose has changed, then include this.");
+      return;
+    }
     change(s.curriculum_section_id, (section) => tickSuggestion(section, s));
     openSuggestion(s);
   };
@@ -164,6 +219,7 @@ const CvPage = ({ id }: { id: string }) => {
     <CvChecklist
       sections={rows}
       pending={pending}
+      ticksLocked={changingPurpose}
       actions={actions}
       columns={columns}
       libraryLoading={library.loading}
@@ -257,6 +313,25 @@ const CvPage = ({ id }: { id: string }) => {
             onViewChange={changeView}
             design={!onPage && <DesignSheet {...designPanel} />}
             compact={onPage}
+            focusTitle={justMade}
+            purpose={
+              (labels.length > 0 || curriculum.cv_label_id !== null) && (
+                <PurposeSelect
+                  labels={labels}
+                  value={curriculum.cv_label_id}
+                  onChange={(labelId) => void choosePurpose(labelId)}
+                  disabled={changingPurpose || resetTo !== null}
+                />
+              )
+            }
+          />
+          <ConfirmationModal
+            isOpen={resetTo !== null}
+            onClose={() => setResetTo(null)}
+            onConfirm={() => (resetTo ? choosePurpose(resetTo.labelId, true) : undefined)}
+            title="Change the purpose?"
+            description={`Some ticks here were changed by hand. Changing the purpose resets them to fit ${resetTo?.name ?? "Everything"}. Text doesn't change.`}
+            confirmLabel="Change purpose"
           />
           {onPage ? (
             <PageView
@@ -289,6 +364,7 @@ const CvPage = ({ id }: { id: string }) => {
                 onRemove={actions.removeSection}
                 describeDeletion={describeDeletion}
                 twoColumn={twoColumn}
+                leaveOutLocked={changingPurpose}
                 {...suggestions}
               />
               {emptyHint}

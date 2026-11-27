@@ -71,6 +71,8 @@ interface EntryRowsProps {
   /** Its only entry, and without a title: items go right under the section. */
   bare: boolean;
   pending: string[];
+  /** Nothing can be ticked; see ChecklistSectionProps. */
+  locked: boolean;
   canReorder: boolean;
   /** The library is known. */
   offerChanges: boolean;
@@ -96,6 +98,7 @@ const EntryRows = memo(({
   count,
   bare,
   pending,
+  locked,
   canReorder,
   offerChanges,
   actions,
@@ -161,7 +164,7 @@ const EntryRows = memo(({
           included={entry.included}
           total={entry.items.length > 0 ? entry.total : 0}
           isNew={entry.isNew && !sectionIsNew}
-          busy={pending.includes(targetKey(target))}
+          busy={locked || pending.includes(targetKey(target))}
           onTick={(on) => actions.tick(target, on)}
           rowRef={sortable ? targetRef : undefined}
           handleRef={sortable ? handleRef : undefined}
@@ -205,7 +208,7 @@ const EntryRows = memo(({
           label={item.text}
           ticked={item.ticked}
           isNew={item.isNew && !entry.isNew && !sectionIsNew}
-          busy={pending.includes(targetKey({ ...target, itemId: item.id }))}
+          busy={locked || pending.includes(targetKey({ ...target, itemId: item.id }))}
           onTickItem={tickItem}
           rowId={sectionId === null || item.id === "" ? undefined : rowIdOf({ sectionId, entryId: entry.id, itemId: item.id })}
           offer={offerChanges ? itemOffer(entry, item) : null}
@@ -228,6 +231,8 @@ interface ChecklistSectionProps {
   count: number;
   /** The keys of this section's targets that are being included or passed on. */
   pending: string[];
+  /** Nothing can be ticked, while the CV's purpose changes. */
+  locked?: boolean;
   /** Null when the template has one column. */
   column: "sidebar" | "main" | null;
   /** False while searching. */
@@ -247,6 +252,7 @@ const ChecklistSection = ({
   index,
   count,
   pending,
+  locked = false,
   column,
   canReorder,
   offerChanges,
@@ -291,7 +297,7 @@ const ChecklistSection = ({
         included={section.included}
         total={section.total}
         isNew={section.isNew}
-        busy={pending.includes(targetKey(target))}
+        busy={locked || pending.includes(targetKey(target))}
         onTick={(on) => actions.tick(target, on)}
         rowRef={sortable ? targetRef : undefined}
         handleRef={sortable ? handleRef : undefined}
@@ -346,6 +352,7 @@ const ChecklistSection = ({
           count={ours.length}
           bare={bare}
           pending={pending}
+          locked={locked}
           canReorder={canReorder}
           offerChanges={offerChanges}
           actions={actions}

@@ -38,7 +38,7 @@ export const useCv = (id: string) => {
   const { sections, load, flush } = drafts;
   const library = useSectionLibrary();
   const { refresh: refreshLibrary } = library;
-  const checklist = useCvChecklist(curriculumId, drafts, library);
+  const checklist = useCvChecklist(curriculumId, drafts, library, curriculum?.cv_label_id ?? null);
   const review = useCvReview(curriculumId, sections, flush);
   const { setTailoring } = review;
   const header = useHeaderDraft<HeaderValues>({
@@ -109,5 +109,5 @@ export const useCv = (id: string) => {
     }
   };
 
-  return { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf, exporting };
+  return { curriculum, setCurriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf, exporting };
 };

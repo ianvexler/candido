@@ -29,7 +29,10 @@ vi.hoisted(() => {
 vi.mock("react-hot-toast", () => ({ default: toast }));
 vi.mock("@/api/apiClient", () => ({ default: api }));
 vi.mock("next/link", () => ({ default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} /> }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, replace: () => {} }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 // next/font only works inside Next's own build.
 vi.mock("./templates/fonts", () => ({ FONT_FAMILIES: {} }));
 vi.mock("./EditorControls", () => ({ BlockToolbar: () => null, FormatBubble: () => null }));
@@ -72,6 +75,7 @@ const GETS: [RegExp, unknown][] = [
   [/^\/resume_profile$/, { profile: { name: "Sam", headline: "Engineer", email: "s@x.y", phone: "", location: "", links: [] } }],
   [/^\/resume_designs$/, { resume_designs: [] }],
   [/^\/section_templates/, { section_templates: [] }],
+  [/^\/cv_labels$/, { cv_labels: [] }],
 ];
 
 let root: Root;

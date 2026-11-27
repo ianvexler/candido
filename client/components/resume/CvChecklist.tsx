@@ -27,6 +27,8 @@ interface CvChecklistProps {
   sections: Section[];
   /** Keys of what is being included; see targetKey. */
   pending: ReadonlySet<string>;
+  /** Nothing can be ticked, while the CV's purpose changes. */
+  ticksLocked?: boolean;
   actions: ChecklistActions;
   /** By section id, with a two-column template. */
   columns: Map<number, SectionPlacement> | null;
@@ -48,6 +50,7 @@ interface CvChecklistProps {
 const CvChecklist = memo(({
     sections,
     pending,
+    ticksLocked = false,
     actions,
     columns,
     libraryLoading,
@@ -133,6 +136,7 @@ const CvChecklist = memo(({
       pending={[...pending].filter(
         (key) => key.startsWith(`${section.templateId}:`) || key.startsWith(`transfer:${section.sectionId}:`)
       )}
+      locked={ticksLocked}
       offerChanges={!libraryLoading && !libraryFailed}
       column={(section.sectionId !== null && columns?.get(section.sectionId)) || null}
       canReorder={!searching}
@@ -208,6 +212,9 @@ const CvChecklist = memo(({
         <p className="text-sm text-muted-foreground">Loading your library…</p>
       )}
       {searching && shown.length === 0 && <p className="mt-4 text-sm text-muted-foreground">Nothing matches.</p>}
+      <p role="status" className="text-sm text-muted-foreground empty:hidden">
+        {ticksLocked ? "Changing the purpose. Ticks can be changed again once it's done." : ""}
+      </p>
 
       <DragDropProvider onDragEnd={onDragEnd}>
         {shownRows}
