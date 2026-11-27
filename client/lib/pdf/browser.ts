@@ -38,11 +38,11 @@ const give = () => {
   waiting.shift()?.();
 };
 
-/** Runs `use` with the shared Chrome, at most AT_ONCE at a time; the rest wait their turn. */
-export const withBrowser = async <T>(use: (browser: Browser) => Promise<T>): Promise<T> => {
+/** Runs `work` with the shared Chrome, at most AT_ONCE at a time; the rest wait their turn. */
+export const withBrowser = async <T>(work: (browser: Browser) => Promise<T>): Promise<T> => {
   await take();
   try {
-    return await use(await browser());
+    return await work(await browser());
   } finally {
     give();
   }
