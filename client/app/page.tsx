@@ -15,13 +15,14 @@ import Link from "next/link";
 import { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Candido: job application tracker and CV builder",
-  description: "Track every job application on one board and tailor your CV to each role.",
+  title: "Candido: your whole job hunt in one place",
+  description:
+    "Track every application, keep each CV and cover letter with its job, and let AI tailor your application to every role.",
 };
 
 /** A section heading with its summary beside it on wide screens. */
 const SectionIntro = ({ title, children }: { title: string; children: ReactNode }) => (
-  <div className="mb-12 grid items-end gap-5 lg:grid-cols-2">
+  <div className="mb-12 grid items-end gap-x-5 gap-y-8 lg:grid-cols-2">
     <h2 className="text-[clamp(38px,4.2vw,56px)]">{title}</h2>
     <p className="max-w-[32em] text-[18px] lg:justify-self-end">{children}</p>
   </div>
@@ -50,8 +51,9 @@ const LandingPage = () => (
         <div className="flex flex-col justify-between lg:flex-row lg:items-end">
           <div className="pb-8 pt-10 sm:pt-14 lg:max-w-[520px] lg:pb-16">
             <h1 className="text-[clamp(48px,6vw,80px)]">Build your way to the offer</h1>
-            <p className="mt-5 max-w-[26em] text-[17px] sm:text-[18px]">
-              Track every application on one board, and tailor your CV to each job before you send it.
+            <p className="mt-8 max-w-[26em] text-[17px] sm:text-[18px]">
+              Every application, CV and cover letter together, with AI that tailors your application to each role.
+              Less time on admin, more on the jobs you want.
             </p>
             <CtaLink href="/register" className="mt-7">Create account</CtaLink>
           </div>
@@ -68,9 +70,9 @@ const LandingPage = () => (
     </div>
 
     <section id="cvs" className="mx-auto max-w-[1120px] px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-24">
-      <SectionIntro title="The right CV for every job">
-        Import the CV you have or build one here. For each job, Candido makes a copy and Claude suggests specific
-        edits. You decide what goes in, and your original stays as it was.
+      <SectionIntro title="Tailor your application to every role">
+        Bring the CV you already have. For each job, AI shows how well you fit, spots what&apos;s missing and tailors
+        your CV and cover letter so you stand out. You stay in control of every change.
       </SectionIntro>
       <TailorDemo />
     </section>
@@ -78,8 +80,9 @@ const LandingPage = () => (
     <section id="sheet" className="bg-[var(--landing-sky)]">
       <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 sm:py-24">
         <h2 className="max-w-[12em] text-[clamp(38px,4.2vw,56px)]">Know what you sent, and to whom</h2>
-        <p className="mb-10 mt-5 max-w-[36em] text-[18px]">
-          When a recruiter calls, pick the row. The CV, cover letter, closing date and notes for that job are all there.
+        <p className="mb-10 mt-8 max-w-[36em] text-[18px]">
+          Every job in one table, so you never have to hunt for an email again. When a recruiter calls, pick the row: the
+          CV, cover letter, closing date and notes for that job are all there.
         </p>
         <SheetDemo />
       </div>
@@ -88,8 +91,8 @@ const LandingPage = () => (
     <section className="bg-[var(--landing-amber)]">
       <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 sm:py-24">
         <SectionIntro title="Bring your spreadsheet with you">
-          Already tracking jobs in Excel or a CSV? Upload it and each row becomes a card on your board. Candido finds
-          your table even if it doesn&apos;t start at the top, and shows you a preview before anything is added.
+          Already tracking jobs in a sheet? Upload it and each row becomes a card on your board. You don&apos;t have
+          to start again.
         </SectionIntro>
         <ImportDemo />
       </div>
@@ -99,16 +102,16 @@ const LandingPage = () => (
       <div className="mx-auto grid max-w-[1120px] items-center gap-8 px-4 py-16 sm:px-6 sm:py-24 md:grid-cols-[1.1fr_1fr]">
         <div>
           <h2 className="text-[clamp(42px,5vw,64px)]">Get your hat on</h2>
-          <p className="mt-5 max-w-[30em] text-[18px]">
-            Job hunting is hard work. Keep it all in one place, and you can spend your time on the applications instead
-            of the admin. Here&apos;s how to start:
+          <p className="mt-8 max-w-[30em] text-[18px]">
+            Job hunting is hard work. Keep it all in one place, let us tailor your application to
+            each role, and get your evenings back. Here&apos;s how to start:
           </p>
           <ol className="mt-5 max-w-[30em] list-decimal space-y-2 pl-6 marker:font-bold">
             <li>Create an account and confirm your email.</li>
             <li>Import your spreadsheet, or add the first job you like.</li>
-            <li>Bring in your CV and tailor it for that job.</li>
+            <li>Bring in your CV and tailor your application to that job.</li>
           </ol>
-          <CtaLink href="/register" className="mt-6">Create account</CtaLink>
+          <CtaLink href="/register" className="mt-10">Create account</CtaLink>
         </div>
         <Image src={Builder} alt="" sizes="(min-width: 768px) 380px" className="mx-auto block w-full max-w-[380px]" />
       </div>
