@@ -21,12 +21,12 @@ const PurposeSelect = ({ labels, value, onChange, disabled }: PurposeSelectProps
     onValueChange={(next) => onChange(next === EVERYTHING ? null : Number(next))}
     disabled={disabled}
   >
-    <SelectTrigger aria-label="Purpose" size="sm" className="max-w-48">
+    <SelectTrigger aria-label="Collection" size="sm" className="max-w-48">
       <SelectValue />
     </SelectTrigger>
     <SelectContent position="popper">
       <SelectGroup>
-        <SelectItem value={EVERYTHING}>Everything</SelectItem>
+        <SelectItem value={EVERYTHING}>All content</SelectItem>
         {labels.map((label) => (
           <SelectItem key={label.id} value={String(label.id)}>
             {label.name}

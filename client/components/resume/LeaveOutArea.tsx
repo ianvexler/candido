@@ -11,7 +11,7 @@ const ITEM_SELECTOR = `[${ITEM_ATTRIBUTE}]`;
 
 type Place = { id: string; top: number };
 
-export const LEAVE_OUT_LOCKED = "Wait until the purpose has changed.";
+export const LEAVE_OUT_LOCKED = "Wait until the collection has changed.";
 
 interface LeaveOutAreaProps {
   editor: Editor;

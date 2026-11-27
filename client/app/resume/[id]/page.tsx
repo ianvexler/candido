@@ -186,7 +186,7 @@ const CvPage = ({ id }: { id: string }) => {
       setCurriculum(await changePurpose(labelId, force));
     } catch (error) {
       if (!force && isConflict(error)) {
-        const name = labels.find((label) => label.id === labelId)?.name ?? "Everything";
+        const name = labels.find((label) => label.id === labelId)?.name ?? "all content";
         setResetTo({ labelId, name });
       } else if (error instanceof RequestStopped) {
         // The server has the new purpose even so.
@@ -197,14 +197,14 @@ const CvPage = ({ id }: { id: string }) => {
         toast.error(error.message);
       } else {
         console.error(error);
-        toast.error(apiErrorMessage(error, "Couldn't change the purpose. Try again."));
+        toast.error(apiErrorMessage(error, "Couldn't change the collection. Try again."));
       }
     }
   };
 
   const includeSuggestion = (s: CvSuggestion) => {
     if (changingPurpose) {
-      toast("Wait until the purpose has changed, then include this.");
+      toast("Wait until the collection has changed, then include this.");
       return;
     }
     change(s.curriculum_section_id, (section) => tickSuggestion(section, s));
@@ -329,9 +329,9 @@ const CvPage = ({ id }: { id: string }) => {
             isOpen={resetTo !== null}
             onClose={() => setResetTo(null)}
             onConfirm={() => (resetTo ? choosePurpose(resetTo.labelId, true) : undefined)}
-            title="Change the purpose?"
-            description={`Some ticks here were changed by hand. Changing the purpose resets them to fit ${resetTo?.name ?? "Everything"}. Text doesn't change.`}
-            confirmLabel="Change purpose"
+            title="Change the collection?"
+            description={`Some ticks here were changed by hand. Changing the collection resets them to what is in ${resetTo?.name ?? "all content"}. Text doesn't change.`}
+            confirmLabel="Change collection"
           />
           {onPage ? (
             <PageView

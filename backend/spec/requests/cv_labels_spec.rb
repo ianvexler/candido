@@ -32,7 +32,7 @@ RSpec.describe "CV labels" do
       post "/api/v1/cv_labels", params: { name: "backend" }, headers: headers, as: :json
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body["error"]).to eq("You already have a purpose called backend")
+      expect(response.parsed_body["error"]).to eq("You already have a collection called backend")
     end
 
     it "refuses a blank or long name" do

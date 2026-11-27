@@ -33,7 +33,7 @@ interface LabelPickerProps {
   mode: PickerMode;
   /** Says what went wrong itself. */
   onChoose: (labelId: number, on: boolean) => Promise<void>;
-  /** Offers "New purpose", which is then added to the target. */
+  /** Offers "New collection", which is then added to the target. */
   onCreate?: (name: string) => Promise<CvLabel>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,7 +83,7 @@ const LabelPicker = ({
       created = await onCreate(name);
     } catch (error) {
       console.error(error);
-      toast.error(apiErrorMessage(error, "Couldn't add this purpose."));
+      toast.error(apiErrorMessage(error, "Couldn't add this collection."));
       return false;
     }
     setCreating(false);
@@ -156,7 +156,7 @@ const LabelPicker = ({
             <div className="mt-1 border-t pt-1">
               {creating ? (
                 <div className="px-1 py-0.5">
-                  <NameInput label="New purpose" onSubmit={create} onCancel={() => setCreating(false)} />
+                  <NameInput label="New collection" onSubmit={create} onCancel={() => setCreating(false)} />
                 </div>
               ) : (
                 <Button
@@ -168,7 +168,7 @@ const LabelPicker = ({
                   onClick={() => setCreating(true)}
                 >
                   <PlusIcon />
-                  New purpose
+                  New collection
                 </Button>
               )}
             </div>

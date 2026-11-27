@@ -32,8 +32,8 @@ class CvLabel < ApplicationRecord
 
   def self.find_owned!(user, id)
     label = find_by(id: id)
-    raise ApiError.new("Purpose not found", status: :not_found) if label.nil?
-    raise ApiError.new("You are not authorized to change this purpose", status: :forbidden) if label.user_id != user.id
+    raise ApiError.new("Collection not found", status: :not_found) if label.nil?
+    raise ApiError.new("You are not authorized to change this collection", status: :forbidden) if label.user_id != user.id
 
     label
   end
@@ -46,7 +46,7 @@ class CvLabel < ApplicationRecord
     SectionTemplate.transaction do
       templates.each(&:lock!)
       # Deleting it locks every template too, so it can't go after this.
-      raise ApiError.new("Purpose not found", status: :not_found) unless CvLabel.exists?(id)
+      raise ApiError.new("Collection not found", status: :not_found) unless CvLabel.exists?(id)
       templates.each do |template|
         unknown = ids_by_template[template].reject { |id| template.labellable?(id) }
         raise ApiError.new("Some of that is no longer in the library", status: :unprocessable_content) if unknown.any?
@@ -62,7 +62,7 @@ class CvLabel < ApplicationRecord
     return if user.nil? || name.blank?
 
     taken = user.cv_labels.where("lower(name) = ?", name.downcase).where.not(id: id).exists?
-    errors.add(:base, "You already have a purpose called #{name}") if taken
+    errors.add(:base, "You already have a collection called #{name}") if taken
   end
 
   def strip_from_templates

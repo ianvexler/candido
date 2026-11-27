@@ -105,7 +105,7 @@ export const useCvChecklist = (
       const { sectionId, templateId, entryId, itemId, inCv } = target;
       // The rows show they can't be ticked; see changingPurpose.
       if (ticksLocked()) {
-        toast("Wait until the purpose has changed, then try again.");
+        toast("Wait until the collection has changed, then try again.");
         return Promise.resolve(null);
       }
       if (inCv && sectionId !== null) {

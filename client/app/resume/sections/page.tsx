@@ -147,14 +147,14 @@ const SectionLibraryPage = () => {
   const labelItems = useCallback(
     async (labelId: number, on: boolean, targets: LabelTarget[]) => {
       if (!(await flush())) {
-        toast.error("Your latest edit isn't saved yet, so it can't be labelled.");
+        toast.error("Your latest edit isn't saved yet, so it can't be added to a collection.");
         return;
       }
       try {
         await apply(labelId, on, targets);
       } catch (error) {
         console.error(error);
-        toast.error(apiErrorMessage(error, "Couldn't change the labels. Try again."));
+        toast.error(apiErrorMessage(error, "Couldn't change the collections. Try again."));
       }
     },
     [flush, apply]

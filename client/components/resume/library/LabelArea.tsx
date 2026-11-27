@@ -7,7 +7,7 @@ import { inFilter, labelsOf, PurposeFilter } from "@/lib/resume/purposes";
 import { CvLabel, SectionTemplate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { Editor } from "@tiptap/react";
-import { TagIcon } from "lucide-react";
+import { LayersIcon } from "lucide-react";
 import { FocusEvent as ReactFocusEvent, KeyboardEvent, PointerEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { offerableItem } from "../LeaveOutArea";
 import LabelPicker from "./LabelPicker";
@@ -28,7 +28,7 @@ export interface LibraryLabelling {
 
 export type Chip = { name: string; fromEntry: boolean };
 
-const EVERY_PURPOSE: Chip[] = [{ name: "Every purpose", fromEntry: false }];
+const EVERY_PURPOSE: Chip[] = [{ name: "Every collection", fromEntry: false }];
 
 /** The item's own labels, then its entry's; "Every purpose" with none. */
 export const labelChips = (labels: CvLabel[], { own, inherited }: { own: number[]; inherited: number[] }): Chip[] => {
@@ -245,7 +245,7 @@ const LabelArea = ({ editor, sectionId, entryId, library, cardOpen, children }: 
             onCreate={onCreate}
             open={pinned !== null}
             onOpenChange={openPicker}
-            title="Labels of this item"
+            title="Collections of this item"
           >
             <button
               ref={buttonRef}
@@ -256,8 +256,8 @@ const LabelArea = ({ editor, sectionId, entryId, library, cardOpen, children }: 
               }}
               className="flex shrink-0 items-center gap-1 rounded-sm px-1 py-0.5 text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none [@media(pointer:coarse)]:min-h-11"
             >
-              <TagIcon className="size-3" aria-hidden />
-              Labels
+              <LayersIcon className="size-3" aria-hidden />
+              Collections
             </button>
           </LabelPicker>
         </div>

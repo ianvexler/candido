@@ -409,7 +409,7 @@ const LibraryOutline = ({
 
       {sections.length === 0 && (
         <p className="mt-3 px-2 text-sm text-muted-foreground">
-          {searching ? "Nothing matches." : filtered ? "Nothing fits this purpose yet." : "No sections yet."}
+          {searching ? "Nothing matches." : filtered ? "Nothing is in this collection yet." : "No sections yet."}
         </p>
       )}
 

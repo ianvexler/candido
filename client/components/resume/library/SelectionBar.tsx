@@ -68,8 +68,8 @@ const SelectionBar = ({ sectionId, selected, labels, filter, onLabel, onCreate, 
       <span role="status" className="mr-auto text-sm font-medium">
         {selected.size} selected
       </span>
-      {picker("add", "Add label")}
-      {picker("remove", "Remove label")}
+      {picker("add", "Add to collection")}
+      {picker("remove", "Remove from collection")}
       <Button type="button" variant="ghost" size="sm" onClick={onClear}>
         Clear
       </Button>

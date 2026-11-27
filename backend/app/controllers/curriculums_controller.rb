@@ -63,7 +63,7 @@ class CurriculumsController < ApplicationController
     return if id.blank?
 
     label = current_user.cv_labels.find_by(id: id)
-    raise ApiError.new("Purpose not found", status: :not_found) if label.nil?
+    raise ApiError.new("Collection not found", status: :not_found) if label.nil?
 
     label
   end

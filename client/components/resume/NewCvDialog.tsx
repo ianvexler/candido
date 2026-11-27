@@ -52,7 +52,7 @@ const NewCvDialog = ({ labels, onPick, onClose }: NewCvDialogProps) => {
   };
 
   const options: { key: number | "all"; labelId: number | null; name: string }[] = [
-    { key: "all", labelId: null, name: "Everything" },
+    { key: "all", labelId: null, name: "All content" },
     ...labels.map((label) => ({ key: label.id, labelId: label.id, name: label.name })),
   ];
 
@@ -63,7 +63,7 @@ const NewCvDialog = ({ labels, onPick, onClose }: NewCvDialogProps) => {
         <Dialog.Content className="fixed left-1/2 top-1/2 z-101 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-background p-6 shadow-lg">
           <Dialog.Title className="text-lg font-semibold">New CV</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-muted-foreground">
-            What is it for? It starts with what fits. You can change this later.
+            Start from a collection: the CV ticks what is in it. You can change this later.
           </Dialog.Description>
 
           <ul className="mt-4 min-h-0 divide-y divide-border overflow-y-auto border-y border-border">

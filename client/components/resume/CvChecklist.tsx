@@ -213,7 +213,7 @@ const CvChecklist = memo(({
       )}
       {searching && shown.length === 0 && <p className="mt-4 text-sm text-muted-foreground">Nothing matches.</p>}
       <p role="status" className="text-sm text-muted-foreground empty:hidden">
-        {ticksLocked ? "Changing the purpose. Ticks can be changed again once it's done." : ""}
+        {ticksLocked ? "Changing the collection. Ticks can be changed again once it's done." : ""}
       </p>
 
       <DragDropProvider onDragEnd={onDragEnd}>

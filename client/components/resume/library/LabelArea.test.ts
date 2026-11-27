@@ -26,9 +26,9 @@ describe("labelChips", () => {
   });
 
   it("is every purpose with none", () => {
-    expect(labelChips(labels, { own: [], inherited: [] })).toEqual([{ name: "Every purpose", fromEntry: false }]);
+    expect(labelChips(labels, { own: [], inherited: [] })).toEqual([{ name: "Every collection", fromEntry: false }]);
     // A label that is gone counts as none.
-    expect(labelChips(labels, { own: [9], inherited: [] })).toEqual([{ name: "Every purpose", fromEntry: false }]);
+    expect(labelChips(labels, { own: [9], inherited: [] })).toEqual([{ name: "Every collection", fromEntry: false }]);
   });
 });
 

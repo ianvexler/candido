@@ -27,7 +27,7 @@ const LibraryWorkspace = ({ header, side, children, detailOpen, onBack }: Librar
     <div className="relative min-h-0 flex-1 lg:flex">
       <aside
         data-open={!detailOpen}
-        aria-label="Purposes and outline"
+        aria-label="Collections and outline"
         className={cn("overflow-y-auto border-border bg-background lg:w-80 lg:flex-none lg:border-r", PANEL)}
       >
         {side}

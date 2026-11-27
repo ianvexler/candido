@@ -8,7 +8,7 @@ import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import type { PurposeFilter } from "@/lib/resume/purposes";
 import { CvLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { FolderIcon, FolderOpenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { LayersIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { KeyboardEvent, ReactNode, useCallback, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { WITH_CONTROLS } from "../ChecklistRow";
@@ -62,7 +62,7 @@ const sameFilter = (a: PurposeFilter, b: PurposeFilter) =>
   a.kind === b.kind && (a.kind !== "label" || (b.kind === "label" && a.id === b.id));
 
 const carryNote = (count: number) =>
-  `${count} ${count === 1 ? "item carries" : "items carry"} this purpose. CVs keep their ticks.`;
+  `${count} ${count === 1 ? "item is" : "items are"} in this collection. They stay in your library, and CVs keep their ticks.`;
 
 /** A purpose's name: Enter or leaving keeps it, Escape doesn't. */
 export const NameInput = ({
@@ -118,7 +118,7 @@ export const NameInput = ({
       onKeyDown={onKeyDown}
       onBlur={() => void submit()}
       aria-label={label}
-      placeholder="Purpose name"
+      placeholder="Collection name"
       className="py-1 text-sm"
     />
   );
@@ -139,7 +139,7 @@ const PurposeRow = ({
   icon?: boolean;
   menu?: ReactNode;
 }) => {
-  const Icon = chosen ? FolderOpenIcon : FolderIcon;
+  const Icon = LayersIcon;
   return (
     <div className={cn("group/row flex items-center gap-1 rounded-md pr-1 hover:bg-muted/60", chosen && "bg-muted")}>
       <button
@@ -204,7 +204,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
   return (
     <section aria-labelledby="purposes-heading" className="px-3 pt-5 pb-3">
       <h2 id="purposes-heading" className="mb-2 px-2 text-sm font-semibold">
-        Purposes
+        Collections
       </h2>
       <ul className="space-y-0.5">
         <li data-purpose="all">
@@ -222,7 +222,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
                     focusRow(String(label.id));
                   }}
                   onSubmit={async (name) => {
-                    const done = await attempt(() => onRename(label.id, name), "Couldn't rename this purpose.");
+                    const done = await attempt(() => onRename(label.id, name), "Couldn't rename this collection.");
                     if (done) {
                       setRenaming(null);
                       focusRow(String(label.id));
@@ -272,7 +272,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
         ))}
         <li data-purpose="none">
           <PurposeRow
-            name="Not labelled"
+            name="Not in a collection"
             count={counts.get("none")}
             chosen={filter.kind === "none"}
             onChoose={() => onFilter(NONE)}
@@ -284,7 +284,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
       {creating ? (
         <div className="mt-1 pl-8 pr-7">
           <NameInput
-            label="New purpose"
+            label="New collection"
             onCancel={() => setCreating(false)}
             onSubmit={async (name) => {
               try {
@@ -294,7 +294,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
                 return true;
               } catch (error) {
                 console.error(error);
-                toast.error(apiErrorMessage(error, "Couldn't add this purpose."));
+                toast.error(apiErrorMessage(error, "Couldn't add this collection."));
                 return false;
               }
             }}
@@ -309,7 +309,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
           onClick={() => setCreating(true)}
         >
           <PlusIcon />
-          New purpose
+          New collection
         </Button>
       )}
 
@@ -317,7 +317,7 @@ const PurposeList = ({ labels, counts, carried, filter, onFilter, onCreate, onRe
         isOpen={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={async () => {
-          if (deleting) await attempt(() => onDelete(deleting.id), "Couldn't delete this purpose.");
+          if (deleting) await attempt(() => onDelete(deleting.id), "Couldn't delete this collection.");
         }}
         title={deleting ? `Delete ${deleting.name}?` : ""}
         description={carryNote(deleting ? (carried.get(deleting.id) ?? 0) : 0)}

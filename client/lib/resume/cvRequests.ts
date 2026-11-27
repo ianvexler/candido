@@ -16,12 +16,12 @@ export const MAX_INCLUDES = 20;
 export const UNSAVED = "Your latest changes couldn't be saved, so this wasn't added. Try again.";
 export const INVALID_DATES = "Fix the end month that is before its start month in this section first. Then add this.";
 const KEPT_CHANGING = "This section kept changing, so this wasn't added. Try again.";
-export const PURPOSE_UNSAVED = "Your latest changes couldn't be saved, so the purpose wasn't changed. Try again.";
+export const PURPOSE_UNSAVED = "Your latest changes couldn't be saved, so the collection wasn't changed. Try again.";
 export const PURPOSE_INVALID_DATES =
-  "Fix the end month that is before its start month in this CV first. Then change the purpose.";
+  "Fix the end month that is before its start month in this CV first. Then change the collection.";
 // Only someone typing on without a pause gets this far.
 const MAX_PURPOSE_ROUNDS = 5;
-const PURPOSE_KEPT_CHANGING = "This CV kept changing, so some ticks may not fit its new purpose. Check them.";
+const PURPOSE_KEPT_CHANGING = "This CV kept changing, so some ticks may not match its new collection. Check them.";
 
 export const TRANSFER_UNSAVED = "Your latest edit isn't saved, so nothing was changed. Try again.";
 export const TRANSFER_INVALID_DATES =

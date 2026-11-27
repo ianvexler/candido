@@ -7,7 +7,7 @@ import { SUMMARY_ID, SectionEntry } from "@/lib/types";
 import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
-import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TagIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, LayersIcon, TextIcon, Trash2Icon } from "lucide-react";
 import { memo, RefObject, useCallback, useContext, useEffect, useEffectEvent, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { EditChannelContext, EditTarget } from "./editChannel";
@@ -217,7 +217,7 @@ const SectionEntryEditor = ({
                 onCreate={library.onCreate}
                 open={labelsOpen}
                 onOpenChange={setLabelsOpen}
-                title="Labels of this entry"
+                title="Collections of this entry"
                 align="end"
               >
                 {/* Opened from the menu; this only places it. */}
@@ -236,7 +236,7 @@ const SectionEntryEditor = ({
                         : { label: "Remove role and dates", icon: <CalendarMinusIcon />, onSelect: clearDetails }
                       : { label: "Add role and dates", icon: <CalendarPlusIcon />, onSelect: () => setOpenDetails(true) },
                     // After the menu has let go of the focus, or the picker closes at once.
-                    { label: "Labels…", icon: <TagIcon />, onSelect: () => setTimeout(() => setLabelsOpen(true)) },
+                    { label: "Collections…", icon: <LayersIcon />, onSelect: () => setTimeout(() => setLabelsOpen(true)) },
                   ].filter((action) => action !== null)}
                   move={canMoveUp || canMoveDown ? { canMoveUp, canMoveDown, onMove: (by) => onMove(entry.id, by) } : undefined}
                 >
