@@ -34,7 +34,8 @@ const JOBS: DemoJob[] = [
 const nextColumn = (status: JobStatus) => COLUMNS[COLUMNS.findIndex((column) => column.status === status) + 1];
 
 const DemoCard = ({ job, onMove }: { job: DemoJob; onMove: (id: string, status: JobStatus) => void }) => {
-  const { ref, handleRef, isDragging } = useDraggable({ id: job.id });
+  // isDragSource stays true through the drop animation, so the hat waits until the card has landed.
+  const { ref, handleRef, isDragging, isDragSource } = useDraggable({ id: job.id });
   const next = nextColumn(job.status);
   const isOffered = job.status === JobStatus.OFFERED;
 
@@ -46,7 +47,7 @@ const DemoCard = ({ job, onMove }: { job: DemoJob; onMove: (id: string, status: 
         isDragging && "rotate-3 shadow-2xl"
       )}
     >
-      {isOffered && !isDragging && (
+      {isOffered && !isDragSource && (
         <HardHat className="hat-drop pointer-events-none absolute -right-2 -top-5 z-10 w-12 drop-shadow" />
       )}
 
