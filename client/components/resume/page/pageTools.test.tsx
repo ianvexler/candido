@@ -137,7 +137,11 @@ beforeEach(async () => {
   await render();
 });
 
+// jsdom's own, which a test may stub.
+const scrollIntoView = Element.prototype.scrollIntoView;
+
 afterEach(async () => {
+  Element.prototype.scrollIntoView = scrollIntoView;
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();

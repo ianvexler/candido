@@ -68,23 +68,31 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, deskRoom, actions, onClosed 
   // What it held when opened: it stays listed as each goes back, until closed.
   const [open, setOpen] = useState<FoldAt | null>(null);
   const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  // State, not a ref: the menu's portal puts the list in after this renders, and it is focused once there.
+  const [list, setList] = useState<HTMLDivElement | null>(null);
+  // The mark it was opened from: Escape and Tab go back to it.
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => list?.querySelector<HTMLElement>('[role="menuitemcheckbox"]')?.focus({ preventScroll: true }), [list]);
   const leftOut = new Set(folds.flatMap(({ items }) => items.map(foldKey)));
   const opened = open && new Set(open.items.map(foldKey));
   const openPlace = open && placeOf(open, scale, sheetWidth, deskRoom);
   const isOpen = (fold: FoldAt) => Boolean(opened && fold.items.some((item) => opened.has(foldKey(item))));
 
-  useEffect(() => {
-    if (open) listRef.current?.querySelector<HTMLElement>('[role="menuitemcheckbox"]')?.focus({ preventScroll: true });
-  }, [open]);
-
   const close = (back: boolean) => {
     setOpen(null);
-    if (back) onClosed?.();
+    if (!back) return;
+    // Its mark, or the one now of what it listed that is still left out; the page once none is.
+    const still = open && folds.find((fold) => isOpen(fold));
+    const opener = openerRef.current?.isConnected
+      ? openerRef.current
+      : still && [...document.querySelectorAll<HTMLElement>("[data-fold-mark]")].find((mark) => mark.dataset.foldMark === foldKey(still.items[0]));
+    if (opener) opener.focus({ preventScroll: true });
+    else onClosed?.();
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const all = [...(listRef.current?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [])];
+    const all = [...(list?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [])];
     const by = { ArrowDown: 1, ArrowUp: -1 }[event.key];
     if (by !== undefined && all.length > 0) {
       event.preventDefault();
@@ -93,7 +101,8 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, deskRoom, actions, onClosed 
       // In a list taller than its room: to where it shows, and no further.
       next.focus({ preventScroll: true });
       next.scrollIntoView({ block: "nearest" });
-    } else if (event.key === "Escape") {
+    } else if (event.key === "Escape" || event.key === "Tab") {
+      // Tab too: the list is last on the page, so it would leave the page with the list open.
       event.preventDefault();
       event.stopPropagation();
       close(true);
@@ -117,11 +126,14 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, deskRoom, actions, onClosed 
                   <button
                     dir="ltr"
                     type="button"
-                    data-fold-mark
+                    data-fold-mark={foldKey(fold.items[0])}
                     aria-label={place.compact ? label : undefined}
                     aria-haspopup="menu"
                     aria-expanded={expanded}
-                    onClick={() => setOpen(expanded ? null : fold)}
+                    onClick={(event) => {
+                      openerRef.current = event.currentTarget;
+                      setOpen(expanded ? null : fold);
+                    }}
                     className={cn(
                       MARK,
                       "pointer-events-auto border-[#c3c9cf] bg-white text-[#5f6770] outline-none hover:border-[#8a929a] hover:text-[#1f2328] focus-visible:border-[#8a929a] focus-visible:text-[#1f2328]",
@@ -156,7 +168,8 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, deskRoom, actions, onClosed 
             </span>
           </div>
           <ToolMenu anchor={anchor} onClose={close} keepOpenOn="[data-fold-mark]">
-            <div ref={listRef} role="menu" aria-label="Left out here" onKeyDown={onKeyDown} className="w-72">
+            {/* Keyed by its fold: another's list is new, and starts at its first row. */}
+            <div key={foldKey(open.items[0])} ref={setList} role="menu" aria-label="Left out here" onKeyDown={onKeyDown} className="w-72">
               {open.items.map((item) => {
                 const back = !leftOut.has(foldKey(item));
                 return (

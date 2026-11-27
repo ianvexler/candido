@@ -53,7 +53,7 @@ export const freeWithin = (from: number, others: number[], size: number, low: nu
   return near[0] ?? null;
 };
 
-export const isHiddenMark =(mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
+export const isHiddenMark = (mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
 
 /**
  * Hidden-text marks that would overlap as one, each by its text; then each fold in the nearest

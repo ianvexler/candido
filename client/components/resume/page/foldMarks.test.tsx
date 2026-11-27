@@ -44,9 +44,13 @@ beforeEach(async () => {
   await render([fold]);
 });
 
+// jsdom's own, which a test may stub.
+const scrollIntoView = Element.prototype.scrollIntoView;
+
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  Element.prototype.scrollIntoView = scrollIntoView;
 });
 
 describe("FoldMarks", () => {
@@ -111,6 +115,52 @@ describe("FoldMarks", () => {
     expect(rows()[1].getAttribute("aria-checked")).toBe("false");
   });
 
+  it("opens with the focus on its first row, keys going through it, and Escape back to the mark", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    const keyOn = (key: string) =>
+      act(async () => {
+        document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key }));
+      });
+    const opener = mark()!;
+    await act(async () => opener.focus());
+    // Enter or Space on a button presses it.
+    await press(opener);
+    expect(document.activeElement).toBe(rows()[0]);
+    await keyOn("ArrowDown");
+    expect(document.activeElement).toBe(rows()[1]);
+    await keyOn("ArrowDown");
+    expect(document.activeElement).toBe(rows()[0]);
+    await press(document.activeElement);
+    expect(tick).toHaveBeenCalledWith({ sectionId: 1, templateId: null, entryId: "a", itemId: "b2", inCv: true }, true);
+    await keyOn("Escape");
+    expect(rows()).toHaveLength(0);
+    expect(document.activeElement).toBe(mark());
+  });
+
+  it("closes on Tab, back on its mark: the list is last on the page, and Tab would leave it", async () => {
+    await press(mark());
+    expect(document.activeElement).toBe(rows()[0]);
+    const tab = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Tab" });
+    await act(async () => {
+      rows()[0].dispatchEvent(tab);
+    });
+    expect(tab.defaultPrevented).toBe(true);
+    expect(rows()).toHaveLength(0);
+    expect(document.activeElement).toBe(mark());
+  });
+
+  it("goes back on Escape to the mark that still holds what it lists, after its first went back", async () => {
+    await press(mark());
+    await press(rows()[0]);
+    // Back on the page: the fold is now of the one left, a new mark.
+    await render([{ ...fold, items: fold.items.slice(1) }]);
+    await act(async () => {
+      rows()[1].dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" }));
+    });
+    expect(document.activeElement?.matches("[data-fold-mark]")).toBe(true);
+    expect(document.activeElement?.textContent).toBe("1 left out");
+  });
+
   it("scrolls its list to the row the keys go to", async () => {
     const scrolled = vi.fn();
     Element.prototype.scrollIntoView = scrolled;
@@ -118,7 +168,6 @@ describe("FoldMarks", () => {
     const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
     expect(menu.parentElement!.className).toContain("overflow-y-auto");
     await act(async () => {
-      rows()[0].focus();
       menu.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
     });
     expect(document.activeElement).toBe(rows()[1]);
