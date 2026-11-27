@@ -15,6 +15,7 @@ import { ReactNode, RefObject, useCallback, useContext, useEffect, useMemo, useR
 import { rowBox, rowIdOf } from "./ChecklistRow";
 import { EditChannelContext } from "./editChannel";
 import IconAction from "./IconAction";
+import { LabelStyles, LibraryLabelling } from "./library/LabelArea";
 import { focusText } from "./placeCaret";
 import SectionEntryEditor from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
@@ -40,6 +41,8 @@ interface SectionDocumentProps extends SuggestionProps {
   notice?: ReactNode;
   /** Shows what is ticked only. Order is up to the checklist. */
   inCv?: boolean;
+  /** In the library: labelling items and entries with purposes. */
+  library?: LibraryLabelling;
 }
 
 const FOCUS_FRAMES = 20;
@@ -94,6 +97,7 @@ const SectionDocument = ({
   describeDeletion,
   notice,
   inCv = false,
+  library,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
   onSuggestionClick,
@@ -105,6 +109,7 @@ const SectionDocument = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
   const editors = useRef(new Map<string, Editor>());
+  const entryLibrary = useMemo(() => library && { ...library, sectionId }, [library, sectionId]);
   const headingRef = useRef<HTMLInputElement>(null);
   const channel = useContext(EditChannelContext);
 
@@ -189,6 +194,7 @@ const SectionDocument = ({
         </div>
 
         {notice}
+        {library && <LabelStyles sectionId={sectionId} entries={entries} library={library} />}
 
         <input
           ref={headingRef}
@@ -219,6 +225,7 @@ const SectionDocument = ({
                 onDelete={deleteEntry}
                 describeDeletion={describeEntry}
                 onLeaveOut={inCv ? leaveOut : undefined}
+                library={entryLibrary}
                 suggestions={suggestionsByEntry.get(entry.id)}
                 activeSuggestionId={activeSuggestionId}
                 onSuggestionClick={onSuggestionClick}

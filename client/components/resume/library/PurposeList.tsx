@@ -64,7 +64,7 @@ const carryNote = (count: number) =>
   `${count} ${count === 1 ? "item carries" : "items carry"} this purpose. CVs keep their ticks.`;
 
 /** A purpose's name: Enter or leaving keeps it, Escape doesn't. */
-const NameInput = ({
+export const NameInput = ({
   initial = "",
   label,
   onSubmit,

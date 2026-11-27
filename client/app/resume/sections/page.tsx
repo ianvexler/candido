@@ -16,13 +16,15 @@ import ImportCvDialog from "@/components/resume/ImportCvDialog";
 import LibraryOutline, { LibrarySelection, outlineRow } from "@/components/resume/library/LibraryOutline";
 import LibraryWorkspace from "@/components/resume/library/LibraryWorkspace";
 import PurposeList, { usePurposeFilter } from "@/components/resume/library/PurposeList";
-import LibrarySection from "@/components/resume/LibrarySection";
+import LibrarySection, { SectionLabelling } from "@/components/resume/LibrarySection";
 import { Button } from "@/components/ui/Button";
 import { outline, purposeCounts } from "@/lib/resume/purposes";
+import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import { waitForSaves } from "@/lib/resume/saveTracker";
 import type { SectionPatch } from "@/lib/resume/sectionDrafts";
 import { useLibraryLabels } from "@/lib/resume/useLibraryLabels";
 import { useSectionDrafts } from "@/lib/resume/useSectionDrafts";
+import type { LabelTarget } from "@/api/resources/cvLabels/setLabelOnItems";
 import { ResumeHeader, SectionEntry, SectionTemplate } from "@/lib/types";
 import { ArrowLeftIcon, FileUpIcon, PlusIcon } from "lucide-react";
 import NextLink from "next/link";
@@ -33,6 +35,8 @@ const saveTemplate = async (template: SectionTemplate, patch: SectionPatch) =>
   (await updateSectionTemplate(template.id, patch)).section_template;
 
 type ItemLabels = Record<number, Record<string, number[]>>;
+
+const NO_ITEM_LABELS: Record<string, number[]> = {};
 
 const labelsByTemplate = (templates: SectionTemplate[]): ItemLabels =>
   Object.fromEntries(templates.map(({ id, item_labels }) => [id, item_labels ?? {}]));
@@ -50,7 +54,7 @@ const isNarrow = () => typeof window !== "undefined" && window.matchMedia(NARROW
 const SCROLL_OFFSET = 64;
 
 const SectionLibraryPage = () => {
-  const { sections: templates, versions, load, add, change, remove, reorder, current } =
+  const { sections: templates, versions, load, add, change, remove, reorder, current, flush } =
     useSectionDrafts<SectionTemplate>(saveTemplate);
   const [profile, setProfile] = useState<ResumeHeader | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,7 +90,7 @@ const SectionLibraryPage = () => {
       ),
     []
   );
-  const { labels, load: loadLabels, create, rename, remove: removeLabel } = useLibraryLabels({
+  const { labels, load: loadLabels, create, rename, remove: removeLabel, apply } = useLibraryLabels({
     setItemLabels,
     onRemoved: stripLabel,
   });
@@ -141,6 +145,28 @@ const SectionLibraryPage = () => {
 
   const selected = templates.find(({ id }) => id === selection.sectionId);
   const showsProfile = selected === undefined;
+
+  // The server must have an item's text, and so its id, before it can be labelled.
+  const labelItems = useCallback(
+    async (labelId: number, on: boolean, targets: LabelTarget[]) => {
+      if (!(await flush())) {
+        toast.error("Your latest edit isn't saved yet, so it can't be labelled.");
+        return;
+      }
+      try {
+        await apply(labelId, on, targets);
+      } catch (error) {
+        console.error(error);
+        toast.error(apiErrorMessage(error, "Couldn't change the labels. Try again."));
+      }
+    },
+    [flush, apply]
+  );
+  const selectedLabels = selected ? itemLabels[selected.id] : undefined;
+  const labelling = useMemo<SectionLabelling>(
+    () => ({ labels, itemLabels: selectedLabels ?? NO_ITEM_LABELS, filter, onLabel: labelItems, onCreate: create }),
+    [labels, selectedLabels, filter, labelItems, create]
+  );
 
   // The same function, so the header's pause isn't restarted by other edits.
   const saveProfile = useCallback(
@@ -350,6 +376,7 @@ const SectionLibraryPage = () => {
             versions={versions[selected.id]}
             onChange={change}
             onDelete={removeTemplate}
+            labelling={labelling}
           />
         )}
       </div>

@@ -7,7 +7,7 @@ import { SUMMARY_ID, SectionEntry } from "@/lib/types";
 import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
-import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TagIcon, TextIcon, Trash2Icon } from "lucide-react";
 import { memo, RefObject, useCallback, useContext, useEffect, useEffectEvent, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { EditChannelContext, EditTarget } from "./editChannel";
@@ -15,6 +15,8 @@ import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
 import LeaveOutArea from "./LeaveOutArea";
+import LabelArea, { LibraryLabelling } from "./library/LabelArea";
+import LabelPicker from "./library/LabelPicker";
 import { editInEditor, focusText } from "./placeCaret";
 import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
 import { hasDetails, suggestsDetails } from "./sectionDetails";
@@ -40,6 +42,8 @@ interface SectionEntryEditorProps extends SuggestionProps {
   describeDeletion: (id: string) => string;
   /** In a CV: offers leaving items out; see LeaveOutArea. */
   onLeaveOut?: (entryId: string, itemId: string, focusAt: number | null) => void;
+  /** In the library: labels its items and itself; see LabelArea. */
+  library?: LibraryLabelling & { sectionId: number };
 }
 
 /**
@@ -60,6 +64,7 @@ const SectionEntryEditor = ({
   onDelete,
   describeDeletion,
   onLeaveOut,
+  library,
   ...suggestionProps
 }: SectionEntryEditorProps) => {
   const onChange = (changes: EntryChange) => onEntryChange(entry.id, changes, version);
@@ -75,6 +80,7 @@ const SectionEntryEditor = ({
   const [detailsVersion, setDetailsVersion] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const description = entry.description ?? "";
   const showTitle = Boolean(entry.title) || startedBlank || title.open;
   const summaryOff = onLeaveOut !== undefined && Boolean(entry.description_off && description.trim());
@@ -169,7 +175,7 @@ const SectionEntryEditor = ({
           )}
           <div
             className={cn(
-              "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100",
+              "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100 has-[[data-state=open]]:opacity-100",
               // Without a title line, in the space above.
               !showTitle && "absolute -top-8 right-0"
             )}
@@ -193,6 +199,24 @@ const SectionEntryEditor = ({
               <IconAction label="Move entry down" onClick={() => onMove(entry.id, 1)}>
                 <ArrowDownIcon />
               </IconAction>
+            )}
+            {library && (
+              <LabelPicker
+                labels={library.labels}
+                filter={library.filter}
+                mode={{ kind: "toggle", own: library.itemLabels[entry.id] ?? [], inherited: [] }}
+                onChoose={(labelId, on) =>
+                  library.onLabel(labelId, on, [{ section_template_id: library.sectionId, id: entry.id }])
+                }
+                onCreate={library.onCreate}
+                open={labelsOpen}
+                onOpenChange={setLabelsOpen}
+                title="Labels of this entry"
+              >
+                <IconAction label="Labels of this entry">
+                  <TagIcon />
+                </IconAction>
+              </LabelPicker>
             )}
             {!hasDetails(entry) && (
               <IconAction label="Add role and dates" onClick={() => setOpenDetails(true)}>
@@ -265,7 +289,17 @@ const SectionEntryEditor = ({
 
         <div className="relative mt-3">
           {editor && <FormatBubble editor={editor} />}
-          {editor && onLeaveOut ? (
+          {editor && library ? (
+            <LabelArea
+              editor={editor}
+              sectionId={library.sectionId}
+              entryId={entry.id}
+              library={library}
+              cardOpen={cardOpen}
+            >
+              {content}
+            </LabelArea>
+          ) : editor && onLeaveOut ? (
             <LeaveOutArea
               editor={editor}
               cardOpen={cardOpen}
