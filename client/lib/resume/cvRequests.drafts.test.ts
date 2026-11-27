@@ -1,6 +1,6 @@
 import type { IncludePayload } from "@/api/resources/curriculums/includeFromLibrary";
 import type { TransferPayload, TransferResult } from "@/api/resources/curriculums/transferWithLibrary";
-import { CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
+import { Curriculum, CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
 import { afterEach, describe, expect, it } from "vitest";
 import { createCvRequests, RequestStopped, TextKept } from "./cvRequests";
 import { replaceItem } from "./items";
@@ -30,7 +30,14 @@ const setup = () => {
     [2, section(2, [entry("b", list("P", "Q"))])],
   ]);
   const template = { ...section(10, [entry("a", list("Library", "Y"))]), id: 10 } as unknown as SectionTemplate;
-  const gates: { saves: Map<number, Promise<void>>; before?: Promise<void>; after?: Promise<void> } = { saves: new Map() };
+  const gates: {
+    saves: Map<number, Promise<void>>;
+    before?: Promise<void>;
+    after?: Promise<void>;
+    /** Runs while the purpose is being changed, the first time. */
+    duringPurpose?: () => void;
+  } = { saves: new Map() };
+  const purposes: { force: boolean; stored: string }[] = [];
   const saves: { id: number; patch: SectionPatch }[] = [];
 
   const drafts = createDrafts<CurriculumSection>({
@@ -70,13 +77,24 @@ const setup = () => {
       await gates.after;
       return result;
     },
+    // Leaves item y out of section 1, as a purpose would.
+    sendPurpose: async (cv_label_id, force) => {
+      const now = server.get(1)!;
+      purposes.push({ force, stored: now.entries[0].content });
+      const content = now.entries[0].content.replace('data-cv-item="y">', 'data-cv-item="y" data-cv-off="true">');
+      server.set(1, { ...now, entries: [{ ...now.entries[0], content }] });
+      const during = gates.duringPurpose;
+      gates.duringPurpose = undefined;
+      during?.();
+      return { id: 1, cv_label_id, sections: [...server.values()] } as unknown as Curriculum;
+    },
   });
   const sent: TransferPayload[] = [];
   const type = (id: number, content: string) =>
     drafts.change(id, ({ entries }: SectionDraft) => ({ entries: [{ ...entries[0], content }] }));
   const shown = (id = 1) => drafts.current().find((item) => item.id === id)!.entries[0].content;
   const stored = (id = 1) => server.get(id)!.entries[0].content;
-  return { drafts, requests, gates, saves, sent, type, shown, stored };
+  return { drafts, requests, gates, saves, sent, purposes, type, shown, stored };
 };
 
 const X = { sectionId: 1, entryId: "a", itemId: "x" };
@@ -132,6 +150,27 @@ describe("typing while another section is being saved", () => {
     slow.open();
     await expect(done).rejects.toBeInstanceOf(RequestStopped);
     expect(all.sent).toEqual([]);
+  });
+});
+
+describe("changing the purpose", () => {
+  const leftOut = (content: string) => content.replace('data-cv-item="y">', 'data-cv-item="y" data-cv-off="true">');
+
+  it("saves what waits to be saved first, so the server compares against it", async () => {
+    const all = setup();
+    all.type(1, list("X", "Typed"));
+    await all.requests.changePurpose(5, false);
+    expect(all.purposes).toEqual([{ force: false, stored: list("X", "Typed") }]);
+    expect(all.shown()).toBe(leftOut(list("X", "Typed")));
+  });
+
+  it("keeps what was typed while it was being changed, and ticks it again", async () => {
+    const all = setup();
+    all.gates.duringPurpose = () => all.type(1, list("X", "Typed"));
+    await all.requests.changePurpose(5, false);
+    expect(all.purposes.map(({ force }) => force)).toEqual([false, true]);
+    expect(all.shown()).toBe(leftOut(list("X", "Typed")));
+    expect(all.stored()).toBe(leftOut(list("X", "Typed")));
   });
 });
 

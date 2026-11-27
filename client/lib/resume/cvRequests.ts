@@ -5,7 +5,7 @@ import type {
   TransferResult,
   TransferValue,
 } from "@/api/resources/curriculums/transferWithLibrary";
-import { CurriculumSection, SectionTemplate } from "@/lib/types";
+import { Curriculum, CurriculumSection, SectionTemplate } from "@/lib/types";
 import { trackSave } from "./saveTracker";
 import type { SectionDraft, SectionPatch } from "./sectionDrafts";
 import { endsBeforeStart } from "./sectionEntries";
@@ -16,6 +16,9 @@ export const MAX_INCLUDES = 20;
 export const UNSAVED = "Your latest changes couldn't be saved, so this wasn't added. Try again.";
 export const INVALID_DATES = "Fix the end month that is before its start month in this section first. Then add this.";
 const KEPT_CHANGING = "This section kept changing, so this wasn't added. Try again.";
+export const PURPOSE_UNSAVED = "Your latest changes couldn't be saved, so the purpose wasn't changed. Try again.";
+// Only someone typing on without a pause gets this far; then what was typed last may be lost.
+const MAX_PURPOSE_ROUNDS = 5;
 
 export const TRANSFER_UNSAVED = "Your latest edit isn't saved, so nothing was changed. Try again.";
 export const TRANSFER_INVALID_DATES =
@@ -54,6 +57,8 @@ interface CvRequestsOptions {
   /** Shows a library section as the server has it now, if it still does. `id` is what it was known by. */
   takeTemplate: (id: number | null, template: SectionTemplate | null) => void;
   sendTransfer: (sectionId: number, payload: TransferPayload) => Promise<TransferResult>;
+  /** Changes the CV's purpose; rejects with a 409 if ticks differ and not `force`. Resolves with the CV and its sections. */
+  sendPurpose: (labelId: number | null, force: boolean) => Promise<Curriculum>;
 }
 
 const byId = (sections: CurriculumSection[], id: number) => sections.find((section) => section.id === id);
@@ -77,6 +82,7 @@ export const createCvRequests = ({
   templates,
   takeTemplate,
   sendTransfer,
+  sendPurpose,
 }: CvRequestsOptions) => {
   let last: Promise<unknown> = Promise.resolve();
   const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
@@ -200,5 +206,35 @@ export const createCvRequests = ({
     }
   };
 
-  return { enqueue, orderSections, transfer, include: (payload: IncludePayload) => enqueue(() => includeNow(payload)) };
+  const changePurposeNow = async (labelId: number | null, force: boolean): Promise<Curriculum> => {
+    for (let round = 0; ; round += 1) {
+      // So the server compares against the ticks as they are now.
+      if (!(await flush())) throw new RequestStopped(PURPOSE_UNSAVED);
+      const before = current();
+      // Saving what was typed meanwhile also sent its old ticks, so they differ: that was us.
+      const curriculum = await sendPurpose(labelId, force || round > 0);
+      const after = current();
+      const edited = after.length !== before.length || after.some((section, index) => section !== before[index]);
+      // Edited meanwhile: the response would undo that, so save it and tick again.
+      if (edited && round < MAX_PURPOSE_ROUNDS) continue;
+
+      const sections = curriculum.sections ?? [];
+      sections.forEach(replace);
+      reorder(sections.map(({ id }) => id));
+      return curriculum;
+    }
+  };
+
+  return {
+    enqueue,
+    orderSections,
+    transfer,
+    include: (payload: IncludePayload) => enqueue(() => includeNow(payload)),
+    /**
+     * Saves what waits to be saved, then changes the purpose and shows the CV's
+     * sections as it ticked them. Without `force`, rejects with the server's 409
+     * (see isConflict) if ticks differ from what the purpose gave.
+     */
+    changePurpose: (labelId: number | null, force: boolean) => enqueue(() => changePurposeNow(labelId, force)),
+  };
 };

@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
+import { Curriculum, CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
 import {
   createCvRequests,
   CHANGED_ELSEWHERE,
   INVALID_DATES,
   TextKept,
   MAX_INCLUDES,
+  PURPOSE_UNSAVED,
   TRANSFER_INVALID_DATES,
   TRANSFER_UNSAVED,
   UNSAVED,
@@ -50,12 +51,59 @@ const setup = (initial = [section(1), section(2, { section_template_id: 20 })]) 
     templates: vi.fn((): SectionTemplate[] => []),
     takeTemplate: vi.fn(),
     sendTransfer: vi.fn(async (): Promise<TransferResult> => ({ conflict: false, section: section(1), section_template: null })),
+    sendPurpose: vi.fn(
+      async (cv_label_id: number | null, force: boolean): Promise<Curriculum> =>
+        ({ id: 1, cv_label_id, force, sections: [...shown].reverse().map((item) => ({ ...item })) }) as unknown as Curriculum
+    ),
   };
   const order = () => shown.map(({ id }) => id);
   return { ...deps, edit, order, requests: createCvRequests(deps) };
 };
 
 afterEach(() => waitForSaves(1000));
+
+describe("changePurpose", () => {
+  it("saves first, then shows the sections as ticked, in the server's order", async () => {
+    const { requests, flush, sendPurpose, replace, order } = setup();
+    const curriculum = await requests.changePurpose(5, false);
+    expect(flush.mock.invocationCallOrder[0]).toBeLessThan(sendPurpose.mock.invocationCallOrder[0]);
+    expect(sendPurpose).toHaveBeenCalledWith(5, false);
+    expect(replace).toHaveBeenCalledTimes(2);
+    expect(order()).toEqual([2, 1]);
+    expect(curriculum.cv_label_id).toBe(5);
+  });
+
+  it("sends nothing after a failed save", async () => {
+    const { requests, flush, sendPurpose } = setup();
+    flush.mockResolvedValue(false);
+    await expect(requests.changePurpose(5, false)).rejects.toThrow(PURPOSE_UNSAVED);
+    expect(sendPurpose).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing when the server asks first", async () => {
+    const { requests, sendPurpose, replace } = setup();
+    const conflict = Object.assign(new Error("409"), { response: { status: 409 } });
+    sendPurpose.mockRejectedValueOnce(conflict);
+    await expect(requests.changePurpose(5, false)).rejects.toBe(conflict);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("saves and ticks again, without asking, when the CV was edited meanwhile", async () => {
+    const { requests, edit, flush, sendPurpose, replace } = setup();
+    sendPurpose.mockImplementationOnce(async () => {
+      edit(1);
+      return { id: 1, cv_label_id: 5, sections: [section(1)] } as unknown as Curriculum;
+    });
+    await requests.changePurpose(5, false);
+    expect(flush).toHaveBeenCalledTimes(2);
+    // Saving the edit sent its old ticks too.
+    expect(sendPurpose.mock.calls).toEqual([
+      [5, false],
+      [5, true],
+    ]);
+    expect(replace).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("include", () => {
   const payload = { section_template_id: 10 };

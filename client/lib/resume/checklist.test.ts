@@ -331,6 +331,32 @@ describe("tickEntry", () => {
     expect(tickEntry({ ...section, hidden: true }, "q", true)).toEqual({});
     expect(tickEntry(section, "q", false)).toEqual({});
   });
+
+  describe("with a purpose", () => {
+    const allOff = cv([entry("a", ul(li("x", true), li("y", true), li("z", true)), { hidden: true })]);
+
+    it("ticks only the items that fit", () =>
+      expect(ticks(apply(allOff, tickEntry(allOff, "a", true, (_, item) => item === "y")))).toBe("A(-y-)"));
+
+    it("ticks all when none fit", () =>
+      expect(ticks(apply(allOff, tickEntry(allOff, "a", true, () => false)))).toBe("A(xyz)"));
+
+    it("restores earlier ticks whatever fits", () => {
+      const off = apply(section, tickEntry(section, "a", false));
+      expect(ticks(apply(off, tickEntry(off, "a", true, (_, item) => item === "y")))).toBe("A(x-) B(-)");
+    });
+
+    it("asks about the entry's own summary", () => {
+      const summarised = cv([entry("a", ul(li("x", true)), { hidden: true, description: "About", description_off: true })]);
+      const asked: string[] = [];
+      const patch = tickEntry(summarised, "a", true, (_, item) => {
+        asked.push(item);
+        return item === "x";
+      });
+      expect(asked).toEqual(["$summary", "x"]);
+      expect(apply(summarised, patch).entries[0].description_off).toBe(true);
+    });
+  });
 });
 
 describe("tickItem", () => {
@@ -420,6 +446,29 @@ describe("tickSection", () => {
   it("keeps title lines on their own", () => {
     const section = cv([entry("a", ul(li("x", true)))], { hidden: true });
     expect(ticks(apply(section, tickSection(section, true)))).toBe("A(-)");
+  });
+
+  describe("with a purpose", () => {
+    const section = cv(
+      [
+        entry("a", ul(li("x", true), li("y", true)), { hidden: true }),
+        entry("b", ul(li("z", true)), { hidden: true }),
+        entry("c", "", { hidden: true }),
+      ],
+      { hidden: true }
+    );
+    const fits = (entryId: string, item: string) => item === "y" || (entryId === "c" && item === "");
+
+    it("ticks what fits and leaves out entries where nothing does", () =>
+      expect(ticks(apply(section, tickSection(section, true, fits)))).toBe("A(-y) b(-) C()"));
+
+    it("ticks all when nothing fits", () =>
+      expect(ticks(apply(section, tickSection(section, true, () => false)))).toBe("A(xy) B(z) C()"));
+
+    it("restores earlier ticks whatever fits", () => {
+      const ticked = cv([entry("a", ul(li("x"), li("y", true))), entry("b", ul(li("z", true)))], { hidden: true });
+      expect(ticks(apply(ticked, tickSection(ticked, true, fits)))).toBe("A(x-) B(-)");
+    });
   });
 });
 
