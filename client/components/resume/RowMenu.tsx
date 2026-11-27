@@ -14,10 +14,12 @@ interface RowMenuProps {
   /** Given for what can be moved. */
   move?: { canMoveUp: boolean; canMoveDown: boolean; onMove: (by: -1 | 1) => void };
   children?: ReactNode;
+  /** Where focus goes as it closes, when not back to its button. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 /** A checklist row's options. Not modal: one that opens a dialog would leave the page ignoring the mouse. */
-const RowMenu = ({ label, actions = [], move, children }: RowMenuProps) => {
+const RowMenu = ({ label, actions = [], move, children, onCloseAutoFocus }: RowMenuProps) => {
   const chosen = useRef<(() => void) | null>(null);
   const run = () => {
     const action = chosen.current;
@@ -48,7 +50,10 @@ const RowMenu = ({ label, actions = [], move, children }: RowMenuProps) => {
       <DropdownMenuContent
         align="end"
         onCloseAutoFocus={(event) => {
-          if (!chosen.current) return;
+          if (!chosen.current) {
+            onCloseAutoFocus?.(event);
+            return;
+          }
           // Only now that the menu is done with the focus.
           event.preventDefault();
           run();

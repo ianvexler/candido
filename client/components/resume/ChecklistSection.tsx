@@ -24,7 +24,7 @@ type Detector = NonNullable<Parameters<typeof useSortable>[0]["collisionDetector
  * Where the pointer is, by the row of a block alone. By its whole height a tall
  * block would still be under the pointer after making way, and swap back.
  */
-const overRow: Detector = ({ dragOperation, droppable }) => {
+export const overRow: Detector = ({ dragOperation, droppable }) => {
   const { y } = dragOperation.position.current;
   const row = droppable.shape?.boundingRectangle;
   if (!row || y < row.top || y > row.bottom || droppable.id === dragOperation.source?.id) return null;
