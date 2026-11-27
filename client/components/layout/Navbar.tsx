@@ -28,7 +28,7 @@ const Navbar = () => {
     <>
       {/* Desktop */}
       <aside className="hidden md:flex fixed left-0 top-0 z-10 h-screen w-60 shrink-0 flex-col bg-candido-ink px-3 py-4">
-        <Link href="/dashboard" className="mb-6 flex h-11 shrink-0 items-center justify-center" aria-label="Candido">
+        <Link href="/dashboard" className="mb-6 flex h-11 shrink-0 items-center px-3" aria-label="Candido">
           <Image src={Wordmark} alt="" height={34} priority className="w-auto" />
         </Link>
 
