@@ -31,6 +31,8 @@ const ROOM = 4;
 const INSET = 2;
 /** How long the tools stay after the pointer leaves where they are for. */
 export const LINGER = 300;
+/** In screen px: how tall the line between sections is to the pointer. */
+const SECTION_LINE = 8;
 
 type Menu = { kind: "add"; block: PlacedBlock; place: AddPlace } | { kind: "section"; gap: Gap; afterSectionId: number | null };
 
@@ -305,6 +307,8 @@ const PageTools = ({ rootRef, areaRef, scale, sheetWidth, sections, taken = [], 
   const pointed = useLingering<Gap>();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [aiming, setAiming] = useState(false);
+  // Which gap's line the pointer is on, so a gap that comes back later isn't lit.
+  const [sectionHot, setSectionHot] = useState<string | null>(null);
   // Both can be shown at once: a gutter lingers by a gap.
   const [addAnchor, setAddAnchor] = useState<HTMLButtonElement | null>(null);
   const [sectionAnchor, setSectionAnchor] = useState<HTMLButtonElement | null>(null);
@@ -341,7 +345,7 @@ const PageTools = ({ rootRef, areaRef, scale, sheetWidth, sections, taken = [], 
     // Gaps are only between sections: not measured for over a block's text.
     const onBlock = under !== null && y >= under.top && y <= under.bottom;
     const gap = pointed.value;
-    const next = gap && target.closest("[data-page-section]") ? gap : onBlock ? null : gapAt(root, scale, event.clientX, event.clientY, order);
+    const next = gap && target.closest("[data-page-section], [data-page-section-line]") ? gap : onBlock ? null : gapAt(root, scale, event.clientX, event.clientY, order);
     if (next) pointed.show(next);
     else pointed.linger();
   });
@@ -440,6 +444,12 @@ const PageTools = ({ rootRef, areaRef, scale, sheetWidth, sections, taken = [], 
   const block = menu?.kind === "add" ? menu.block : menu ? null : hovered.value;
   const gap = menu?.kind === "section" ? menu.gap : menu ? null : pointed.value;
   const adding = menu?.kind === "add";
+  const gapKey = gap && `${gap.afterSectionId}:${gap.top}`;
+  const sectionLit = (gapKey !== null && sectionHot === gapKey) || menu?.kind === "section";
+  const toggleSection = () => {
+    if (menu) close(false);
+    else if (gap) setMenu({ kind: "section", gap, afterSectionId: gap.afterSectionId });
+  };
   const gutter = block && gutterOf(block);
   // Above when side by side; stacked, away from the page, so neither covers the other.
   const tipSide = gutter?.stacked && block ? block.side : "top";
@@ -504,11 +514,25 @@ const PageTools = ({ rootRef, areaRef, scale, sheetWidth, sections, taken = [], 
       )}
       {gap && (
         <>
-          <div
+          {/* The whole line opens the menu too; it lights up with the pill, as "+" lights its add line. */}
+          <button
+            type="button"
+            tabIndex={-1}
             aria-hidden
-            className="pointer-events-none absolute z-20 border-t border-dashed border-[#aab2ba]"
-            style={{ top: gap.top * scale - 0.5, left: gap.left * scale, width: (gap.right - gap.left) * scale }}
-          />
+            data-page-section-line
+            onPointerEnter={() => setSectionHot(gapKey)}
+            onPointerLeave={() => setSectionHot(null)}
+            onClick={toggleSection}
+            className="pointer-events-auto absolute z-20 -translate-y-1/2 cursor-pointer"
+            style={{ top: gap.top * scale, left: gap.left * scale, width: (gap.right - gap.left) * scale, height: SECTION_LINE }}
+          >
+            <span
+              className={cn(
+                "absolute inset-x-0 top-1/2 -translate-y-1/2",
+                sectionLit ? "h-[1.5px] bg-[#f5a524]" : "border-t border-dashed border-[#aab2ba]"
+              )}
+            />
+          </button>
           <button
             ref={setSectionAnchor}
             type="button"
@@ -516,14 +540,17 @@ const PageTools = ({ rootRef, areaRef, scale, sheetWidth, sections, taken = [], 
             aria-label="Add a section"
             aria-haspopup="listbox"
             aria-expanded={menu?.kind === "section"}
-            onClick={() => (menu ? close(false) : setMenu({ kind: "section", gap, afterSectionId: gap.afterSectionId }))}
+            onPointerEnter={() => setSectionHot(gapKey)}
+            onPointerLeave={() => setSectionHot(null)}
+            onClick={toggleSection}
             className={cn(
-              "pointer-events-auto absolute z-20 inline-flex h-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-[4px] whitespace-nowrap rounded-full border border-[#aab2ba] bg-white pl-[6px] pr-[10px] text-[12px] font-medium leading-none text-[#1f2328] hover:border-[#5f6770] hover:text-black [&_svg]:size-[14px]",
-              menu?.kind === "section" && "border-[#5f6770] text-black"
+              // Small enough to sit in the space between a section's last line and the next heading.
+              "pointer-events-auto absolute z-20 inline-flex h-[16px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center gap-[3px] whitespace-nowrap rounded-full border border-[#c5cbd1] bg-white pl-[5px] pr-[7px] text-[11px] font-medium leading-none text-[#5f6770] outline-none focus-visible:ring-2 focus-visible:ring-[#f5a524]/60 [&_svg]:size-[10px]",
+              sectionLit && "border-[#f5a524] bg-[#fff4dc] text-[#1f2328]"
             )}
             style={{ top: gap.top * scale, left: ((gap.left + gap.right) / 2) * scale }}
           >
-            <PlusIcon strokeWidth={2.5} />
+            <PlusIcon strokeWidth={3} />
             Section
           </button>
         </>

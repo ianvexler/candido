@@ -514,9 +514,27 @@ describe("PageTools", () => {
     const pill = named("Add a section")!;
     expect(pill.textContent).toBe("Section");
     expect(pill.querySelector("svg")).not.toBeNull();
-    expect(pill.className).toContain("h-[24px]");
+    // Fits the space between a section's last line and the next heading.
+    expect(pill.className).toContain("h-[16px]");
+    expect(pill.className).toContain("cursor-pointer");
     expect(named("Add below")).toBeNull();
     await press(pill);
+    expect(document.activeElement?.getAttribute("placeholder")).toBe("Search your sections…");
+  });
+
+  it("lights its line on hover, and opens the menu from the line too", async () => {
+    places.gapAt.mockReturnValue(sectionGap);
+    await move(margin(), 400, 300);
+    const line = document.querySelector<HTMLElement>('[data-page-section-line]')!;
+    const mark = () => line.querySelector("span")!.className;
+    expect(mark()).toContain("border-dashed");
+    await act(async () => {
+      line.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+      line.dispatchEvent(new PointerEvent("pointerenter"));
+    });
+    expect(mark()).toContain("bg-[#f5a524]");
+    expect(named("Add a section")!.className).toContain("bg-[#fff4dc]");
+    await press(line);
     expect(document.activeElement?.getAttribute("placeholder")).toBe("Search your sections…");
   });
 
