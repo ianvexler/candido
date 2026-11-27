@@ -10,6 +10,8 @@ export type CreateCurriculumPayload = {
   section_template_ids?: number[];
   /** Starts from all of the library. */
   whole_library?: boolean;
+  /** With `whole_library`: the purpose it is for; null or absent for Everything. */
+  cv_label_id?: number | null;
 };
 
 export const createCurriculum = async (payload: CreateCurriculumPayload): Promise<{ curriculum: Curriculum }> => {

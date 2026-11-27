@@ -101,7 +101,7 @@ const withLibraryOnly = <T extends { id: string }>(ours: T[], libraryIds: string
   return rows;
 };
 
-const entryTitle = (entry: SectionEntry, firstItem: ChecklistItem | undefined) =>
+export const entryTitle = (entry: SectionEntry, firstItem: { text: string } | undefined) =>
   [entry.title, entry.organization, entry.role, firstItem?.text].map((text) => text?.trim()).find(Boolean) ?? "Untitled";
 
 const tickState = (ticked: boolean, included: number, total: number): TickState => {
