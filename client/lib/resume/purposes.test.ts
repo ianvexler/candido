@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SectionEntry, SectionTemplate } from "@/lib/types";
 import cases from "./purposeFitCases.json";
-import { entryFits, inFilter, itemFits, labelsOf, outline, purposeCounts, sectionFits } from "./purposes";
+import { carryingCount, entryFits, inFilter, itemFits, labelsOf, outline, purposeCounts, sectionFits } from "./purposes";
 
 type Case = (typeof cases)[number];
 
@@ -133,5 +133,25 @@ describe("purposeCounts and outline", () => {
     expect(found[0].entries[0].title).toBe("Engineer");
     expect(found[1].entries[0].title).toBe("Acme");
     expect(found[1].entries[1].title).toBe("Untitled");
+  });
+});
+
+describe("carryingCount", () => {
+  it("counts items with the label, their own or their entry's, and an entry with no items as one", () => {
+    const templates = [
+      template(
+        [
+          { id: "e1", content: '<ul><li data-cv-item="i1">Rails</li><li data-cv-item="i2">Design</li></ul>' },
+          { id: "e2", content: '<p data-cv-item="i3">Go</p>' },
+          { id: "e4", content: "" },
+        ],
+        // e1 passes the label to both its items; "gone" was deleted and stays behind.
+        { e1: [1], i1: [1], i3: [1, 2], e4: [1], gone: [1] }
+      ),
+      template([{ id: "e5", content: '<p data-cv-item="i5">Plain</p>' }], {}, { id: 2 }),
+    ];
+    expect(carryingCount(templates, 1)).toBe(4);
+    expect(carryingCount(templates, 2)).toBe(1);
+    expect(carryingCount(templates, 3)).toBe(0);
   });
 });

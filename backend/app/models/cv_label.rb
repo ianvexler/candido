@@ -45,6 +45,8 @@ class CvLabel < ApplicationRecord
     templates = ids_by_template.keys.sort_by(&:id)
     SectionTemplate.transaction do
       templates.each(&:lock!)
+      # Deleting it locks every template too, so it can't go after this.
+      raise ApiError.new("Purpose not found", status: :not_found) unless CvLabel.exists?(id)
       templates.each do |template|
         unknown = ids_by_template[template].reject { |id| template.labellable?(id) }
         raise ApiError.new("Some of that is no longer in the library", status: :unprocessable_content) if unknown.any?

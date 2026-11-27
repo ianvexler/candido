@@ -19,6 +19,8 @@ import {
 } from "./checklist";
 import { buildResumeDocument } from "./exportDocument";
 import { listItems } from "./items";
+import cases from "./purposeFitCases.json";
+import { itemFits } from "./purposes";
 import { emptyEntry } from "./sectionEntries";
 import type { SectionDraft } from "./sectionDrafts";
 
@@ -832,5 +834,30 @@ describe("searching while adding", () => {
   it("keeps a new section", () => {
     const sections = build([cv([entry("a")], { id: 1 }), cv([emptyEntry()], { id: 2, section_type: "Section" })]);
     expect(filterChecklist(sections, "zzz", { sectionId: 2, entryId: null, known: [] }).map(({ sectionId }) => sectionId)).toEqual([2]);
+  });
+});
+
+describe("tickSection with the shared fit cases", () => {
+  cases.forEach((c) => {
+    it(c.name, () => {
+      const template = { entries: c.template.entries, item_labels: c.template.item_labels } as unknown as SectionTemplate;
+      const section = cv(
+        c.template.entries.map(({ id, description, content }) =>
+          entry(id, content.replace(/data-cv-item="[^"]*"/g, '$& data-cv-off="true"'), {
+            description,
+            hidden: true,
+            description_off: true,
+          })
+        ),
+        { hidden: true }
+      );
+      const fits = (entryId: string, itemId: string) => itemFits(template, entryId, itemId, c.label_id);
+      const shown = apply(section, tickSection(section, true, fits)).entries.filter((e) => !e.hidden).map((e) => e.id);
+      // Where nothing fits, it all shows.
+      const expected = Object.entries(c.entries as Record<string, boolean>)
+        .filter(([, fit]) => fit || !c.section)
+        .map(([id]) => id);
+      expect(shown).toEqual(expected);
+    });
   });
 });

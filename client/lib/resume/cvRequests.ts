@@ -17,6 +17,8 @@ export const UNSAVED = "Your latest changes couldn't be saved, so this wasn't ad
 export const INVALID_DATES = "Fix the end month that is before its start month in this section first. Then add this.";
 const KEPT_CHANGING = "This section kept changing, so this wasn't added. Try again.";
 export const PURPOSE_UNSAVED = "Your latest changes couldn't be saved, so the purpose wasn't changed. Try again.";
+export const PURPOSE_INVALID_DATES =
+  "Fix the end month that is before its start month in this CV first. Then change the purpose.";
 // Only someone typing on without a pause gets this far.
 const MAX_PURPOSE_ROUNDS = 5;
 const PURPOSE_KEPT_CHANGING = "This CV kept changing, so some ticks may not fit its new purpose. Check them.";
@@ -225,6 +227,8 @@ export const createCvRequests = ({
     for (let round = 0; ; round += 1) {
       // So the server compares against the ticks as they are now.
       if (!(await flush())) throw new RequestStopped(PURPOSE_UNSAVED);
+      // That entry isn't saved, so the next save would undo its new ticks.
+      if (current().some((s) => s.entries.some(endsBeforeStart))) throw new RequestStopped(PURPOSE_INVALID_DATES);
       const before = current();
       // Saving what was typed meanwhile also sent its old ticks, so they differ: that was us.
       const curriculum = await sendPurpose(labelId, force || round > 0);

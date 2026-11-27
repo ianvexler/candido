@@ -343,6 +343,17 @@ RSpec.describe "Curriculums" do
           "section #{own_section.id}" => false, "prize" => true, "prize/medal" => false))
       end
 
+      it "keeps a section shown that still has ticked content only the CV has" do
+        curriculum = create_cv(frontend)
+        section = curriculum.curriculum_sections.find_by!(section_template: skills)
+        section.update!(entries: section.entries + [ { "id" => "mine", "title" => "Own tool", "hidden" => false } ])
+
+        change_purpose(curriculum, backend)
+
+        expect(response).to have_http_status(:ok)
+        expect(ticks(curriculum)).to eq(backend_ticks.merge("section #{skills.id}" => true, "mine" => true))
+      end
+
       it "copies in library content the CV lacks, ticked by fit" do
         curriculum = create_cv(backend)
         experience.update!(entries: experience.entries + [ { "id" => "initech", "title" => "Initech", "content" => '<p data-cv-item="sql">SQL</p>' } ])

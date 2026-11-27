@@ -130,6 +130,17 @@ RSpec.describe "CV labels" do
       expect(other.reload.item_labels).to eq({})
     end
 
+    it "writes nothing when the label is deleted once it was loaded" do
+      allow(CvLabel).to receive(:find_owned!).and_wrap_original do |find, *args|
+        find.call(*args).tap { |found| CvLabel.where(id: found.id).delete_all }
+      end
+
+      label_items(label, [ { section_template_id: template.id, id: "a" } ])
+
+      expect(response).to have_http_status(:not_found)
+      expect(template.reload.item_labels).to eq({})
+    end
+
     it "returns each touched section once" do
       second = create(:section_template, user: user, entries: [ { id: "two" } ])
 

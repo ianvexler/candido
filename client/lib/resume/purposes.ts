@@ -120,6 +120,25 @@ export const purposeCounts = (templates: SectionTemplate[], labels: CvLabel[]): 
     return counts;
   });
 
+/** Items that carry this label, their own or their entry's. An entry with no items counts as one. */
+export const carryingCount = (templates: Labelled[], labelId: number): number =>
+  templates.reduce(
+    (total, template) =>
+      total +
+      template.entries.reduce((sum, entry) => {
+        const ids = itemIds(entry);
+        if (ids.length === 0) return sum + (labelsOf(template, entry.id).own.includes(labelId) ? 1 : 0);
+        return (
+          sum +
+          ids.filter((id) => {
+            const { own, inherited } = labelsOf(template, entry.id, id);
+            return own.includes(labelId) || inherited.includes(labelId);
+          }).length
+        );
+      }, 0),
+    0
+  );
+
 const matches = (text: string | null | undefined, query: string) => (text ?? "").toLowerCase().includes(query);
 
 const entryTexts = (entry: SectionEntry) => [entry.title, entry.organization, entry.role, entry.description];

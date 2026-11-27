@@ -117,7 +117,9 @@ class CurriculumSection < ApplicationRecord
       CvItems.list(entry["content"]).each { |item| by_item[item[:id]] = entry if item[:id] }
     end
 
-    entries.each_with_object({ section: purpose.section_fits? }) do |entry, ticks|
+    # Ticked content of this CV's own keeps its section shown.
+    own_ticked = !hidden? && entries.any? { |entry| !library.key?(entry["id"]) && !entry["hidden"] }
+    entries.each_with_object({ section: purpose.section_fits? || own_ticked }) do |entry, ticks|
       id = entry["id"]
       if (library_entry = library[id])
         ticks[id] = purpose.entry_fits?(library_entry)

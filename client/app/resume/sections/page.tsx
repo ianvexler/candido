@@ -18,7 +18,7 @@ import LibraryWorkspace from "@/components/resume/library/LibraryWorkspace";
 import PurposeList, { usePurposeFilter } from "@/components/resume/library/PurposeList";
 import LibrarySection, { SectionLabelling } from "@/components/resume/LibrarySection";
 import { Button } from "@/components/ui/Button";
-import { outline, purposeCounts } from "@/lib/resume/purposes";
+import { carryingCount, outline, purposeCounts } from "@/lib/resume/purposes";
 import { apiErrorMessage } from "@/lib/resume/reviewPanel";
 import { waitForSaves } from "@/lib/resume/saveTracker";
 import type { SectionPatch } from "@/lib/resume/sectionDrafts";
@@ -135,13 +135,10 @@ const SectionLibraryPage = () => {
   const library = useDeferredValue(labelled);
   const counts = useMemo(() => purposeCounts(library, labels), [library, labels]);
   const sections = useMemo(() => outline(library, filter, query), [library, filter, query]);
-  const carried = useMemo(() => {
-    const totals = new Map<number, number>();
-    Object.values(itemLabels).forEach((map) =>
-      Object.values(map).forEach((ids) => ids.forEach((id) => totals.set(id, (totals.get(id) ?? 0) + 1)))
-    );
-    return totals;
-  }, [itemLabels]);
+  const carried = useMemo(
+    () => new Map(labels.map((label) => [label.id, carryingCount(library, label.id)])),
+    [library, labels]
+  );
 
   const selected = templates.find(({ id }) => id === selection.sectionId);
   const showsProfile = selected === undefined;
@@ -261,6 +258,11 @@ const SectionLibraryPage = () => {
       try {
         await remove(id, deleteSectionTemplate(id));
         toast.success("Section deleted");
+        setAllItemLabels((labelled) => {
+          const rest = { ...labelled };
+          delete rest[id];
+          return rest;
+        });
         const neighbour = order[index + 1] ?? order[index - 1] ?? null;
         setSelection((shown) => (shown.sectionId === id ? { sectionId: neighbour } : shown));
         // The dialog's button is gone, and the section with it.

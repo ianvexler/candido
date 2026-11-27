@@ -6,6 +6,7 @@ import {
   INVALID_DATES,
   TextKept,
   MAX_INCLUDES,
+  PURPOSE_INVALID_DATES,
   PURPOSE_UNSAVED,
   PurposeKeptChanging,
   TRANSFER_INVALID_DATES,
@@ -80,6 +81,13 @@ describe("changePurpose", () => {
     flush.mockResolvedValue(false);
     await expect(requests.changePurpose(5, false)).rejects.toThrow(PURPOSE_UNSAVED);
     expect(sendPurpose).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing while an entry has an invalid date range, which isn't saved", async () => {
+    const { requests, sendPurpose, replace } = setup([section(1), section(2, { entries: [invalid] })]);
+    await expect(requests.changePurpose(5, false)).rejects.toThrow(PURPOSE_INVALID_DATES);
+    expect(sendPurpose).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("shows nothing when the server asks first", async () => {
