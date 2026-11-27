@@ -32,9 +32,12 @@
 #  fk_rails_...  (user_id => users.id)
 #
 class CvTailoring < ApplicationRecord
+  include DailyCapped
+
   STATUSES = %w[pending processing succeeded failed].freeze
   # Each run is a paid model call, so cap how many a user can start.
   DAILY_LIMIT = 10
+  LIMIT_NOUN = "CV reviews".freeze
   # Jobs run in-process, so a restart can drop one mid-run. Runs that haven't
   # moved for this long are treated as failed so nothing waits forever.
   STALE_AFTER = 10.minutes
@@ -69,10 +72,6 @@ class CvTailoring < ApplicationRecord
 
   def self.expired_attributes
     { status: "failed", error_message: STALE_MESSAGE, updated_at: Time.current }
-  end
-
-  def self.limit_reached?(user)
-    user.cv_tailorings.where(created_at: 24.hours.ago..).count >= DAILY_LIMIT
   end
 
   # Expires just this run if it's stale, then reloads it.

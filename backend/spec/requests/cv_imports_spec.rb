@@ -86,6 +86,7 @@ RSpec.describe "CV imports" do
       post "/api/v1/cv_imports", params: { file: pdf }, headers: headers
 
       expect(response).to have_http_status(:too_many_requests)
+      expect(response.parsed_body["error"]).to eq("You can start 10 CV imports a day. Your next one opens in about 24 hours.")
     end
 
     it "reports when CV import isn't set up" do

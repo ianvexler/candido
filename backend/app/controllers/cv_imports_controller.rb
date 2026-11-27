@@ -9,9 +9,8 @@ class CvImportsController < ApplicationController
 
   def create
     raise ApiError.new("CV import isn't available right now.", status: :service_unavailable) unless CvImports::Extractor.configured?
-    if CvImport.limit_reached?(current_user)
-      raise ApiError.new("You've imported a lot of CVs today. Try again tomorrow.", status: :too_many_requests)
-    end
+    # Fails fast before reading the file; CvImport.start! is what enforces the cap.
+    CvImport.ensure_under_limit!(current_user)
 
     file = params.require(:file)
     raise ApiError.new("Upload a PDF or Word (.docx) file.", status: :bad_request) unless file.respond_to?(:tempfile)
@@ -21,7 +20,8 @@ class CvImportsController < ApplicationController
     raise ApiError.new("Upload a PDF or Word (.docx) file.", status: :bad_request) unless ACCEPTED_TYPES.include?(media_type)
 
     file.tempfile.rewind
-    cv_import = current_user.cv_imports.create!(
+    cv_import = CvImport.start!(
+      current_user,
       filename: File.basename(file.original_filename.to_s).first(255),
       media_type: media_type,
       source_data: Base64.strict_encode64(file.tempfile.read)

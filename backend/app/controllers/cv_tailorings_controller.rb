@@ -59,15 +59,14 @@ class CvTailoringsController < ApplicationController
     unless CvTailorings::Reviewer.configured?
       raise ApiError.new("CV tailoring isn't available right now.", status: :service_unavailable)
     end
-    return unless CvTailoring.limit_reached?(current_user)
-
-    raise ApiError.new("You've tailored a lot of CVs today. Try again tomorrow.", status: :too_many_requests)
+    # Fails fast before copying the CV; CvTailoring.start! is what enforces the cap.
+    CvTailoring.ensure_under_limit!(current_user)
   end
 
   # Snapshots the job's title and company so the run still reads right if the job changes.
   def start_run(curriculum, job)
-    current_user.cv_tailorings.create!(
-      curriculum: curriculum, job_board_entry: job, job_title: job.title, company: job.company
+    CvTailoring.start!(
+      current_user, curriculum: curriculum, job_board_entry: job, job_title: job.title, company: job.company
     )
   end
 

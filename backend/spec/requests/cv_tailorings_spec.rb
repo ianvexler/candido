@@ -58,7 +58,7 @@ RSpec.describe "CV tailorings" do
       start
 
       expect(response).to have_http_status(:too_many_requests)
-      expect(response.parsed_body["error"]).to eq("You've tailored a lot of CVs today. Try again tomorrow.")
+      expect(response.parsed_body["error"]).to eq("You can start 10 CV reviews a day. Your next one opens in about 24 hours.")
     end
 
     it "makes and links a plain copy without a review" do
