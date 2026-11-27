@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { JobsRefreshProvider } from "@/contexts/JobsRefreshContext";
 import { Toaster } from "react-hot-toast";
 import { TooltipProvider } from "@/components/ui/Tooltip";
+import { sidebarInitScript } from "@/lib/sidebarInit";
 
 const dmSans = localFont({
   src: "../fonts/dm-sans/latin.woff2",
@@ -33,7 +34,11 @@ interface RootLayoutProps {
 
 const RootLayout = ({ children }: RootLayoutProps) => {
   return (
-    <html lang="en">
+    // The inline script marks <html> before hydration, so React must not complain about the attribute.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: sidebarInitScript }} />
+      </head>
       <body className={`${dmSans.variable} ${geistMono.variable} ${display.variable} font-sans flex min-h-screen flex-col antialiased`}>
         <AuthProvider>
           <JobsRefreshProvider>

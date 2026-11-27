@@ -46,13 +46,15 @@ const AccountMenu = ({ variant }: AccountMenuProps) => {
         {variant === "sidebar" ? (
           <button
             className={cn(
-              "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[15px] text-gray-100 transition-colors hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10"
+              "flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-md px-2 py-1.5 text-left text-[15px] text-gray-100 transition-[padding,background-color,color] duration-200 ease-out hover:bg-white/5 hover:text-white data-[state=open]:bg-white/10 sidebar-collapsed:px-1.5"
             )}
             aria-label="Account"
           >
             {avatar}
-            <span className="min-w-0 flex-1 truncate">{user?.name || user?.email}</span>
-            <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400" />
+            <span className="min-w-0 flex-1 truncate transition-opacity duration-150 sidebar-collapsed:opacity-0">
+              {user?.name || user?.email}
+            </span>
+            <ChevronsUpDownIcon className="size-4 shrink-0 text-gray-400 transition-opacity duration-150 sidebar-collapsed:opacity-0" />
           </button>
         ) : (
           <button

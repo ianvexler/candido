@@ -30,7 +30,7 @@ const JobsPipeline = ({ counts }: { counts: JobCounts }) => {
         ))}
       </div>
       {summary.length > 0 && (
-        <p className="mt-1.5 whitespace-nowrap font-mono text-xs text-gray-400">{summary.join(" · ")}</p>
+        <p className="mt-1.5 whitespace-nowrap font-mono text-xs text-gray-400 transition-opacity duration-150 sidebar-collapsed:opacity-0">{summary.join(" · ")}</p>
       )}
     </div>
   );
