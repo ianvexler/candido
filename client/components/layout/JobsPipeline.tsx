@@ -1,8 +1,7 @@
 import { PIPELINE_STATUSES } from "@/lib/dashboard/chart";
 import { JobCounts } from "@/lib/jobBoard/useJobCounts";
 
-// Stages still in play; rejected jobs would swamp the bar.
-const STAGES = PIPELINE_STATUSES.filter(({ key }) => key !== "rejected");
+const STAGES = PIPELINE_STATUSES;
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 

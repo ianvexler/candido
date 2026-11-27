@@ -83,17 +83,17 @@ const PipelineChart = ({ counts }: PipelineChartProps) => {
               onFocus={() => setActiveIndex(index)}
               onBlur={() => setActiveIndex(null)}
             >
-              {/* The board hides rejected jobs until asked, so that row has nowhere useful to go. */}
-              {key === "rejected" ? (
-                <div className={className}>{row}</div>
-              ) : (
-                <Link href="/board" className={className}>
-                  {row}
-                </Link>
-              )}
+              <Link href="/board" className={className}>
+                {row}
+              </Link>
             </li>
           );
         })}
+        {counts.rejected > 0 && (
+          <li className="mt-2 border-t border-border px-2 pt-2 text-xs text-muted-foreground">
+            {counts.rejected} rejected · not shown
+          </li>
+        )}
       </ul>
     </div>
   );
