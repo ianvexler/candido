@@ -2,7 +2,7 @@ import { display } from "@/components/landing/fonts";
 import "@/components/landing/landing.css";
 import Builder from "@/lib/images/Builder.png";
 import Logo from "@/lib/images/MainLogo.png";
-import Image from "next/image";
+import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
 
@@ -11,11 +11,13 @@ interface AuthShellProps {
   headline: string;
   /** A sentence under the headline. */
   tagline: string;
+  /** The illustration under the tagline on desktop. Defaults to the builder. */
+  art?: StaticImageData;
   children: ReactNode;
 }
 
 /** Sign in and sign up: the landing page's amber and crane-yard look beside the form. */
-const AuthShell = ({ headline, tagline, children }: AuthShellProps) => (
+const AuthShell = ({ headline, tagline, art = Builder, children }: AuthShellProps) => (
   <div className={`${display.variable} landing flex flex-1 min-h-screen flex-col bg-white lg:flex-row`}>
     {/* Amber panel: a short band on mobile, half the screen on desktop. */}
     <aside className="flex shrink-0 flex-col bg-[var(--landing-amber)] lg:w-[46%] lg:max-w-[760px]">
@@ -34,7 +36,7 @@ const AuthShell = ({ headline, tagline, children }: AuthShellProps) => (
         <p className="mt-4 hidden max-w-[24em] text-[17px] lg:block">{tagline}</p>
 
         <Image
-          src={Builder}
+          src={art}
           alt=""
           sizes="(min-width: 1024px) 370px, 0px"
           className="mx-auto mt-20 hidden h-auto max-h-[30vh] w-auto max-w-[370px] object-contain lg:block"
