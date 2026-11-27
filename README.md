@@ -72,11 +72,37 @@ Each call is billed to that key, and reviews are limited to 10 per user per day.
 ./run client <command>        # e.g. ./run client npm run build
 ```
 
+### Checking the CV page against its export
+
+`client/scripts/page-parity.mjs` checks that the Page view of a CV puts every block where the print page and the PDF do. It isn't part of CI and adds no dependency. It makes a CV titled "Parity check" from fixture sections (long and short bullets, links, summaries, subheadings, lists, quotes, left-out and partly hidden text), compares it for both templates, both papers, four fonts, three sizes and one to four pages, and deletes it. For each block it compares its place on the Page view, with the break rules off, with the print page (within 0.5px), and the page it is on, and the number of pages, with the PDF. A sample covers each pair of values at least once (16 cases, about 2 minutes); `--all` runs all 192.
+
+Sign in as a throwaway account: it refuses to run unless the account's CVs are all titled "Parity ...", or `--yes-this-is-a-throwaway-account` is passed.
+
+```bash
+cd client
+npm install --no-save playwright   # or PLAYWRIGHT_PATH=/path/to/node_modules/playwright
+PARITY_EMAIL=... PARITY_PASSWORD=... node scripts/page-parity.mjs --url http://localhost:3000 --api http://localhost:8000
+node scripts/page-parity.mjs --state auth.json    # a Playwright storage state, instead of the password
+node scripts/page-parity.mjs --typing             # typing with 40 sections and 400 items: median and p95 per key; fails over 50ms at p95 (a development build)
+```
+
+It prints the differences and a summary, and exits 1 if there are any. Which page each block is on needs `pdftotext` (poppler) or a command in `PARITY_PDF_TEXT` that prints a PDF's text with a form feed after each page; without either it stops, unless `--no-pdf-text` is passed, when only the page counts are compared. Blocks taller than a page are not covered. It refuses a `--url` or `--api` that isn't on this machine unless `--allow-remote` is passed.
+
 ## Production
 
 Live deploys client + Rails via `docker-compose.prod.yml` and **Deploy to Production**. The API image is `ghcr.io/<owner>/candido-backend`. Each deploy runs `db:migrate` before replacing the running containers, and stops there if a migration fails. Boot runs it again, which does nothing if it is up to date. Do not run `db:prepare` or `db:schema:load` on production.
 
 The Next.js API origin is baked in at image build (`NEXT_PUBLIC_API_URL`). Keep that secret equal to the public API URL the browser already uses. The client calls `{NEXT_PUBLIC_API_URL}/api/v1`.
+
+### CV checklist release
+
+Existing CVs and library sections need item ids. Back up the database, then deploy, which adds the columns. Run this on the server immediately after, as soon as the new version is live: until then, editing a CV or library section gives its items ids that may not match.
+
+```bash
+docker-compose -f docker-compose.prod.yml --env-file backend/.env exec -T backend ./bin/rails cv_items:backfill
+```
+
+It checks that every CV still shows the same, and leaves a user's data as it was if one doesn't. It prints counts and user ids only, exits 1 if any user failed, and is safe to repeat. Fix the cause for any user that failed and run it again. Also run it again a day later, for pages that were left open from before the release, or opened between the deploy and the first run.
 
 ## Applying this cutover
 

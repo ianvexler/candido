@@ -15,7 +15,10 @@ class CurriculumsController < ApplicationController
     render_curriculum(@curriculum)
   end
 
+  # With `whole_library` the CV starts from every library section and needs no title.
   def create
+    return create_from_library if ActiveModel::Type::Boolean.new.cast(params[:whole_library])
+
     templates = owned_templates(params[:section_template_ids])
     render_curriculum(Curriculum.create_with_sections!(current_user, curriculum_params, templates))
   end
@@ -38,6 +41,12 @@ class CurriculumsController < ApplicationController
   end
 
   private
+
+  def create_from_library
+    title = params[:title].presence || Curriculum.free_title(current_user, "New CV")
+    templates = current_user.section_templates.in_library_order
+    render_curriculum(Curriculum.create_with_sections!(current_user, curriculum_params.merge(title: title), templates))
+  end
 
   def set_curriculum
     @curriculum = Curriculum.find_owned!(current_user, params[:id])

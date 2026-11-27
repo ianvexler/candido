@@ -35,6 +35,25 @@ const section = (
 const build = (sections: InputSection[], h: ResumeHeader = header(), title = "Platform roles") =>
   buildResumeDocument({ title, header: h, sections });
 
+describe("buildResumeDocument, keeping what is edited", () => {
+  const emptied = { title: "", content: "" };
+  const keep = (sections: InputSection[], sectionId: number, entryId: string | null) =>
+    buildResumeDocument({ title: "t", header: header(), sections, keep: [{ sectionId, entryId }] }).sections.map(
+      ({ id, entries }) => [id, entries.map((e) => e.id)]
+    );
+
+  it("has an emptied entry", () =>
+    expect(keep([section(1, { entries: [entry("a"), entry("b", emptied), entry("c", emptied)] })], 1, "b")).toEqual([[1, ["a", "b"]]]));
+
+  it("has an emptied section", () =>
+    expect(keep([section(1, { ...emptied, section_type: "" }), section(2, emptied)], 1, "e1")).toEqual([[1, ["e1"]], [2, []]]));
+
+  it("never has what is left out", () => {
+    expect(keep([section(1, { hidden: true })], 1, "e1")).toEqual([]);
+    expect(keep([section(1, { entries: [entry("a"), entry("b", { ...emptied, hidden: true })] })], 1, "b")).toEqual([[1, ["a"]]]);
+  });
+});
+
 describe("buildResumeDocument", () => {
   it("drops hidden sections and keeps the rest in order", () => {
     const doc = build([section(1, { title: "First" }), section(2, { hidden: true }), section(3, { title: "Third" })]);
@@ -47,6 +66,19 @@ describe("buildResumeDocument", () => {
 
     expect(doc.sections[0].entries[0].html).toContain("Led");
     expect(doc.sections[0].entries[0].html).not.toContain("quietly");
+  });
+
+  it("drops unticked items and the list they leave empty", () => {
+    const content = '<p data-cv-item="a">Kept</p><ul><li data-cv-item="b" data-cv-off="true"><p>Left out</p></li></ul>';
+    const doc = build([section(1, { content })]);
+
+    expect(doc.sections[0].entries[0].html).toBe('<p data-cv-item="a">Kept</p>');
+  });
+
+  it("keeps the title of an entry whose items are all unticked", () => {
+    const doc = build([section(1, { title: "Acme", content: '<p data-cv-item="a" data-cv-off="true">Left out</p>' })]);
+
+    expect(doc.sections[0].entries).toMatchObject([{ title: "Acme", html: "" }]);
   });
 
   it("drops a section with nothing visible", () => {

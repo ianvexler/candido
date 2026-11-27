@@ -74,7 +74,8 @@
   }
 }
 
-.tiptap {
+/* Not on the CV page, where text looks as it prints. */
+.tiptap:where(:not(.page-editor)) {
   :first-child {
     margin-top: 0;
   }

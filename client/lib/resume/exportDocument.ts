@@ -1,4 +1,4 @@
-import { hasVisibleText, stripHiddenHtml } from "@/components/resume/documentContent";
+import { printedHtml } from "@/components/resume/documentContent";
 import { formatDateRange } from "@/components/resume/sectionDetails";
 import { ResumeHeader, ResumeHeaderTextFields, SectionEntry, SectionFields, SectionPlacement } from "@/lib/types";
 
@@ -37,6 +37,9 @@ export type ResumeDocument = {
 
 type InputSection = SectionFields & { id: number; hidden?: boolean; placement?: SectionPlacement | null };
 
+/** What stays even with nothing in it, as it is being edited. What is left out never does. */
+export type KeptPlace = { sectionId: number; entryId: string | null };
+
 // Short lists that read well in a narrow column.
 const SIDEBAR_TYPES = /skill|language|certif|interest|hobb|tool|award|reference|contact/i;
 
@@ -59,7 +62,7 @@ const cleanHeader = (header: ResumeHeader): ResumeHeader => {
 };
 
 /** The organisation isn't repeated when it is also the entry's title. */
-const organizationLabel = ({ title, organization }: SectionEntry) =>
+export const organizationLabel = ({ title, organization }: SectionEntry) =>
   organization?.trim().toLowerCase() === title.trim().toLowerCase() ? "" : organization;
 
 const toExportEntry = (entry: SectionEntry): ExportEntry => ({
@@ -67,22 +70,25 @@ const toExportEntry = (entry: SectionEntry): ExportEntry => ({
   title: entry.title.trim(),
   subtitle: joinParts([entry.role, organizationLabel(entry)]),
   meta: joinParts([formatDateRange(entry), entry.location]),
-  summary: entry.description?.trim() ?? "",
-  html: hasVisibleText(entry.content) ? stripHiddenHtml(entry.content) : "",
+  summary: entry.description_off ? "" : (entry.description?.trim() ?? ""),
+  html: printedHtml(entry.content),
 });
 
 const hasEntryContent = (entry: ExportEntry) =>
   Boolean(entry.title || entry.subtitle || entry.meta || entry.summary || entry.html);
 
-const toExportSection = (section: InputSection): ExportSection => ({
+const toExportSection = (section: InputSection, keep: KeptPlace[]): ExportSection => ({
   id: section.id,
   heading: section.section_type.trim(),
-  entries: section.entries.filter((entry) => !entry.hidden).map(toExportEntry).filter(hasEntryContent),
+  entries: section.entries
+    .filter((entry) => !entry.hidden)
+    .map(toExportEntry)
+    .filter((entry) => hasEntryContent(entry) || keep.some((kept) => kept.sectionId === section.id && kept.entryId === entry.id)),
   column: sectionColumn(section),
 });
 
 /** Hidden itself, or every entry is. */
-const isLeftOut = (section: InputSection) =>
+export const isLeftOut = (section: Pick<InputSection, "hidden" | "entries">) =>
   section.hidden || (section.entries.length > 0 && section.entries.every((entry) => entry.hidden));
 
 const hasContent = (section: ExportSection) => Boolean(section.heading || section.entries.length > 0);
@@ -91,15 +97,20 @@ export const buildResumeDocument = ({
   title,
   header,
   sections,
+  keep = [],
 }: {
   title: string;
   /** Already resolved: profile with this resume's overrides. */
   header: ResumeHeader;
   sections: InputSection[];
+  keep?: KeptPlace[];
 }): ResumeDocument => ({
   title: title.trim(),
   header: cleanHeader(header),
-  sections: sections.filter((section) => !isLeftOut(section)).map(toExportSection).filter(hasContent),
+  sections: sections
+    .filter((section) => !isLeftOut(section))
+    .map((section) => toExportSection(section, keep))
+    .filter((section) => hasContent(section) || keep.some((kept) => kept.sectionId === section.id)),
 });
 
 /** Nothing worth printing: a header alone isn't a resume. */

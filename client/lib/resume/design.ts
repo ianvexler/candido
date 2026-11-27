@@ -195,14 +195,14 @@ export const matchingPreset = <K extends keyof typeof PRESETS>(design: DesignSet
 
 // Sidebar runs its tinted column to the page edge, so it draws the margins
 // inside its columns instead of around the page.
-const fullBleed = (design: DesignSettings) => design.template === "sidebar";
+export const isFullBleed = ({ template }: Pick<DesignSettings, "template">) => template === "sidebar";
 
 /** The printed page's margins: top and bottom, then the sides. None for a full-bleed template. */
 export const pageMargin = (design: DesignSettings) =>
-  fullBleed(design) ? "0mm" : `${design.margin_y}mm ${design.margin_x}mm`;
+  isFullBleed(design) ? "0mm" : `${design.margin_y}mm ${design.margin_x}mm`;
 
 /** Padding around the on-screen sheet, matching the printed margins. */
-export const sheetPadding = (design: DesignSettings) => (fullBleed(design) ? "0" : pageMargin(design));
+export const sheetPadding = (design: DesignSettings) => (isFullBleed(design) ? "0" : pageMargin(design));
 
 const pt = (value: number) => `${value}pt`;
 

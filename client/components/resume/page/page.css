@@ -1,0 +1,117 @@
+/*
+ * Text edited on the page must lay out exactly as it prints. Browsers give
+ * editable elements wrapping rules of their own, which these undo.
+ */
+.resume-classic .page-text {
+  white-space: pre-wrap;
+  overflow-wrap: inherit;
+  line-break: auto;
+  outline: none;
+}
+
+/* Floated without height, so it neither takes space nor moves the caret. */
+.resume-classic .page-text[data-empty]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Holds the line open; a <br> the browser leaves behind does so itself. */
+.resume-classic .page-text:empty::after {
+  content: "\200b";
+}
+
+/* More specific than the styles TipTap and ProseMirror add to every editor. */
+.resume-classic .page-editor.ProseMirror {
+  white-space: pre-wrap;
+  overflow-wrap: inherit;
+  line-break: auto;
+  font-variant-ligatures: normal;
+  font-feature-settings: normal;
+  outline: none;
+}
+
+.resume-classic .page-editor pre {
+  white-space: pre;
+}
+
+.resume-classic .page-editor [data-cv-hidden],
+.resume-classic .page-editor .page-skipped {
+  display: none;
+}
+
+/* Still there for the caret, unlike with display: none. */
+.resume-classic .page-editor .page-collapsed {
+  font-size: 0;
+}
+
+/* Keeps its line while it is written in; print would leave it out. */
+.resume-classic .page-editor .page-held::after {
+  content: "\200b";
+}
+
+/* A break at the end makes a line only for the caret to be on. */
+.resume-classic .page-editor :not(.page-caret) > br:not(.ProseMirror-trailingBreak) + br.ProseMirror-trailingBreak {
+  display: none;
+}
+
+.resume-classic .page-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.resume-classic .page-entry-body [role="textbox"] {
+  outline: none;
+}
+
+/* An entry with no content to show has no space for it either. */
+.resume-classic .rc-body:empty {
+  display: none;
+}
+
+/* What can be edited, and what is being edited. Neither takes room. */
+.resume-classic .page-text,
+.resume-classic .page-entry-body {
+  cursor: text;
+}
+
+.resume-classic .page-line,
+.resume-classic .page-contact {
+  cursor: pointer;
+  outline: none;
+}
+
+.resume-classic .page-line:hover,
+.resume-classic .page-contact:hover,
+.resume-classic .page-text:hover,
+.resume-classic .page-entry-body:hover {
+  background-color: rgb(0 0 0 / 3.5%);
+}
+
+.resume-classic .page-line:focus-visible,
+.resume-classic .page-line[aria-expanded="true"],
+.resume-classic .page-contact:focus-visible,
+.resume-classic .page-contact[aria-expanded="true"],
+.resume-classic .page-text:focus,
+.resume-classic .page-editor.ProseMirror-focused .page-caret {
+  box-shadow: 0 2px 0 #ffc159;
+}
+
+/* The sheets behind the page are its paper and tint. The page is placed on them
+   by its own breaks, and by the scrolling that goes with those. */
+.paged-cv {
+  overflow-anchor: none;
+}
+
+.paged-cv .resume-sidebar[data-paper] {
+  min-height: 0;
+}
+
+.paged-cv .resume-sidebar .rs-side {
+  background: none;
+}

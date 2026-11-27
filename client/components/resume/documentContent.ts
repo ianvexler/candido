@@ -1,15 +1,19 @@
-const HIDDEN_SELECTOR = "[data-cv-hidden]";
+// Unticked items, and hidden text inside items.
+const HIDDEN_SELECTOR = '[data-cv-off]:not([data-cv-off="false"]), [data-cv-hidden]';
 
 /**
  * The editor appends an empty paragraph after a trailing list. Strip it so that
  * opening a section doesn't count as an edit. The server strips it the same way.
+ * One that was an item before it was emptied still has an id.
  */
 export const normalizeContent = (html: string) =>
-  html.replace(/(?:<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)+$/, "");
+  html.replace(/(?:<p(?: data-cv-item="[^"]*")?>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)+$/, "");
 
-/** Removes hidden spans so only exportable text is left. */
+/** Removes unticked items and hidden spans so only exportable text is left. */
 export const stripHiddenHtml = (html: string) => {
   if (typeof window === "undefined") {
+    // Left-out text must never leak, and a regex can't remove whole items.
+    if (/data-cv-off/i.test(html)) throw new Error("Unticked items can't be removed without a DOM");
     return html.replace(/<span[^>]*data-cv-hidden[^>]*>[\s\S]*?<\/span>/gi, "");
   }
 
@@ -30,3 +34,6 @@ export const stripHiddenHtml = (html: string) => {
 
 export const hasVisibleText = (html: string) =>
   stripHiddenHtml(html).replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim().length > 0;
+
+/** What content prints as; "" if that has no text. */
+export const printedHtml = (html: string) => (hasVisibleText(html) ? stripHiddenHtml(html) : "");

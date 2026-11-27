@@ -2,11 +2,14 @@ import apiClient from "@/api/apiClient";
 import { Curriculum, CurriculumLayout } from "@/lib/types";
 
 export type CreateCurriculumPayload = {
-  title: string;
+  /** Optional with `whole_library`, which then names it. */
+  title?: string;
   description?: string | null;
   layout?: CurriculumLayout;
   /** Library sections to copy in, in this order. */
   section_template_ids?: number[];
+  /** Starts from all of the library. */
+  whole_library?: boolean;
 };
 
 export const createCurriculum = async (payload: CreateCurriculumPayload): Promise<{ curriculum: Curriculum }> => {

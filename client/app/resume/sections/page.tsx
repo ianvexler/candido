@@ -13,18 +13,32 @@ import AddSheetButton from "@/components/resume/AddSheetButton";
 import DocumentWorkspace from "@/components/resume/DocumentWorkspace";
 import HeaderDocument from "@/components/resume/HeaderDocument";
 import ImportCvDialog from "@/components/resume/ImportCvDialog";
+import LibrarySection from "@/components/resume/LibrarySection";
 import { Button } from "@/components/ui/Button";
-import SectionDocument from "@/components/resume/SectionDocument";
 import SectionPreview from "@/components/resume/SectionPreview";
 import { buildResumeDocument } from "@/lib/resume/exportDocument";
+import { waitForSaves } from "@/lib/resume/saveTracker";
+import type { SectionPatch } from "@/lib/resume/sectionDrafts";
+import { useSectionDrafts } from "@/lib/resume/useSectionDrafts";
 import { ResumeHeader, SectionTemplate } from "@/lib/types";
 import { ArrowLeftIcon, FileUpIcon } from "lucide-react";
 import NextLink from "next/link";
-import { useEffect, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+const saveTemplate = async (template: SectionTemplate, patch: SectionPatch) =>
+  (await updateSectionTemplate(template.id, patch)).section_template;
+
+/** Memoised, as it reads all of the library. */
+const LibraryPreview = memo(({ profile, templates }: { profile: ResumeHeader; templates: SectionTemplate[] }) => (
+  <SectionPreview document={buildResumeDocument({ title: "Library", header: profile, sections: templates })} />
+));
+LibraryPreview.displayName = "LibraryPreview";
+
 const SectionLibraryPage = () => {
-  const [templates, setTemplates] = useState<SectionTemplate[]>([]);
+  const { sections: templates, versions, load, add, change, remove } = useSectionDrafts<SectionTemplate>(saveTemplate);
+  // The preview may follow a little later than typing.
+  const previewed = useDeferredValue(templates);
   const [profile, setProfile] = useState<ResumeHeader | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -33,23 +47,34 @@ const SectionLibraryPage = () => {
   const [headerVersion, setHeaderVersion] = useState(0);
 
   useEffect(() => {
-    void Promise.all([getSectionTemplates(), getResumeProfile()])
+    let cancelled = false;
+
+    // A page just left may still be saving.
+    void waitForSaves()
+      .then(() => Promise.all([getSectionTemplates(), getResumeProfile()]))
       .then(([templatesResponse, profileResponse]) => {
-        setTemplates(templatesResponse.section_templates);
+        if (cancelled) return;
+        load(templatesResponse.section_templates);
         setProfile(profileResponse.profile);
       })
       .catch((error) => {
         console.error(error);
-        toast.error("Failed to load your section library");
+        if (!cancelled) toast.error("Failed to load your section library");
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
 
   const onAddSection = async () => {
     setCreating(true);
     try {
       const response = await createSectionTemplate({ section_type: "Section" });
-      setTemplates((current) => [...current, response.section_template]);
+      add([response.section_template]);
     } catch (error) {
       console.error(error);
       toast.error("Failed to add section");
@@ -58,19 +83,18 @@ const SectionLibraryPage = () => {
     }
   };
 
-  const replaceTemplate = (next: SectionTemplate) =>
-    setTemplates((current) => current.map((item) => (item.id === next.id ? next : item)));
-
-  const removeTemplate = async (id: number) => {
-    try {
-      await deleteSectionTemplate(id);
-      setTemplates((current) => current.filter((item) => item.id !== id));
-      toast.success("Section deleted");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to delete section");
-    }
-  };
+  const removeTemplate = useCallback(
+    async (id: number) => {
+      try {
+        await remove(id, deleteSectionTemplate(id));
+        toast.success("Section deleted");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to delete section");
+      }
+    },
+    [remove]
+  );
 
   if (loading || !profile) {
     return (
@@ -107,7 +131,7 @@ const SectionLibraryPage = () => {
             open={importOpen}
             onClose={() => setImportOpen(false)}
             onApplied={({ section_templates, profile: nextProfile }) => {
-              setTemplates((current) => [...current, ...section_templates]);
+              add(section_templates);
               setProfile(nextProfile);
               setHeaderVersion((version) => version + 1);
               const count = section_templates.length;
@@ -117,25 +141,22 @@ const SectionLibraryPage = () => {
         </>
       }
       preview={
-        <SectionPreview document={buildResumeDocument({ title: "Library", header: profile, sections: templates })} />
+        <LibraryPreview profile={profile} templates={previewed} />
       }
     >
       <HeaderDocument
-        key={headerVersion}
+        version={headerVersion}
         value={profile}
         save={async (draft) => setProfile((await updateResumeProfile(draft)).profile)}
       />
 
       {templates.map((template) => (
-        <SectionDocument
+        <LibrarySection
           key={template.id}
-          section={template}
-          save={async (fields) => (await updateSectionTemplate(template.id, fields)).section_template}
-          onSaved={replaceTemplate}
-          onDelete={() => removeTemplate(template.id)}
-          deleteLabel="Delete from library"
-          deleteTitle="Delete this section?"
-          deleteDescription="This removes the reusable section from your library. CVs that already use it keep their copy."
+          template={template}
+          versions={versions[template.id]}
+          onChange={change}
+          onDelete={removeTemplate}
         />
       ))}
 
