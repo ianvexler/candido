@@ -313,7 +313,7 @@ const SectionLibraryPage = () => {
             <div>
               <Title>Library</Title>
               <Description className="mt-1">
-                Everything you've written for your CVs, in one place. Pick from it for each application.
+                Everything you&apos;ve written for your CVs, in one place. Pick from it for each application.
               </Description>
             </div>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
