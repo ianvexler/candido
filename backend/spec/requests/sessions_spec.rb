@@ -120,6 +120,98 @@ RSpec.describe "Sessions" do
     end
   end
 
+  describe "POST /api/v1/sessions/forgot_password" do
+    it "emails a reset link to an existing user" do
+      user = create(:user)
+
+      expect do
+        post "/api/v1/sessions/forgot_password", params: { email: " #{user.email} " }, as: :json
+      end.to change { ActionMailer::Base.deliveries.size }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      mail = ActionMailer::Base.deliveries.last
+      expect(mail.to).to eq([ user.email ])
+      expect(mail.subject).to eq("Reset your Candido password")
+      expect(mail.text_part.body.decoded).to include("/reset-password?token=")
+    end
+
+    it "answers the same for an unknown email without sending anything" do
+      expect do
+        post "/api/v1/sessions/forgot_password", params: { email: "nobody@example.com" }, as: :json
+      end.not_to(change { ActionMailer::Base.deliveries.size })
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["message"]).to eq(SessionsController::RESET_REQUESTED_MESSAGE)
+    end
+
+    it "requires an email" do
+      post "/api/v1/sessions/forgot_password", params: {}, as: :json
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body).to eq("error" => "Email is required")
+    end
+  end
+
+  describe "POST /api/v1/sessions/reset_password" do
+    it "sets the new password, verifies the user and ends their sessions" do
+      user = create(:user, :unverified, password: "old-password")
+      session_record = create(:session, user: user)
+      token = user.generate_token_for(:password_reset)
+
+      post "/api/v1/sessions/reset_password", params: { token: token, password: "new-password" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      user.reload
+      expect(user.authenticate("new-password")).to eq(user)
+      expect(user).to be_verified
+      expect(Session.find_by(id: session_record.id)).to be_nil
+
+      post "/api/v1/sessions", params: { email: user.email, password: "new-password" }, as: :json
+      expect(response).to have_http_status(:created)
+    end
+
+    it "accepts the token from the emailed link" do
+      user = create(:user)
+      post "/api/v1/sessions/forgot_password", params: { email: user.email }, as: :json
+      link = ActionMailer::Base.deliveries.last.text_part.body.decoded[%r{https?://\S+/reset-password\?token=\S+}]
+      token = Rack::Utils.parse_query(URI.parse(link).query)["token"]
+
+      post "/api/v1/sessions/reset_password", params: { token: token, password: "new-password" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "rejects a token that has already been used" do
+      user = create(:user)
+      token = user.generate_token_for(:password_reset)
+      post "/api/v1/sessions/reset_password", params: { token: token, password: "first-new" }, as: :json
+
+      post "/api/v1/sessions/reset_password", params: { token: token, password: "second-new" }, as: :json
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body).to eq("error" => "This reset link is invalid or has expired")
+      expect(user.reload.authenticate("first-new")).to eq(user)
+    end
+
+    it "rejects an expired token" do
+      user = create(:user)
+      token = user.generate_token_for(:password_reset)
+
+      travel(User::PASSWORD_RESET_TTL + 1.minute) do
+        post "/api/v1/sessions/reset_password", params: { token: token, password: "new-password" }, as: :json
+      end
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "requires a token and a password" do
+      post "/api/v1/sessions/reset_password", params: { token: "abc" }, as: :json
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body).to eq("error" => "Reset token and new password are required")
+    end
+  end
+
   describe "GET /api/v1/sessions/me" do
     it "returns the current user from the auth cookie" do
       user = create(:user)

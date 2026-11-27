@@ -11,6 +11,14 @@ class UserMailer < ApplicationMailer
     mail(to: user.email, subject: "Verify your Candido account")
   end
 
+  def password_reset_email(user)
+    @name = user.name
+    @reset_url = user.password_reset_url
+    attach_logo
+
+    mail(to: user.email, subject: "Reset your Candido password")
+  end
+
   def new_feedback_email(feedback_entry)
     @username = feedback_entry.user.name.presence || feedback_entry.user.email
     @category = feedback_entry.type

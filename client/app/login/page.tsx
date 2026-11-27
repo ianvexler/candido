@@ -94,6 +94,11 @@ const LoginPage = () => {
           required
           disabled={loading}
         />
+        <p className="-mt-2 text-right text-[14px]">
+          <AuthLink href="/forgot-password" disabled={loading}>
+            Forgot password?
+          </AuthLink>
+        </p>
 
         <AuthSubmit loading={loading} label="Sign in" loadingLabel="Signing in…" />
       </form>

@@ -1,6 +1,11 @@
 class SessionsController < ApplicationController
   wrap_parameters false
 
+  rate_limit to: 5, within: 15.minutes, only: :forgot_password,
+             with: -> { raise ApiError.new("Too many requests, please try again later", status: :too_many_requests) }
+
+  RESET_REQUESTED_MESSAGE = "If an account exists for that email, we've sent a link to reset its password".freeze
+
   def create
     email = credential(:email)
     password = credential(:password)
@@ -43,6 +48,26 @@ class SessionsController < ApplicationController
       user: serialize(user, with: UserBlueprint),
       message: "Email verified successfully"
     }
+  end
+
+  # Answers the same way whether or not the email has an account, so it can't be used to find users.
+  def forgot_password
+    email = credential(:email)
+    raise ApiError.new("Email is required", status: :bad_request) if email.blank?
+
+    user = User.find_by(email: email)
+    UserMailer.password_reset_email(user).deliver_now if user
+
+    render json: { message: RESET_REQUESTED_MESSAGE }
+  end
+
+  def reset_password
+    token = credential(:token)
+    password = credential(:password)
+    raise ApiError.new("Reset token and new password are required", status: :bad_request) if token.blank? || password.blank?
+
+    User.reset_password!(token, password)
+    render json: { message: "Your password has been reset. You can now sign in." }
   end
 
   def me
