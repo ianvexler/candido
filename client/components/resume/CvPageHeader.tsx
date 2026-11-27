@@ -6,7 +6,7 @@ import Segmented from "@/components/ui/Segmented";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { Curriculum } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ArrowLeftIcon, DownloadIcon, LayersIcon } from "lucide-react";
+import { ArrowLeftIcon, DownloadIcon, LibraryBigIcon } from "lucide-react";
 import NextLink from "next/link";
 import { ReactNode, useState } from "react";
 import toast from "react-hot-toast";
@@ -90,7 +90,7 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, desi
           href="/resume/sections"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <LayersIcon className="size-4" />
+          <LibraryBigIcon className="size-4" />
           Section library
         </NextLink>
         {/* On a smaller screen the page may only be held there by a month that isn't finished. */}
