@@ -379,6 +379,7 @@ const SectionLibraryPage = () => {
         <div hidden={!showsProfile}>
           <HeaderDocument
             version={headerVersion}
+            inLibrary
             value={profile}
             save={saveProfile}
           />
