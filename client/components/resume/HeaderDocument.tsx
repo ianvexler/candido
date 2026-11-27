@@ -5,7 +5,7 @@ import type { HeaderValues } from "@/lib/resume/headerDraft";
 import { HeaderDraft, useHeaderDraft } from "@/lib/resume/useHeaderDraft";
 import { ResumeHeader } from "@/lib/types";
 import { InfoIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ComponentType, useEffect, useRef } from "react";
 import { HeaderFields, HeaderText } from "./HeaderFields";
 
 /** The name and contact block at the top of a resume. */
@@ -50,10 +50,18 @@ interface HeaderDocumentProps<T extends HeaderValues> {
   save: (draft: T) => Promise<void>;
   /** A new one takes the value anew; what was still unsaved is dropped. */
   version?: number;
+  /** What shows the fields; a CV's page unless another is given, as the library's is. */
+  sheet?: ComponentType<{ header: HeaderDraft }>;
 }
 
 /** A header's sheet that saves itself after a pause. */
-const HeaderDocument = <T extends HeaderValues>({ value, fallback, save, version = 0 }: HeaderDocumentProps<T>) => {
+const HeaderDocument = <T extends HeaderValues>({
+  value,
+  fallback,
+  save,
+  version = 0,
+  sheet: Sheet = HeaderSheet,
+}: HeaderDocumentProps<T>) => {
   const header = useHeaderDraft({ value, fallback, save });
   const { load } = header;
   const loaded = useRef(version);
@@ -63,7 +71,7 @@ const HeaderDocument = <T extends HeaderValues>({ value, fallback, save, version
     load(value);
   }, [version, value, load]);
 
-  return <HeaderSheet header={header} />;
+  return <Sheet header={header} />;
 };
 
 export default HeaderDocument;

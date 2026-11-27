@@ -15,6 +15,9 @@ import { ReactNode, RefObject, useCallback, useContext, useEffect, useMemo, useR
 import { rowBox, rowIdOf } from "./ChecklistRow";
 import { EditChannelContext } from "./editChannel";
 import IconAction from "./IconAction";
+import LibrarySectionMenu from "./library/LibrarySectionMenu";
+import { CV_LOOK, LIBRARY_LOOK } from "./sectionLooks";
+import { LabelStyles, LibraryLabelling } from "./library/LabelArea";
 import { focusText } from "./placeCaret";
 import SectionEntryEditor from "./SectionEntryEditor";
 import { ghostInput } from "./styles";
@@ -40,6 +43,10 @@ interface SectionDocumentProps extends SuggestionProps {
   notice?: ReactNode;
   /** Shows what is ticked only. Order is up to the checklist. */
   inCv?: boolean;
+  /** In a CV: nothing can be left out now, while its purpose changes. */
+  leaveOutLocked?: boolean;
+  /** In the library: labelling items and entries with purposes. */
+  library?: LibraryLabelling;
 }
 
 const FOCUS_FRAMES = 20;
@@ -94,6 +101,8 @@ const SectionDocument = ({
   describeDeletion,
   notice,
   inCv = false,
+  leaveOutLocked = false,
+  library,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
   onSuggestionClick,
@@ -105,6 +114,8 @@ const SectionDocument = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
   const editors = useRef(new Map<string, Editor>());
+  const entryLibrary = useMemo(() => library && { ...library, sectionId }, [library, sectionId]);
+  const look = library ? LIBRARY_LOOK : CV_LOOK;
   const headingRef = useRef<HTMLInputElement>(null);
   const channel = useContext(EditChannelContext);
 
@@ -180,26 +191,37 @@ const SectionDocument = ({
     <>
       <article
         data-section-id={section.id}
-        className="group/section relative mx-auto w-full max-w-2xl bg-white px-10 pb-6 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14"
+        className={cn("group/section relative mx-auto w-full max-w-2xl", look.article)}
       >
-        <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
-          <IconAction label={deleteLabel} onClick={askDelete}>
-            <Trash2Icon />
-          </IconAction>
-        </div>
+        {!library && (
+          <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
+            <IconAction label={deleteLabel} onClick={askDelete}>
+              <Trash2Icon />
+            </IconAction>
+          </div>
+        )}
 
         {notice}
+        {library && <LabelStyles sectionId={sectionId} entries={entries} library={library} />}
 
-        <input
-          ref={headingRef}
-          value={sectionType}
-          onChange={(event) => onChange({ section_type: event.target.value })}
-          placeholder="Section heading, e.g. Experience"
-          aria-label="Section heading"
-          className={cn(ghostInput, "block w-full max-w-[calc(100%-9rem)] py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal")}
-        />
+        <div className={look.headingRow}>
+          <input
+            ref={headingRef}
+            value={sectionType}
+            onChange={(event) => onChange({ section_type: event.target.value })}
+            placeholder={look.headingPlaceholder}
+            aria-label="Section heading"
+            className={cn(ghostInput, look.heading)}
+          />
+          {library && <LibrarySectionMenu heading={sectionType} deleteLabel={deleteLabel} onDelete={askDelete} />}
+        </div>
+        {library && (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {entries.length === 1 ? "1 entry" : `${entries.length} entries`}
+          </p>
+        )}
 
-        <div className="mt-1 space-y-11">
+        <div className={look.entries}>
           {shown.map((entry) => {
             const index = entries.indexOf(entry);
             const version = versions[entry.id] ?? 0;
@@ -219,6 +241,8 @@ const SectionDocument = ({
                 onDelete={deleteEntry}
                 describeDeletion={describeEntry}
                 onLeaveOut={inCv ? leaveOut : undefined}
+                leaveOutLocked={leaveOutLocked}
+                library={entryLibrary}
                 suggestions={suggestionsByEntry.get(entry.id)}
                 activeSuggestionId={activeSuggestionId}
                 onSuggestionClick={onSuggestionClick}
@@ -234,7 +258,7 @@ const SectionDocument = ({
           variant="ghost"
           size="sm"
           onClick={() => changeEntries((list) => [...list, emptyEntry()])}
-          className="-ml-3 mt-9 text-muted-foreground opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100"
+          className={look.addEntry}
         >
           <PlusIcon />
           Add entry

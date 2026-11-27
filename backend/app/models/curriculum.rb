@@ -13,12 +13,14 @@
 #  title                :string           not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
+#  cv_label_id          :bigint
 #  job_board_entry_id   :integer
 #  source_curriculum_id :bigint
 #  user_id              :bigint           not null
 #
 # Indexes
 #
+#  index_curriculums_on_cv_label_id           (cv_label_id)
 #  index_curriculums_on_job_board_entry_id    (job_board_entry_id)
 #  index_curriculums_on_source_curriculum_id  (source_curriculum_id)
 #  index_curriculums_on_user_id               (user_id)
@@ -26,6 +28,7 @@
 #
 # Foreign Keys
 #
+#  fk_rails_...  (cv_label_id => cv_labels.id) ON DELETE => nullify
 #  fk_rails_...  (job_board_entry_id => job_board_entries.id) ON DELETE => nullify
 #  fk_rails_...  (source_curriculum_id => curriculums.id) ON DELETE => nullify
 #  fk_rails_...  (user_id => users.id)
@@ -36,6 +39,8 @@ class Curriculum < ApplicationRecord
   PAPER_SIZES = %w[a4 letter].freeze
 
   belongs_to :user
+  # The purpose this CV is for; nil means everything.
+  belongs_to :cv_label, optional: true
   has_many :curriculum_sections, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum
   # Runs outlive the CV so they keep counting toward the daily limit.
   has_many :cv_tailorings, dependent: :nullify
@@ -87,7 +92,8 @@ class Curriculum < ApplicationRecord
     transaction do
       default_design = user.resume_designs.find_by(is_default: true)
       curriculum = user.curriculums.create!(attributes.merge(styles: default_design&.settings || {}))
-      curriculum.import_section_templates!(templates) if templates.any?
+      sections = templates.any? ? curriculum.import_section_templates!(templates) : []
+      curriculum.tick_by_purpose!(sections.zip(templates)) if curriculum.cv_label_id
       curriculum
     end
   end
@@ -131,6 +137,38 @@ class Curriculum < ApplicationRecord
     end
   end
 
+  # Switches to another purpose (nil for everything) and ticks by it, after copying in the library
+  # sections and entries this CV lacks. Unless forced, nothing changes if the ticks of anything the
+  # CV shares with the library are no longer as its current purpose gives them.
+  def change_purpose!(label, force: false)
+    transaction do
+      # Before the CV itself, the order in which saving a section takes them.
+      copies = curriculum_sections.reorder(:id).lock.to_a
+      with_lock do
+        templates = user.section_templates.in_library_order.to_a
+        by_id = templates.index_by(&:id)
+        linked = copies.select { |section| by_id.key?(section.section_template_id) }
+          .map { |section| [ section, by_id[section.section_template_id] ] }
+        if !force && linked.any? { |section, template| section.ticks_differ?(template, purpose_for(template)) }
+          raise ApiError.new("ticks_differ", status: :conflict)
+        end
+
+        linked.each { |section, template| section.add_missing_entries(template) }
+        missing = templates - linked.map(&:last)
+        update!(cv_label_id: label&.id)
+        tick_by_purpose!(linked + missing.map { |template| [ copy_template!(template), template ] })
+      end
+    end
+  end
+
+  # Ticks these copies, each paired with its library section, as this CV's purpose says.
+  def tick_by_purpose!(copies)
+    copies.each do |section, template|
+      section.apply_purpose(template, purpose_for(template))
+      section.save!
+    end
+  end
+
   # Appends a section with no content yet for the user to fill in.
   def add_empty_section!(section_type)
     curriculum_sections.create!(section_type: section_type, position: next_section_position)
@@ -142,7 +180,8 @@ class Curriculum < ApplicationRecord
     transaction do
       copy = user.curriculums.create!(
         title: "#{title} – #{job.company}", tailored_for: job.company, job_board_entry: job, source_curriculum: self,
-        header: header.deep_dup, styles: styles.deep_dup, layout: layout, description: description
+        header: header.deep_dup, styles: styles.deep_dup, layout: layout, description: description,
+        cv_label_id: cv_label_id
       )
       curriculum_sections.each do |section|
         copy.curriculum_sections.create!(section.attributes.except("id", "curriculum_id", "created_at", "updated_at"))
@@ -211,6 +250,10 @@ class Curriculum < ApplicationRecord
   end
 
   private
+
+  def purpose_for(template)
+    CvPurpose.new(template, cv_label_id)
+  end
 
   # All ticked, or only the given entry or item of it.
   def copy_template!(template, entry: nil, item_id: nil)

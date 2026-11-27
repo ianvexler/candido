@@ -42,7 +42,8 @@ Layout: **checklist beside the CV (chosen by the user)** over ticks on the page,
 which keeps left-out text on the page and gets longer as the library grows.
 
 The rules below were proposed to the user, who called them a good start. Points
-marked † were added while writing this document.
+marked † were added while writing this document; points marked ‡ were added on
+2026-11-27 as builder calls the user can still change.
 
 ## Terms
 
@@ -63,12 +64,24 @@ marked † were added while writing this document.
   by its own labels. A section fits when one of its entries does.
 
 ### Library
-- Left: outline of sections and their entries, with counts, search and drag to
-  reorder sections and entries. Right: the chosen section, editable.
-- Search and label filters (each label, plus "No label") show matches from all
-  sections. Clearing them returns to the chosen section.
-- Hover or focus a bullet to select it or add a label. Selecting several shows a
-  bar that labels them together. Entries have the same label control.
+Revised 2026-11-27: purposes are shown like folders (the user considered real,
+nested folders and chose this instead, as it never copies content).
+
+- Left column, top: **Purposes**, listed like folders: "All content", each
+  purpose by name, then "Not labelled", each with the number of items in it.
+  "New purpose" adds one inline; each purpose's menu has Rename and Delete.
+  The choice is remembered per browser.
+- Left column, below: outline of sections and their entries, with counts, search
+  and drag to reorder sections and entries. Right: the chosen section, editable.
+- Choosing a purpose narrows the outline to the sections and entries that fit it,
+  as a CV for it would start. In the chosen section, items that don't fit are
+  dimmed, not hidden, and stay editable. Unlabelled items show "Every purpose". ‡
+- Search shows matches from all sections within the chosen purpose. Clearing it
+  returns to the chosen section.
+- Hover or focus a bullet to see its labels and add or remove one. Selecting
+  several shows a bar that labels them together. Entries have the same label
+  control. Adding a label while a purpose is chosen offers that purpose first. ‡
+- Deleting a purpose says how many items carry it; nothing else changes.
 - The profile header is the first row of the outline. †
 - New sections go last. Import works as now; its sections also go last.
 - No CV preview on this page.
@@ -115,8 +128,8 @@ marked † were added while writing this document.
   stay in the panel as "Left out" with a way to tick it again. †
 
 ### Small screens
-Checklist, CV and (if tailored) review become tabs. Library outline and section
-become a list and a detail screen.
+Checklist, CV and (if tailored) review become tabs. Library purposes and outline
+become one list screen, the section a detail screen.
 
 ### Accessibility
 Everything on hover is also available by keyboard focus and on touch. Reordering

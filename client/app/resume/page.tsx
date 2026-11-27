@@ -1,10 +1,11 @@
 "use client";
 
-import { createCurriculum } from "@/api/resources/curriculums/createCurriculum";
+import { getCvLabels } from "@/api/resources/cvLabels/getCvLabels";
 import { deleteCurriculum } from "@/api/resources/curriculums/deleteCurriculum";
 import { getCurriculums } from "@/api/resources/curriculums/getCurriculums";
 import FitBadge from "@/components/common/FitBadge";
 import ImportCvDialog from "@/components/resume/ImportCvDialog";
+import NewCvDialog, { createCvFor } from "@/components/resume/NewCvDialog";
 import TailorToJob from "@/components/resume/TailorToJob";
 import { useAuth } from "@/contexts/AuthContext";
 import { copyReadiness } from "@/lib/jobBoard/tailorJobs";
@@ -16,7 +17,7 @@ import PageContainer from "@/components/common/PageContainer";
 import Title from "@/components/common/Title";
 import { Button } from "@/components/ui/Button";
 import { deleteDescription, splitCurriculums } from "@/lib/resume/curriculumGroups";
-import { Curriculum } from "@/lib/types";
+import { Curriculum, CvLabel } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
 import { FileUpIcon, LibraryBigIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import NextLink from "next/link";
@@ -74,6 +75,8 @@ const ResumesPage = () => {
   const [pendingDelete, setPendingDelete] = useState<Curriculum | null>(null);
   const [importing, setImporting] = useState(false);
   const [tailoringCv, setTailoringCv] = useState<Curriculum | null>(null);
+  /** The purposes to pick from, while asking what a new CV is for. */
+  const [choosing, setChoosing] = useState<CvLabel[] | null>(null);
   const { masters, copies } = splitCurriculums(curriculums);
 
   useEffect(() => {
@@ -86,14 +89,32 @@ const ResumesPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const onCreate = async () => {
-    setCreating(true);
+  /** Resolves false if it failed. */
+  const create = async (labelId: number | null) => {
     try {
-      const response = await createCurriculum({ whole_library: true });
-      router.push(`/resume/${response.curriculum.id}`);
+      router.push(await createCvFor(labelId));
+      return true;
     } catch (error) {
       console.error(error);
       toast.error("Failed to create CV");
+      return false;
+    }
+  };
+
+  // Asks what it is for, unless there are no collections to pick from. Without
+  // them (they couldn't be loaded) it starts from all content.
+  const onCreate = async () => {
+    setCreating(true);
+    const labels = await getCvLabels()
+      .then((response) => response.cv_labels)
+      .catch((error) => {
+        console.error(error);
+        return [];
+      });
+    if (labels.length > 0) {
+      setChoosing(labels);
+      setCreating(false);
+    } else if (!(await create(null))) {
       setCreating(false);
     }
   };
@@ -114,7 +135,7 @@ const ResumesPage = () => {
     <Button variant="ghost" asChild>
       <NextLink href="/resume/sections">
         <LibraryBigIcon />
-        Section library
+        Library
       </NextLink>
     </Button>
   );
@@ -225,6 +246,8 @@ const ResumesPage = () => {
           </ul>
         </section>
       )}
+
+      {choosing && <NewCvDialog labels={choosing} onPick={create} onClose={() => setChoosing(null)} />}
 
       {tailoringCv && <TailorToJob curriculum={tailoringCv} onClose={() => setTailoringCv(null)} />}
 

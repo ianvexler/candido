@@ -14,7 +14,11 @@ import { EditChannelContext, EditTarget } from "./editChannel";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
-import LeaveOutArea from "./LeaveOutArea";
+import LeaveOutArea, { LEAVE_OUT_LOCKED } from "./LeaveOutArea";
+import LabelArea, { LibraryLabelling } from "./library/LabelArea";
+import LibraryEntryControls from "./library/LibraryEntryControls";
+import type { RowMenuAction } from "./RowMenu";
+import { CV_LOOK, LIBRARY_LOOK } from "./sectionLooks";
 import { editInEditor, focusText } from "./placeCaret";
 import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
 import { hasDetails, suggestsDetails } from "./sectionDetails";
@@ -40,6 +44,10 @@ interface SectionEntryEditorProps extends SuggestionProps {
   describeDeletion: (id: string) => string;
   /** In a CV: offers leaving items out; see LeaveOutArea. */
   onLeaveOut?: (entryId: string, itemId: string, focusAt: number | null) => void;
+  /** Leaving out is offered but can't be done now: the CV's purpose is changing. */
+  leaveOutLocked?: boolean;
+  /** In the library: labels its items and itself; see LabelArea. */
+  library?: LibraryLabelling & { sectionId: number };
 }
 
 /**
@@ -60,6 +68,8 @@ const SectionEntryEditor = ({
   onDelete,
   describeDeletion,
   onLeaveOut,
+  leaveOutLocked = false,
+  library,
   ...suggestionProps
 }: SectionEntryEditorProps) => {
   const onChange = (changes: EntryChange) => onEntryChange(entry.id, changes, version);
@@ -75,8 +85,9 @@ const SectionEntryEditor = ({
   const [detailsVersion, setDetailsVersion] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
+  const look = (library ? LIBRARY_LOOK : CV_LOOK).entry;
   const description = entry.description ?? "";
-  const showTitle = Boolean(entry.title) || startedBlank || title.open;
+  const showTitle = look.alwaysTitled || Boolean(entry.title) || startedBlank || title.open;
   const summaryOff = onLeaveOut !== undefined && Boolean(entry.description_off && description.trim());
   const showSummary = !summaryOff && (Boolean(description) || summary.open);
 
@@ -107,13 +118,27 @@ const SectionEntryEditor = ({
     version,
     onChange: onEntryChange,
     editors,
-    placeholder: "Write here. Start a line with - for bullets.",
+    placeholder: look.bodyPlaceholder,
     className: cn(
       "cv-document-editor outline-none min-h-6 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
       highlightClasses
     ),
   });
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  // Run by the library's menu, once it has closed.
+  const addSummary = () => {
+    flushSync(() => summary.setOpen(true));
+    document.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(entry.id)}"] textarea[aria-label="Summary"]`)?.focus();
+  };
+  // In the library's menu, in words; the CV's are the icons below.
+  const libraryActions: RowMenuAction[] = [
+    ...(!showSummary && !summaryOff ? [{ label: "Add summary", icon: <TextIcon />, onSelect: addSummary }] : []),
+    ...(!hasDetails(entry)
+      ? [{ label: "Add role and dates", icon: <CalendarPlusIcon />, onSelect: () => setOpenDetails(true) }]
+      : suggestsDetails(sectionType)
+        ? []
+        : [{ label: "Remove role and dates", icon: <CalendarMinusIcon />, onSelect: clearDetails }]),
+  ];
   const { card, cardOpen, onEditorClick } = useEntrySuggestions({
     entry,
     version,
@@ -154,7 +179,7 @@ const SectionEntryEditor = ({
 
   return (
     <>
-      <div data-entry-id={entry.id} className="group/entry relative">
+      <div data-entry-id={entry.id} className={cn("group/entry relative", look.card)}>
         <div className={cn("flex items-start justify-between gap-2", !showTitle && "h-0")}>
           {showTitle && (
             <input
@@ -162,11 +187,20 @@ const SectionEntryEditor = ({
               value={entry.title}
               onChange={edit("title")}
               {...title.focusProps}
-              placeholder="Title"
+              placeholder={look.titlePlaceholder}
               aria-label="Title"
-              className={cn(ghostInput, "block flex-1 py-0.5 text-xl font-semibold")}
+              className={cn(ghostInput, "block flex-1 py-0.5 font-semibold", look.title)}
             />
           )}
+          {library ? (
+            <LibraryEntryControls
+              entry={entry}
+              library={library}
+              actions={libraryActions}
+              move={canMoveUp || canMoveDown ? { canMoveUp, canMoveDown, onMove: (by) => onMove(entry.id, by) } : undefined}
+              onDelete={canDelete ? askDelete : undefined}
+            />
+          ) : (
           <div
             className={cn(
               "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100",
@@ -213,6 +247,7 @@ const SectionEntryEditor = ({
               </IconAction>
             )}
           </div>
+          )}
         </div>
 
         <EntryDetails
@@ -246,8 +281,11 @@ const SectionEntryEditor = ({
               <button
                 type="button"
                 aria-label="Leave out the summary"
+                aria-disabled={leaveOutLocked || undefined}
+                title={leaveOutLocked ? LEAVE_OUT_LOCKED : undefined}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={(event) => {
+                  if (leaveOutLocked) return;
                   const focused = event.currentTarget.parentElement?.contains(document.activeElement);
                   summary.setOpen(false);
                   onLeaveOut(entry.id, SUMMARY_ID, focused ? 0 : null);
@@ -265,11 +303,22 @@ const SectionEntryEditor = ({
 
         <div className="relative mt-3">
           {editor && <FormatBubble editor={editor} />}
-          {editor && onLeaveOut ? (
+          {editor && library ? (
+            <LabelArea
+              editor={editor}
+              sectionId={library.sectionId}
+              entryId={entry.id}
+              library={library}
+              cardOpen={cardOpen}
+            >
+              {content}
+            </LabelArea>
+          ) : editor && onLeaveOut ? (
             <LeaveOutArea
               editor={editor}
               cardOpen={cardOpen}
               onLeaveOut={(itemId, focusAt) => onLeaveOut(entry.id, itemId, focusAt)}
+              locked={leaveOutLocked}
             >
               {content}
             </LeaveOutArea>
@@ -279,7 +328,7 @@ const SectionEntryEditor = ({
           {editor && (
             <BlockToolbar
               editor={editor}
-              className="pointer-events-none absolute -bottom-9 left-0 opacity-0 transition-opacity group-focus-within/entry:pointer-events-auto group-focus-within/entry:opacity-100"
+              className={look.toolbar}
             />
           )}
         </div>

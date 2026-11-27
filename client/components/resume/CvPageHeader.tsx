@@ -8,7 +8,7 @@ import { Curriculum } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ArrowLeftIcon, DownloadIcon, LibraryBigIcon, Loader2Icon } from "lucide-react";
 import NextLink from "next/link";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import type { CvView } from "./useCvView";
 
@@ -29,11 +29,35 @@ interface CvPageHeaderProps {
   design: ReactNode;
   /** Leaves the room to what is below. */
   compact: boolean;
+  /** What the CV is for. */
+  purpose?: ReactNode;
+  /** Focuses the name, selected, once it shows. */
+  focusTitle?: boolean;
 }
 
 /** A CV's name, how it is shown, and the ways out of its page. */
-const CvPageHeader = ({ curriculum, onRename, onExport, exporting = false, view, onViewChange, design, compact }: CvPageHeaderProps) => {
+const CvPageHeader = ({
+  curriculum,
+  onRename,
+  onExport,
+  exporting = false,
+  view,
+  onViewChange,
+  design,
+  compact,
+  purpose,
+  focusTitle = false,
+}: CvPageHeaderProps) => {
   const [title, setTitle] = useState(curriculum.title);
+  const titleInput = useRef<HTMLInputElement>(null);
+
+  // Only on opening: a CV just made, ready to rename.
+  const [focusOnOpen] = useState(focusTitle);
+  useEffect(() => {
+    if (!focusOnOpen) return;
+    titleInput.current?.focus();
+    titleInput.current?.select();
+  }, [focusOnOpen]);
 
   const saveTitle = async () => {
     const next = title.trim();
@@ -50,6 +74,7 @@ const CvPageHeader = ({ curriculum, onRename, onExport, exporting = false, view,
 
   const name = (
     <InlineInput
+      ref={titleInput}
       value={title}
       onChange={(event) => setTitle(event.target.value)}
       onBlur={() => void saveTitle()}
@@ -93,10 +118,11 @@ const CvPageHeader = ({ curriculum, onRename, onExport, exporting = false, view,
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <LibraryBigIcon className="size-4" />
-          Section library
+          Library
         </NextLink>
         {/* On a smaller screen the page may only be held there by a month that isn't finished. */}
         <Segmented label="View" options={VIEWS} value={view} onChange={onViewChange} className={cn(!compact && "max-lg:hidden")} />
+        {purpose}
         {design}
         <Tooltip>
           <TooltipTrigger asChild>

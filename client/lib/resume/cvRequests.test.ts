@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
+import { Curriculum, CurriculumSection, SectionEntry, SectionTemplate } from "@/lib/types";
 import {
   createCvRequests,
   CHANGED_ELSEWHERE,
   INVALID_DATES,
   TextKept,
   MAX_INCLUDES,
+  PURPOSE_INVALID_DATES,
+  PURPOSE_UNSAVED,
+  PurposeKeptChanging,
   TRANSFER_INVALID_DATES,
   TRANSFER_UNSAVED,
   UNSAVED,
@@ -50,12 +53,111 @@ const setup = (initial = [section(1), section(2, { section_template_id: 20 })]) 
     templates: vi.fn((): SectionTemplate[] => []),
     takeTemplate: vi.fn(),
     sendTransfer: vi.fn(async (): Promise<TransferResult> => ({ conflict: false, section: section(1), section_template: null })),
+    onChangingPurpose: vi.fn(),
+    sendPurpose: vi.fn(
+      async (cv_label_id: number | null, force: boolean): Promise<Curriculum> =>
+        ({ id: 1, cv_label_id, force, sections: [...shown].reverse().map((item) => ({ ...item })) }) as unknown as Curriculum
+    ),
   };
   const order = () => shown.map(({ id }) => id);
   return { ...deps, edit, order, requests: createCvRequests(deps) };
 };
 
 afterEach(() => waitForSaves(1000));
+
+describe("changePurpose", () => {
+  it("saves first, then shows the sections as ticked, in the server's order", async () => {
+    const { requests, flush, sendPurpose, replace, order } = setup();
+    const curriculum = await requests.changePurpose(5, false);
+    expect(flush.mock.invocationCallOrder[0]).toBeLessThan(sendPurpose.mock.invocationCallOrder[0]);
+    expect(sendPurpose).toHaveBeenCalledWith(5, false);
+    expect(replace).toHaveBeenCalledTimes(2);
+    expect(order()).toEqual([2, 1]);
+    expect(curriculum.cv_label_id).toBe(5);
+  });
+
+  it("sends nothing after a failed save", async () => {
+    const { requests, flush, sendPurpose } = setup();
+    flush.mockResolvedValue(false);
+    await expect(requests.changePurpose(5, false)).rejects.toThrow(PURPOSE_UNSAVED);
+    expect(sendPurpose).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing while an entry has an invalid date range, which isn't saved", async () => {
+    const { requests, sendPurpose, replace } = setup([section(1), section(2, { entries: [invalid] })]);
+    await expect(requests.changePurpose(5, false)).rejects.toThrow(PURPOSE_INVALID_DATES);
+    expect(sendPurpose).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing when the server asks first", async () => {
+    const { requests, sendPurpose, replace } = setup();
+    const conflict = Object.assign(new Error("409"), { response: { status: 409 } });
+    sendPurpose.mockRejectedValueOnce(conflict);
+    await expect(requests.changePurpose(5, false)).rejects.toBe(conflict);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("saves and ticks again, without asking, when the CV was edited meanwhile", async () => {
+    const { requests, edit, flush, sendPurpose, replace } = setup();
+    sendPurpose.mockImplementationOnce(async () => {
+      edit(1);
+      return { id: 1, cv_label_id: 5, sections: [section(1)] } as unknown as Curriculum;
+    });
+    await requests.changePurpose(5, false);
+    expect(flush).toHaveBeenCalledTimes(2);
+    // Saving the edit sent its old ticks too.
+    expect(sendPurpose.mock.calls).toEqual([
+      [5, false],
+      [5, true],
+    ]);
+    expect(replace).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("changePurpose, ticking meanwhile", () => {
+  it("can't be done from asking until the CV shows the result", async () => {
+    const { requests, flush, sendPurpose, replace, onChangingPurpose } = setup();
+    const during: boolean[] = [];
+    flush.mockImplementation(async () => {
+      during.push(requests.changingPurpose());
+      return true;
+    });
+    sendPurpose.mockImplementationOnce(async (cv_label_id: number | null) => {
+      during.push(requests.changingPurpose());
+      return { id: 1, cv_label_id, sections: [] } as unknown as Curriculum;
+    });
+    replace.mockImplementation(() => during.push(requests.changingPurpose()));
+    const asked = requests.changePurpose(5, false);
+    expect(requests.changingPurpose()).toBe(true);
+    await asked;
+    expect(during.every(Boolean)).toBe(true);
+    expect(requests.changingPurpose()).toBe(false);
+    expect(onChangingPurpose.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("can be done again after the server asks first", async () => {
+    const { requests, sendPurpose, onChangingPurpose } = setup();
+    sendPurpose.mockRejectedValueOnce(Object.assign(new Error("409"), { response: { status: 409 } }));
+    await expect(requests.changePurpose(5, false)).rejects.toThrow("409");
+    expect(requests.changingPurpose()).toBe(false);
+    expect(onChangingPurpose.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("stops, showing nothing, if the CV keeps changing", async () => {
+    const { requests, edit, sendPurpose, replace } = setup();
+    sendPurpose.mockImplementation(async (cv_label_id: number | null) => {
+      edit(1);
+      return { id: 1, cv_label_id, sections: [section(1)] } as unknown as Curriculum;
+    });
+    const stopped = await requests.changePurpose(5, false).catch((error) => error);
+    expect(stopped).toBeInstanceOf(PurposeKeptChanging);
+    // The server did change it, so the page can say so.
+    expect(stopped.labelId).toBe(5);
+    expect(replace).not.toHaveBeenCalled();
+    expect(requests.changingPurpose()).toBe(false);
+  });
+});
 
 describe("include", () => {
   const payload = { section_template_id: 10 };

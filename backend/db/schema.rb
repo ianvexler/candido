@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_24_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_27_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -62,6 +62,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_100000) do
     t.integer "job_board_entry_id"
     t.bigint "source_curriculum_id"
     t.string "tailored_for"
+    t.bigint "cv_label_id"
+    t.index ["cv_label_id"], name: "index_curriculums_on_cv_label_id"
     t.index ["job_board_entry_id"], name: "index_curriculums_on_job_board_entry_id"
     t.index ["source_curriculum_id"], name: "index_curriculums_on_source_curriculum_id"
     t.index ["user_id", "title"], name: "index_curriculums_on_user_id_and_title"
@@ -81,6 +83,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_100000) do
     t.datetime "updated_at", null: false
     t.index ["user_id", "created_at"], name: "index_cv_imports_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_cv_imports_on_user_id"
+  end
+
+  create_table "cv_labels", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index "user_id, lower((name)::text)", name: "index_cv_labels_on_user_id_and_lower_name", unique: true
+    t.index ["user_id"], name: "index_cv_labels_on_user_id"
   end
 
   create_table "cv_tailoring_suggestions", force: :cascade do |t|
@@ -206,6 +217,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_100000) do
     t.boolean "current", default: false, null: false
     t.jsonb "entries", default: [], null: false
     t.jsonb "item_added_at", default: {}, null: false
+    t.jsonb "item_labels", default: {}, null: false
+    t.integer "position", null: false
     t.index ["user_id", "section_type"], name: "index_section_templates_on_user_id_and_section_type"
     t.index ["user_id", "title"], name: "index_section_templates_on_user_id_and_title"
     t.index ["user_id"], name: "index_section_templates_on_user_id"
@@ -241,9 +254,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_100000) do
   add_foreign_key "curriculum_sections", "curriculums"
   add_foreign_key "curriculum_sections", "section_templates"
   add_foreign_key "curriculums", "curriculums", column: "source_curriculum_id", on_delete: :nullify
+  add_foreign_key "curriculums", "cv_labels", on_delete: :nullify
   add_foreign_key "curriculums", "job_board_entries", on_delete: :nullify
   add_foreign_key "curriculums", "users"
   add_foreign_key "cv_imports", "users"
+  add_foreign_key "cv_labels", "users"
   add_foreign_key "cv_tailoring_suggestions", "curriculum_sections", on_delete: :cascade
   add_foreign_key "cv_tailoring_suggestions", "cv_tailorings", on_delete: :cascade
   add_foreign_key "cv_tailorings", "curriculums", on_delete: :nullify

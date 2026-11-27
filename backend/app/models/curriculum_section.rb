@@ -72,6 +72,28 @@ class CurriculumSection < ApplicationRecord
     save!
   end
 
+  # Ticks what this copy shares with the library as the purpose says, without saving.
+  def apply_purpose(template, purpose)
+    ticks = purpose_ticks(template, purpose)
+    self.hidden = !ticks.fetch(:section)
+    self.entries = entries.map do |entry|
+      id = entry["id"]
+      shared = CvItems.list(entry["content"]).pluck(:id).select { |item_id| ticks.key?("#{id}/#{item_id}") }
+      on, off = shared.partition { |item_id| ticks["#{id}/#{item_id}"] }
+      entry.merge(
+        "hidden" => ticks.key?(id) ? !ticks[id] : entry["hidden"],
+        "description_off" => ticks.key?("#{id}/#{SUMMARY_ID}") ? !ticks["#{id}/#{SUMMARY_ID}"] : entry["description_off"],
+        "content" => CvItems.set_off(CvItems.set_off(entry["content"], on, false), off, true)
+      )
+    end
+  end
+
+  # Whether this copy's ticks differ from the purpose's for anything it shares with the library.
+  def ticks_differ?(template, purpose)
+    expected = purpose_ticks(template, purpose)
+    current_ticks.slice(*expected.keys) != expected
+  end
+
   # Takes the library's current text as the base of one item, of an entry's
   # summary, or of its other fields. Without it in the library there is no base.
   def rebase!(template, entry_id:, item_id: nil)
@@ -86,6 +108,41 @@ class CurriculumSection < ApplicationRecord
   end
 
   private
+
+  # Whether the purpose ticks the section (:section), each entry both have (its id), and each
+  # item and summary both have ("<entry id>/<item id>"). An item goes by its entry in the library.
+  def purpose_ticks(template, purpose)
+    library = template.entries.index_by { |entry| entry["id"] }
+    item_entries = template.entries.each_with_object({}) do |entry, by_item|
+      CvItems.list(entry["content"]).each { |item| by_item[item[:id]] = entry if item[:id] }
+    end
+
+    # Ticked content of this CV's own keeps its section shown.
+    own_ticked = !hidden? && entries.any? { |entry| !library.key?(entry["id"]) && !entry["hidden"] }
+    entries.each_with_object({ section: purpose.section_fits? || own_ticked }) do |entry, ticks|
+      id = entry["id"]
+      if (library_entry = library[id])
+        ticks[id] = purpose.entry_fits?(library_entry)
+        if entry["description"].present? && library_entry["description"].present?
+          ticks["#{id}/#{SUMMARY_ID}"] = purpose.item_fits?(library_entry, SUMMARY_ID)
+        end
+      end
+      CvItems.list(entry["content"]).each do |item|
+        library_entry = item_entries[item[:id]]
+        ticks["#{id}/#{item[:id]}"] = purpose.item_fits?(library_entry, item[:id]) if library_entry
+      end
+    end
+  end
+
+  # Whether the section, each entry, and each summary and item ("<entry id>/<item id>") is ticked.
+  def current_ticks
+    entries.each_with_object({ section: !hidden? }) do |entry, ticks|
+      id = entry["id"]
+      ticks[id] = !entry["hidden"]
+      ticks["#{id}/#{SUMMARY_ID}"] = !entry["description_off"] if entry["description"].present?
+      CvItems.list(entry["content"]).each { |item| ticks["#{id}/#{item[:id]}"] = !item[:off] if item[:id] }
+    end
+  end
 
   def rebase_fields(entry_id, library_entry, keys)
     base = base_fields.fetch(entry_id, {}).except(*keys).merge(library_entry ? library_entry.slice(*keys) : {})

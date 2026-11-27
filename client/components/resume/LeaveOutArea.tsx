@@ -11,12 +11,16 @@ const ITEM_SELECTOR = `[${ITEM_ATTRIBUTE}]`;
 
 type Place = { id: string; top: number };
 
+export const LEAVE_OUT_LOCKED = "Wait until the collection has changed.";
+
 interface LeaveOutAreaProps {
   editor: Editor;
   /** A suggestion's card is open, which Escape closes. */
   cardOpen: boolean;
   /** `focusAt` is where the caret should go afterwards, or null if focus was elsewhere. */
   onLeaveOut: (itemId: string, focusAt: number | null) => void;
+  /** Shown, but it can't be done now: the CV's purpose is changing. */
+  locked?: boolean;
   children: ReactNode;
 }
 
@@ -35,7 +39,7 @@ const caretItem = (editor: Editor): Element | null => {
  * Puts "Leave out" beside the item that is pointed at or has the caret. It isn't
  * part of the document. Escape moves from the text to the button and back.
  */
-const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, children }: LeaveOutAreaProps) => {
+const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, locked = false, children }: LeaveOutAreaProps) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [hovered, setHovered] = useState<Place | null>(null);
@@ -99,7 +103,7 @@ const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, children }: LeaveOutAreaPr
   };
 
   const leaveOut = () => {
-    if (!place) return;
+    if (!place || locked) return;
     const item = editor.view.dom.querySelector(`[${ITEM_ATTRIBUTE}="${CSS.escape(place.id)}"]`);
     const focused = editor.isFocused || document.activeElement === buttonRef.current;
     onLeaveOut(place.id, focused && item ? editor.view.posAtDOM(item, 0) : null);
@@ -127,13 +131,16 @@ const LeaveOutArea = ({ editor, cardOpen, onLeaveOut, children }: LeaveOutAreaPr
               onBlur={(event) => {
                 if (!areaRef.current?.contains(event.relatedTarget)) setCaret(null);
               }}
+              aria-disabled={locked || undefined}
               style={{ top: place.top }}
-              className={LEAVE_OUT_BUTTON}
+              className={cn(LEAVE_OUT_BUTTON, locked && "cursor-default opacity-60")}
             >
               Leave out
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Only from this CV. From the text, press Escape, then Enter.</TooltipContent>
+          <TooltipContent side="bottom">
+            {locked ? LEAVE_OUT_LOCKED : "Only from this CV. From the text, press Escape, then Enter."}
+          </TooltipContent>
         </Tooltip>
       )}
     </div>

@@ -19,6 +19,8 @@ import {
 } from "./checklist";
 import { buildResumeDocument } from "./exportDocument";
 import { listItems } from "./items";
+import cases from "./purposeFitCases.json";
+import { itemFits } from "./purposes";
 import { emptyEntry } from "./sectionEntries";
 import type { SectionDraft } from "./sectionDrafts";
 
@@ -331,6 +333,52 @@ describe("tickEntry", () => {
     expect(tickEntry({ ...section, hidden: true }, "q", true)).toEqual({});
     expect(tickEntry(section, "q", false)).toEqual({});
   });
+
+  describe("with a purpose", () => {
+    const allOff = cv([entry("a", ul(li("x", true), li("y", true), li("z", true)), { hidden: true })]);
+
+    it("ticks only the items that fit", () =>
+      expect(ticks(apply(allOff, tickEntry(allOff, "a", true, (_, item) => item === "y")))).toBe("A(-y-)"));
+
+    it("ticks all when none fit", () =>
+      expect(ticks(apply(allOff, tickEntry(allOff, "a", true, () => false)))).toBe("A(xyz)"));
+
+    it("restores earlier ticks whatever fits", () => {
+      const off = apply(section, tickEntry(section, "a", false));
+      expect(ticks(apply(off, tickEntry(off, "a", true, (_, item) => item === "y")))).toBe("A(x-) B(-)");
+    });
+
+    it("ticks the summary of an entry that fits, if it fits too", () => {
+      const summarised = cv([entry("a", ul(li("x", true), li("y", true)), { hidden: true, description: "About", description_off: true })]);
+      const ticked = (summaryFits: boolean) =>
+        apply(summarised, tickEntry(summarised, "a", true, (_, item) => item === "x" || (summaryFits && item === "$summary")));
+      expect(ticks(ticked(true))).toBe("A(x-)");
+      expect(ticked(true).entries[0].description_off).toBe(false);
+      expect(ticked(false).entries[0].description_off).toBe(true);
+    });
+
+    // An unlabelled entry whose items are for another purpose: its summary fits, the entry doesn't.
+    const otherPurpose = (_: string, item: string) => item === "$summary" || item === "";
+
+    it("doesn't count the summary towards an entry's fit", () => {
+      const summarised = cv([entry("a", ul(li("x", true), li("y", true)), { hidden: true, description: "About", description_off: true })]);
+      const ticked = apply(summarised, tickEntry(summarised, "a", true, otherPurpose));
+      expect(ticks(ticked)).toBe("A(xy)");
+      expect(ticked.entries[0].description_off).toBe(false);
+    });
+
+    it("leaves such an entry out of a section where something else fits", () => {
+      const section = cv(
+        [
+          entry("a", ul(li("x", true), li("y", true)), { hidden: true, description: "About", description_off: true }),
+          entry("b", ul(li("z", true)), { hidden: true }),
+        ],
+        { hidden: true }
+      );
+      const fits = (entryId: string, item: string) => otherPurpose(entryId, item) || item === "z";
+      expect(ticks(apply(section, tickSection(section, true, fits)))).toBe("a(--) B(z)");
+    });
+  });
 });
 
 describe("tickItem", () => {
@@ -420,6 +468,29 @@ describe("tickSection", () => {
   it("keeps title lines on their own", () => {
     const section = cv([entry("a", ul(li("x", true)))], { hidden: true });
     expect(ticks(apply(section, tickSection(section, true)))).toBe("A(-)");
+  });
+
+  describe("with a purpose", () => {
+    const section = cv(
+      [
+        entry("a", ul(li("x", true), li("y", true)), { hidden: true }),
+        entry("b", ul(li("z", true)), { hidden: true }),
+        entry("c", "", { hidden: true }),
+      ],
+      { hidden: true }
+    );
+    const fits = (entryId: string, item: string) => item === "y" || (entryId === "c" && item === "");
+
+    it("ticks what fits and leaves out entries where nothing does", () =>
+      expect(ticks(apply(section, tickSection(section, true, fits)))).toBe("A(-y) b(-) C()"));
+
+    it("ticks all when nothing fits", () =>
+      expect(ticks(apply(section, tickSection(section, true, () => false)))).toBe("A(xy) B(z) C()"));
+
+    it("restores earlier ticks whatever fits", () => {
+      const ticked = cv([entry("a", ul(li("x"), li("y", true))), entry("b", ul(li("z", true)))], { hidden: true });
+      expect(ticks(apply(ticked, tickSection(ticked, true, fits)))).toBe("A(x-) B(-)");
+    });
   });
 });
 
@@ -763,5 +834,30 @@ describe("searching while adding", () => {
   it("keeps a new section", () => {
     const sections = build([cv([entry("a")], { id: 1 }), cv([emptyEntry()], { id: 2, section_type: "Section" })]);
     expect(filterChecklist(sections, "zzz", { sectionId: 2, entryId: null, known: [] }).map(({ sectionId }) => sectionId)).toEqual([2]);
+  });
+});
+
+describe("tickSection with the shared fit cases", () => {
+  cases.forEach((c) => {
+    it(c.name, () => {
+      const template = { entries: c.template.entries, item_labels: c.template.item_labels } as unknown as SectionTemplate;
+      const section = cv(
+        c.template.entries.map(({ id, description, content }) =>
+          entry(id, content.replace(/data-cv-item="[^"]*"/g, '$& data-cv-off="true"'), {
+            description,
+            hidden: true,
+            description_off: true,
+          })
+        ),
+        { hidden: true }
+      );
+      const fits = (entryId: string, itemId: string) => itemFits(template, entryId, itemId, c.label_id);
+      const shown = apply(section, tickSection(section, true, fits)).entries.filter((e) => !e.hidden).map((e) => e.id);
+      // Where nothing fits, it all shows.
+      const expected = Object.entries(c.entries as Record<string, boolean>)
+        .filter(([, fit]) => fit || !c.section)
+        .map(([id]) => id);
+      expect(shown).toEqual(expected);
+    });
   });
 });

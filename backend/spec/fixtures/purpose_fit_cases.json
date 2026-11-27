@@ -1,0 +1,184 @@
+[
+  {
+    "name": "an unlabelled item fits every purpose",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<ul><li data-cv-item=\"i1\">Ruby</li></ul>" }
+      ],
+      "item_labels": {}
+    },
+    "label_id": 2,
+    "items": { "e1/i1": true },
+    "entries": { "e1": true },
+    "section": true
+  },
+  {
+    "name": "an item labelled A fits A",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<ul><li data-cv-item=\"i1\">Rails</li><li data-cv-item=\"i2\">Git</li></ul>" }
+      ],
+      "item_labels": { "i1": [1] }
+    },
+    "label_id": 1,
+    "items": { "e1/i1": true, "e1/i2": true },
+    "entries": { "e1": true },
+    "section": true
+  },
+  {
+    "name": "an item labelled A does not fit B",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<ul><li data-cv-item=\"i1\">Rails</li><li data-cv-item=\"i2\">Git</li></ul>" }
+      ],
+      "item_labels": { "i1": [1] }
+    },
+    "label_id": 2,
+    "items": { "e1/i1": false, "e1/i2": true },
+    "entries": { "e1": true },
+    "section": true
+  },
+  {
+    "name": "an entry labelled A makes its unlabelled items fit A",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<p data-cv-item=\"i1\">Built the API</p>" }
+      ],
+      "item_labels": { "e1": [1] }
+    },
+    "label_id": 1,
+    "items": { "e1/i1": true },
+    "entries": { "e1": true },
+    "section": true
+  },
+  {
+    "name": "an entry labelled A makes its unlabelled items not fit B",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<p data-cv-item=\"i1\">Built the API</p>" }
+      ],
+      "item_labels": { "e1": [1] }
+    },
+    "label_id": 2,
+    "items": { "e1/i1": false },
+    "entries": { "e1": false },
+    "section": false
+  },
+  {
+    "name": "an item labelled B in an entry labelled A fits A",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<ul><li data-cv-item=\"i1\">Design system</li><li data-cv-item=\"i2\">Database</li></ul>" }
+      ],
+      "item_labels": { "e1": [1], "i1": [2] }
+    },
+    "label_id": 1,
+    "items": { "e1/i1": true, "e1/i2": true },
+    "entries": { "e1": true },
+    "section": true
+  },
+  {
+    "name": "an item labelled B in an entry labelled A fits B",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<ul><li data-cv-item=\"i1\">Design system</li><li data-cv-item=\"i2\">Database</li></ul>" }
+      ],
+      "item_labels": { "e1": [1], "i1": [2] }
+    },
+    "label_id": 2,
+    "items": { "e1/i1": true, "e1/i2": false },
+    "entries": { "e1": true },
+    "section": true
+  },
+  {
+    "name": "an entry with no items fits by its own labels",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "" },
+        { "id": "e2", "description": null, "content": "" }
+      ],
+      "item_labels": { "e1": [1] }
+    },
+    "label_id": 2,
+    "items": {},
+    "entries": { "e1": false, "e2": true },
+    "section": true
+  },
+  {
+    "name": "a summary follows its entry's labels, not its items'",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": "Payments team", "content": "<p data-cv-item=\"i1\">Checkout</p>" },
+        { "id": "e2", "description": "Search team", "content": "<p data-cv-item=\"i2\">Indexing</p>" }
+      ],
+      "item_labels": { "e1": [1], "i1": [2], "i2": [1] }
+    },
+    "label_id": 2,
+    "items": { "e1/$summary": false, "e1/i1": true, "e2/$summary": true, "e2/i2": false },
+    "entries": { "e1": true, "e2": false },
+    "section": true
+  },
+  {
+    "name": "an entry whose items are all B does not fit A, even with a summary",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": "Agency work", "content": "<ul><li data-cv-item=\"i1\">React</li><li data-cv-item=\"i2\">CSS</li></ul>" }
+      ],
+      "item_labels": { "i1": [2], "i2": [2] }
+    },
+    "label_id": 1,
+    "items": { "e1/$summary": true, "e1/i1": false, "e1/i2": false },
+    "entries": { "e1": false },
+    "section": false
+  },
+  {
+    "name": "a section with no fitting entry does not fit",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": null, "content": "<p data-cv-item=\"i1\">Figma</p>" },
+        { "id": "e2", "description": null, "content": "" }
+      ],
+      "item_labels": { "e1": [2], "e2": [2] }
+    },
+    "label_id": 1,
+    "items": { "e1/i1": false },
+    "entries": { "e1": false, "e2": false },
+    "section": false
+  },
+  {
+    "name": "an empty section does not fit",
+    "template": {
+      "entries": [],
+      "item_labels": {}
+    },
+    "label_id": 1,
+    "items": {},
+    "entries": {},
+    "section": false
+  },
+  {
+    "name": "Everything fits when the label id is null",
+    "template": {
+      "entries": [
+        { "id": "e1", "description": "Payments team", "content": "<p data-cv-item=\"i1\">Checkout</p><p data-cv-item=\"i2\">Refunds</p>" },
+        { "id": "e2", "description": null, "content": "" }
+      ],
+      "item_labels": { "e1": [1], "i1": [2], "e2": [2] }
+    },
+    "label_id": null,
+    "items": { "e1/$summary": true, "e1/i1": true, "e1/i2": true },
+    "entries": { "e1": true, "e2": true },
+    "section": true
+  },
+  {
+    "name": "an empty section fits Everything",
+    "template": {
+      "entries": [],
+      "item_labels": {}
+    },
+    "label_id": null,
+    "items": {},
+    "entries": {},
+    "section": true
+  }
+]

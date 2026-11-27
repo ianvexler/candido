@@ -101,7 +101,7 @@ const withLibraryOnly = <T extends { id: string }>(ours: T[], libraryIds: string
   return rows;
 };
 
-const entryTitle = (entry: SectionEntry, firstItem: ChecklistItem | undefined) =>
+export const entryTitle = (entry: SectionEntry, firstItem: { text: string } | undefined) =>
   [entry.title, entry.organization, entry.role, firstItem?.text].map((text) => text?.trim()).find(Boolean) ?? "Untitled";
 
 const tickState = (ticked: boolean, included: number, total: number): TickState => {
@@ -347,11 +347,28 @@ const allOff = (entry: SectionEntry) => {
   return items.length > 0 && items.every(({ off }) => off);
 };
 
-/** Shown with its earlier item ticks, or all of them. */
-const showEntry = (entry: SectionEntry): SectionEntry => ({
-  ...(allOff(entry) ? setOff(entry, allIds(entry), false) : entry),
-  hidden: false,
-});
+/** Whether an item fits the CV's purpose. `itemId` is "" for an entry that has no items. */
+export type Fits = (entryId: string, itemId: string) => boolean;
+
+/**
+ * The ids of what fits in an entry that does, or null if it doesn't. An entry
+ * fits when one of its items does, or with none by its own labels; its summary
+ * doesn't count, and is ticked only along with an entry that fits.
+ */
+const fittingIds = (entry: SectionEntry, fits: Fits): string[] | null => {
+  const items = allIds(entry).filter((id) => id !== SUMMARY_ID);
+  const fitting = items.filter((id) => fits(entry.id, id));
+  if (items.length > 0 ? fitting.length === 0 : !fits(entry.id, "")) return null;
+  const summary = summaryOf(entry) !== null && fits(entry.id, SUMMARY_ID);
+  return [...(summary ? [SUMMARY_ID] : []), ...fitting];
+};
+
+/** Shown with its earlier item ticks, or those that fit, or all of them. */
+const showEntry = (entry: SectionEntry, fits?: Fits): SectionEntry => {
+  if (!allOff(entry)) return { ...entry, hidden: false };
+  const fitting = fits ? fittingIds(entry, fits) : null;
+  return { ...setOff(entry, fitting?.length ? fitting : allIds(entry), false), hidden: false };
+};
 
 const hideEntry = (entry: SectionEntry): SectionEntry => ({ ...entry, hidden: true });
 
@@ -365,10 +382,19 @@ const leaveOutBare = (entry: SectionEntry): SectionEntry =>
 /** Has something ticked: items, or itself if it can do without. */
 const hasTicks = (entry: SectionEntry) => !entry.hidden && !isEmptyEntry(entry) && (hasFields(entry) || !allOff(entry));
 
-export const tickSection = (section: SectionDraft, on: boolean): SectionPatch => {
+/**
+ * With nothing ticked, shows what fits (`fits`), leaving out the entries where
+ * nothing does; or all of it if nothing fits.
+ */
+export const tickSection = (section: SectionDraft, on: boolean, fits?: Fits): SectionPatch => {
   if (!on) return { hidden: true };
   if (section.entries.some(hasTicks)) return { hidden: false };
-  return { hidden: false, entries: section.entries.map(showEntry) };
+  const fitting = fits ? section.entries.filter((entry) => fittingIds(entry, fits) !== null) : [];
+  if (fitting.length === 0) return { hidden: false, entries: section.entries.map((entry) => showEntry(entry)) };
+  return {
+    hidden: false,
+    entries: section.entries.map((entry) => (fitting.includes(entry) ? showEntry(entry, fits) : hideEntry(entry))),
+  };
 };
 
 /** Shows one entry as `change` gives it. In a left out section, the others become left out. */
@@ -385,9 +411,9 @@ const showOnly = (
 });
 
 /** Nothing changes if the entry isn't in the section anymore. */
-export const tickEntry = (section: SectionDraft, entryId: string, on: boolean): SectionPatch => {
+export const tickEntry = (section: SectionDraft, entryId: string, on: boolean, fits?: Fits): SectionPatch => {
   if (!section.entries.some(({ id }) => id === entryId)) return {};
-  if (on) return showOnly(section, entryId, showEntry);
+  if (on) return showOnly(section, entryId, (entry) => showEntry(entry, fits));
   return { entries: section.entries.map((entry) => (entry.id === entryId ? hideEntry(entry) : entry)) };
 };
 

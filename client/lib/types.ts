@@ -144,6 +144,10 @@ export type SectionTemplate = SectionFields & {
   styles: Record<string, unknown>;
   /** When items and entries were added to the section, by id. Absent if unknown. */
   item_added_at: Record<string, string>;
+  /** Purposes (CvLabel ids) of entries and items, by id. Absent: none. */
+  item_labels: Record<string, number[]>;
+  /** Where it comes in the library, from 0. */
+  position: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -240,8 +244,16 @@ export type CurriculumSection = SectionFields & {
   updated_at: Date;
 }
 
+/** A purpose: what a CV can be for. */
+export type CvLabel = {
+  id: number;
+  name: string;
+};
+
 export type Curriculum = {
   id: number;
+  /** The purpose it was made for; null for Everything. */
+  cv_label_id: number | null;
   user_id: number;
   title: string;
   description: string | null;

@@ -122,6 +122,8 @@ RSpec.describe "Curriculums" do
       it "copies every section in library order, all ticked" do
         newer = create(:section_template, user: user, content: "<p>B</p>", created_at: 1.day.ago)
         older = create(:section_template, user: user, created_at: 2.days.ago, entries: [ { title: "One", content: "<p>A</p>" }, { title: "Two", hidden: true } ])
+        older.update_columns(position: 0)
+        newer.update_columns(position: 1)
         create(:section_template)
 
         2.times { post "/api/v1/curriculums", params: { whole_library: true }, headers: headers, as: :json }
@@ -211,6 +213,190 @@ RSpec.describe "Curriculums" do
       expect(response).to have_http_status(:ok)
       expect(Curriculum.find_by(id: curriculum.id)).to be_nil
       expect(SectionTemplate.find_by(id: template.id)).to be_present
+    end
+  end
+
+  describe "purposes" do
+    let(:backend) { create(:cv_label, user: user, name: "Backend") }
+    let(:frontend) { create(:cv_label, user: user, name: "Frontend") }
+    let!(:experience) do
+      template = create(:section_template, user: user, entries: [
+        { id: "acme", title: "Acme", description: "Payments",
+          content: '<ul><li data-cv-item="api">API</li><li data-cv-item="ui">UI</li></ul>' },
+        { id: "globex", title: "Globex", content: '<p data-cv-item="css">CSS</p>' }
+      ])
+      template.update_columns(item_labels: { "ui" => [ frontend.id ], "globex" => [ frontend.id ] })
+      template
+    end
+    let!(:skills) do
+      template = create(:section_template, user: user, entries: [ { id: "tools", content: '<p data-cv-item="figma">Figma</p>' } ])
+      template.update_columns(item_labels: { "tools" => [ frontend.id ] })
+      template
+    end
+    let(:backend_ticks) do
+      { "section #{experience.id}" => true, "acme" => true, "acme/$summary" => true, "acme/api" => true, "acme/ui" => false,
+        "globex" => false, "globex/css" => false, "section #{skills.id}" => false, "tools" => false, "tools/figma" => false }
+    end
+    let(:frontend_ticks) { backend_ticks.transform_values { true } }
+
+    # Whether each section, entry, summary and item of the CV is ticked.
+    def ticks(curriculum)
+      curriculum.reload.curriculum_sections.each_with_object({}) do |section, ticks|
+        ticks["section #{section.section_template_id || section.id}"] = !section.hidden
+        section.entries.each do |entry|
+          ticks[entry["id"]] = !entry["hidden"]
+          ticks["#{entry['id']}/$summary"] = !entry["description_off"] if entry["description"]
+          CvItems.list(entry["content"]).each { |item| ticks["#{entry['id']}/#{item[:id]}"] = !item[:off] }
+        end
+      end
+    end
+
+    def texts(curriculum)
+      curriculum.reload.curriculum_sections.flat_map do |section|
+        section.entries.map { |entry| entry.except("hidden", "description_off").merge("content" => CvItems.strip_ticks(entry["content"])) }
+      end
+    end
+
+    def create_cv(label)
+      post "/api/v1/curriculums", params: { whole_library: true, cv_label_id: label&.id }, headers: headers, as: :json
+      Curriculum.find(response.parsed_body["curriculum"]["id"])
+    end
+
+    def change_purpose(curriculum, label, force: nil)
+      put "/api/v1/curriculums/#{curriculum.id}/purpose", params: { cv_label_id: label&.id, force: force }.compact_blank,
+        headers: headers, as: :json
+    end
+
+    describe "POST /api/v1/curriculums" do
+      it "ticks what fits the purpose and names the CV after it" do
+        first = create_cv(backend)
+        second = create_cv(backend)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["curriculum"]).to include("cv_label_id" => backend.id, "title" => "Backend CV 2")
+        expect(first.title).to eq("Backend CV")
+        expect(ticks(second)).to eq(backend_ticks)
+      end
+
+      it "rejects another user's purpose and creates nothing" do
+        foreign = create(:cv_label)
+
+        expect {
+          post "/api/v1/curriculums", params: { whole_library: true, cv_label_id: foreign.id }, headers: headers, as: :json
+        }.not_to change(Curriculum, :count)
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    describe "PUT /api/v1/curriculums/:id/purpose" do
+      it "switches purpose when the ticks are as the old purpose left them" do
+        curriculum = create_cv(backend)
+
+        change_purpose(curriculum, frontend)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["curriculum"]).to include("cv_label_id" => frontend.id)
+        expect(ticks(curriculum)).to eq(frontend_ticks)
+
+        change_purpose(curriculum, backend)
+        expect(ticks(curriculum)).to eq(backend_ticks)
+        change_purpose(curriculum, nil)
+        expect(curriculum.reload.cv_label_id).to be_nil
+        expect(ticks(curriculum)).to eq(frontend_ticks)
+      end
+
+      it "asks before undoing ticks changed by hand, and switches when forced" do
+        curriculum = create_cv(backend)
+        section = curriculum.curriculum_sections.first
+        acme = section.find_entry("acme")
+        section.update!(entries: section.entries.map { |e| e.equal?(acme) ? e.merge("content" => CvItems.set_off(e["content"], [ "api" ], true)) : e })
+        before = ticks(curriculum)
+
+        change_purpose(curriculum, frontend)
+
+        expect(response).to have_http_status(:conflict)
+        expect(response.parsed_body).to eq("error" => "ticks_differ")
+        expect(curriculum.reload.cv_label_id).to eq(backend.id)
+        expect(ticks(curriculum)).to eq(before)
+
+        change_purpose(curriculum, frontend, force: true)
+
+        expect(response).to have_http_status(:ok)
+        expect(ticks(curriculum)).to eq(frontend_ticks)
+      end
+
+      it "leaves what only the CV has alone" do
+        curriculum = create_cv(backend)
+        section = curriculum.curriculum_sections.first
+        section.update!(entries: section.entries.map do |entry|
+          next entry unless entry["id"] == "acme"
+
+          entry.merge("content" => "#{entry['content']}<p data-cv-item=\"mine\" data-cv-off=\"true\">Mine</p>")
+        end + [ { "id" => "own", "title" => "Side project", "hidden" => true } ])
+        own_section = curriculum.add_empty_section!("Awards")
+        own_section.update!(hidden: true, entries: [ { "id" => "prize", "content" => '<p data-cv-item="medal" data-cv-off="true">Medal</p>' } ])
+
+        change_purpose(curriculum, frontend)
+
+        expect(response).to have_http_status(:ok)
+        expect(ticks(curriculum)).to eq(frontend_ticks.merge("acme/mine" => false, "own" => false,
+          "section #{own_section.id}" => false, "prize" => true, "prize/medal" => false))
+      end
+
+      it "keeps a section shown that still has ticked content only the CV has" do
+        curriculum = create_cv(frontend)
+        section = curriculum.curriculum_sections.find_by!(section_template: skills)
+        section.update!(entries: section.entries + [ { "id" => "mine", "title" => "Own tool", "hidden" => false } ])
+
+        change_purpose(curriculum, backend)
+
+        expect(response).to have_http_status(:ok)
+        expect(ticks(curriculum)).to eq(backend_ticks.merge("section #{skills.id}" => true, "mine" => true))
+      end
+
+      it "copies in library content the CV lacks, ticked by fit" do
+        curriculum = create_cv(backend)
+        experience.update!(entries: experience.entries + [ { "id" => "initech", "title" => "Initech", "content" => '<p data-cv-item="sql">SQL</p>' } ])
+        experience.update_columns(item_labels: experience.item_labels.merge("initech" => [ frontend.id ]))
+        projects = create(:section_template, user: user, entries: [ { id: "site", content: '<p data-cv-item="shop">Shop</p>' } ])
+        projects.update_columns(item_labels: { "site" => [ frontend.id ] })
+
+        change_purpose(curriculum, backend)
+
+        expect(response).to have_http_status(:ok)
+        expect(ticks(curriculum)).to eq(backend_ticks.merge(
+          "initech" => false, "initech/sql" => false, "section #{projects.id}" => false, "site" => false, "site/shop" => false
+        ))
+        expect(curriculum.curriculum_sections.last.section_template_id).to eq(projects.id)
+      end
+
+      it "never changes text" do
+        curriculum = create_cv(backend)
+        before = texts(curriculum)
+
+        change_purpose(curriculum, frontend)
+        change_purpose(curriculum, backend)
+
+        expect(texts(curriculum)).to eq(before)
+      end
+
+      it "rejects another user's purpose or one that doesn't exist" do
+        curriculum = create_cv(backend)
+
+        change_purpose(curriculum, create(:cv_label))
+        expect(response).to have_http_status(:not_found)
+        put "/api/v1/curriculums/#{curriculum.id}/purpose", params: { cv_label_id: 0 }, headers: headers, as: :json
+        expect(response).to have_http_status(:not_found)
+        expect(curriculum.reload.cv_label_id).to eq(backend.id)
+      end
+    end
+
+    it "keeps the purpose on a tailored copy" do
+      curriculum = create_cv(backend)
+
+      copy = curriculum.duplicate_for_job!(create(:job_board_entry, user: user))
+
+      expect(copy.cv_label_id).to eq(backend.id)
     end
   end
 end

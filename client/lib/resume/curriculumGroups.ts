@@ -18,4 +18,4 @@ export const splitCurriculums = (
 export const deleteDescription = (c: Pick<Curriculum, "cv_for_job"> | null): string =>
   c?.cv_for_job
     ? `This is the CV for your ${c.cv_for_job.company} application; its CV slot will be empty.`
-    : "Your section library is not affected.";
+    : "Your library is not affected.";
