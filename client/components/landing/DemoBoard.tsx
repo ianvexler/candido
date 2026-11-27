@@ -142,7 +142,7 @@ const DemoBoard = () => {
     >
       <section aria-label="Try the board" className="landing-dark rounded-3xl bg-candido-black p-3 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 px-2 pb-3 text-white">
-          <p className="text-[16px] font-semibold">This board works. Drag a card to Offered.</p>
+          <p className="text-[16px] font-semibold">Each card is a job. Drag it along as you apply, interview and land the offer.</p>
           <button
             type="button"
             onClick={() => {
