@@ -74,7 +74,7 @@ Each call is billed to that key, and reviews are limited to 10 per user per day.
 
 ### Checking the CV page against its export
 
-`client/scripts/page-parity.mjs` checks that the Page view of a CV puts every block where the print page and the PDF do. It isn't part of CI and adds no dependency. It makes a CV titled "Parity check" from fixture sections (long and short bullets, links, summaries, subheadings, lists, quotes, left-out and partly hidden text), compares it for both templates, both papers, four fonts, three sizes and one to four pages, and deletes it. For each block it compares its place on the Page view, with the break rules off, with the print page (within 0.5px), and the page it is on, and the number of pages, with the PDF. A sample covers each pair of values at least once (16 cases, about 2 minutes); `--all` runs all 192.
+`client/scripts/page-parity.mjs` checks that the Page view of a CV puts every block where the print page and the PDF do. It isn't part of CI and adds no dependency. It makes a CV titled "Parity check" from fixture sections (long and short bullets, links, summaries, subheadings, lists, quotes, left-out and partly hidden text), compares it for both templates, both papers, four fonts, three sizes and one to four pages, and deletes it. For each block it compares its place on the Page view, with the break rules off, with the print page (within 0.5px), and the page it is on, and the number of pages, with the PDF. A sample covers each pair of values at least once (16 cases, about 3 minutes); `--all` runs all 192.
 
 Sign in as a throwaway account: it refuses to run unless the account's CVs are all titled "Parity ...", or `--yes-this-is-a-throwaway-account` is passed.
 
@@ -84,7 +84,10 @@ npm install --no-save playwright   # or PLAYWRIGHT_PATH=/path/to/node_modules/pl
 PARITY_EMAIL=... PARITY_PASSWORD=... node scripts/page-parity.mjs --url http://localhost:3000 --api http://localhost:8000
 node scripts/page-parity.mjs --state auth.json    # a Playwright storage state, instead of the password
 node scripts/page-parity.mjs --typing             # typing with 40 sections and 400 items: median and p95 per key; fails over 50ms at p95 (a development build)
+node scripts/page-parity.mjs --no-hover           # without the hover pass
 ```
+
+Each case also has a hover pass, unless `--no-hover` is passed. With all of the first sheet in the window, it points at every block, the margin beside it and its gutter's "+", and every gap above a section. After each point it checks that every block is where it was (0px), the pages are as many, and nothing in the page's root (`[data-cv-page]`, what prints) was added or changed. It fails if a block shows no gutter, a gap shows no "+ Section", or it pointed at fewer than 40 points.
 
 It prints the differences and a summary, and exits 1 if there are any. Which page each block is on needs `pdftotext` (poppler) or a command in `PARITY_PDF_TEXT` that prints a PDF's text with a form feed after each page; without either it stops, unless `--no-pdf-text` is passed, when only the page counts are compared. Blocks taller than a page are not covered. It refuses a `--url` or `--api` that isn't on this machine unless `--allow-remote` is passed.
 

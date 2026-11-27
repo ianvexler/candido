@@ -6,7 +6,7 @@ import { TransferDirection, transferWithLibrary } from "@/api/resources/curricul
 import { CurriculumSection } from "@/lib/types";
 import { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { moveSection, tickEntry, tickItem, tickSection } from "./checklist";
+import { moveSection, placeSection, tickEntry, tickItem, tickSection } from "./checklist";
 import { createCvRequests, RequestStopped, TextKept } from "./cvRequests";
 import { sectionColumn } from "./exportDocument";
 import { apiErrorMessage } from "./reviewPanel";
@@ -33,9 +33,12 @@ export const transferKey = ({ sectionId, entryId, itemId = "" }: TransferTarget)
   ["transfer", sectionId, entryId, itemId].join(":");
 
 export type ChecklistActions = {
-  tick: (target: ChecklistTarget, on: boolean) => void;
+  /** Gives the id of the CV's section it is in, once it is; null if it isn't, or another tick is already under way. */
+  tick: (target: ChecklistTarget, on: boolean) => Promise<number | null>;
   moveSection: (id: number, by: -1 | 1) => void;
   orderSections: (ids: number[]) => void;
+  /** After another, or first for null. */
+  placeSection: (id: number, afterId: number | null) => void;
   moveEntry: (sectionId: number, entryId: string, by: -1 | 1) => void;
   orderEntries: (sectionId: number, entryIds: string[]) => void;
   toggleColumn: (id: number) => void;
@@ -95,21 +98,22 @@ export const useCvChecklist = (
           if (itemId === undefined) return tickEntry(section, entryId, on);
           return tickItem(section, entryId, itemId, on);
         });
-        return;
+        return Promise.resolve(sectionId);
       }
       const key = targetKey(target);
-      if (!on || templateId === null || pendingKeys.current.has(key)) return;
+      if (!on || templateId === null || pendingKeys.current.has(key)) return Promise.resolve(null);
 
       setBusy(key, true);
-      void include({ section_template_id: templateId, entry_id: entryId, item_id: itemId })
+      return include({ section_template_id: templateId, entry_id: entryId, item_id: itemId })
         .catch((error) => {
           if (error instanceof RequestStopped) {
             toast.error(error.message);
-            return;
+            return null;
           }
           console.error(error);
           toast.error(apiErrorMessage(error, "Couldn't add this from your library. Try again."));
           void refreshLibrary();
+          return null;
         })
         .finally(() => setBusy(key, false));
     },
@@ -181,6 +185,10 @@ export const useCvChecklist = (
       removeSection,
       transfer,
       moveSection: (id, by) => orderSections(moveSection(current().map((section) => section.id), id, by)),
+      placeSection: (id, afterId) => {
+        const ids = placeSection(current().map((section) => section.id), id, afterId);
+        if (ids) orderSections(ids);
+      },
       moveEntry: (sectionId, entryId, by) =>
         change(sectionId, ({ entries }) => ({ entries: moveEntry(entries, entryId, by) })),
       orderEntries: (sectionId, entryIds) =>

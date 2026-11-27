@@ -2,7 +2,7 @@
 
 import { DesignSettings, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, KeptPlace, ResumeDocument } from "@/lib/resume/exportDocument";
-import { showHiddenText, withoutBlankEnd } from "@/lib/resume/items";
+import { showHiddenText } from "@/lib/resume/items";
 import type { EntryVersions } from "@/lib/resume/sectionDrafts";
 import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@/lib/types";
 import {
@@ -26,7 +26,9 @@ import { ResumeTemplate } from "../templates/ResumeTemplate";
 import type { Added } from "../useAdded";
 import type { SuggestionProps } from "../useEntrySuggestions";
 import { Bodies, BodiesContext, changeEntry, OnSectionChange } from "./BodySlot";
-import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, MARK_SIZE } from "./HiddenTextMarks";
+import FoldMarks, { FOLD_HEIGHT, isBeside } from "./FoldMarks";
+import { findFolds, FoldAt } from "./folds";
+import HiddenTextMarks, { findHiddenMarks, HiddenMarkAt, isHiddenMark, MARK_SIZE, mergeMarks } from "./HiddenTextMarks";
 import { byEntry, HiddenPlace, showHiddenInEditor } from "./hiddenText";
 import { CardsContext, entryAt } from "./cardPlace";
 import { editOnPage } from "./editOnPage";
@@ -42,6 +44,7 @@ import { useNearEntries } from "./useNearEntries";
 import { usePageCards } from "./usePageCards";
 import { usePageEditing } from "./usePageEditing";
 import { PagePaging, usePaging } from "./usePaging";
+import PageTools, { PageToolsActions, SHORTCUTS } from "./PageTools";
 
 export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** The drafts. */
@@ -65,6 +68,8 @@ export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   leaveRef?: RefObject<(() => boolean) | null>;
   /** Only shown, as it prints. */
   readOnly?: boolean;
+  /** What the page's gutters, folds and "+ Section" do; without, it has none. Must stay the same while it has nothing new. */
+  tools?: PageToolsActions | null;
 }
 
 const samePlace = (a: KeptPlace | null, b: KeptPlace | null) => a?.sectionId === b?.sectionId && a?.entryId === b?.entryId;
@@ -84,6 +89,7 @@ const Page = ({
   suggestionsBySection,
   leaveRef,
   readOnly = false,
+  tools = null,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
@@ -91,6 +97,7 @@ const Page = ({
 }: PagedCvProps) => {
   const pageId = useId();
   const outerRef = useRef<HTMLDivElement>(null);
+  const sheetsRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<number | null>(null);
   const { width } = SHEETS[paper];
@@ -155,12 +162,12 @@ const Page = ({
       editors,
       openCard,
       hasEntry: (sectionId, entryId) => entryAt(sections, sectionId, entryId) !== null,
-      onLost: (sectionId, entryId) =>
+      onLost: (sectionId, entryId, drop) =>
         changeEntry(
           onSectionChange,
           sectionId,
           entryId,
-          ({ content }) => ({ content: withoutBlankEnd(content) }),
+          ({ content }) => ({ content: drop(content) }),
           versions[sectionId]?.[entryId] ?? 0,
           true
         ),
@@ -185,18 +192,27 @@ const Page = ({
 
   // --- Pages ----------------------------------------------------------------
   const [marks, setMarks] = useState<HiddenMarkAt[]>([]);
+  const [folds, setFolds] = useState<FoldAt[]>([]);
   const [datesMarks, setDatesMarks] = useState<DatesMarkAt[]>([]);
   const [headerTop, setHeaderTop] = useState(0);
+  const folding = tools !== null;
   const onLaidOut = useCallback(
     (root: HTMLElement, at: number) => {
-      const found = findHiddenMarks(root, at, shownSections);
+      // In one margin with the hidden-text marks: stacked, never over each other, folds as tall as on screen.
+      const all = mergeMarks<HiddenMarkAt | FoldAt>(
+        [...findHiddenMarks(root, at, shownSections), ...(folding ? findFolds(root, at, sections) : [])],
+        Math.max(MARK_SIZE, (FOLD_HEIGHT + 2) / at)
+      );
+      const found = all.filter(isHiddenMark);
+      const folded = all.filter((mark): mark is FoldAt => !isHiddenMark(mark));
       setMarks((before) => (JSON.stringify(before) === JSON.stringify(found) ? before : found));
-      const dates = findDatesMarks(root, at, shownSections, unfinished, found);
+      setFolds((before) => (JSON.stringify(before) === JSON.stringify(folded) ? before : folded));
+      const dates = findDatesMarks(root, at, shownSections, unfinished, all);
       setDatesMarks((before) => (JSON.stringify(before) === JSON.stringify(dates) ? before : dates));
       const top = root.querySelector(".rc-header")?.getBoundingClientRect().top ?? 0;
       setHeaderTop(Math.round((top - root.getBoundingClientRect().top) / at));
     },
-    [shownSections, unfinished]
+    [shownSections, sections, unfinished, folding]
   );
   const paging = usePaging(rootRef, { pageId, design, paper, scale, onLaidOut });
   useEffect(() => onPaging(paging), [onPaging, paging]);
@@ -221,15 +237,26 @@ const Page = ({
     [editors, onSectionChange]
   );
 
+  const focusPage = useCallback(() => rootRef.current?.focus({ preventScroll: true }), []);
+
   const { pages } = paging.paging;
   const { sheetHeight, gap } = paging.metrics;
   const height = sheetsHeight(pages, paging.metrics);
   const markRoom = available === null ? 0 : (available - width * scale) / 2;
   const marksInside = markRoom < MARK_SIZE + 8;
+  // Each mark is in a margin or beside the sheet, where a gutter may be too.
+  const deskRoom = Math.max(0, markRoom);
+  const taken = useMemo(
+    () => [
+      ...[...marks, ...datesMarks].map(({ top, side }) => ({ top, side, desk: !marksInside })),
+      ...folds.map(({ top, side, items }) => ({ top, side, desk: isBeside(items.length, deskRoom) })),
+    ],
+    [marks, folds, datesMarks, marksInside, deskRoom]
+  );
 
   return (
     <div ref={outerRef} className="paged-cv">
-      <div className="relative mx-auto" style={{ width: width * scale, height: height * scale }}>
+      <div ref={sheetsRef} className="relative mx-auto" style={{ width: width * scale, height: height * scale }}>
         <div
           className="absolute left-0 top-0 origin-top-left"
           // Scaled, not zoomed: text wraps and measures as it does in print.
@@ -256,6 +283,7 @@ const Page = ({
             data-cv-page={pageId}
             role="region"
             aria-label="CV page"
+            aria-keyshortcuts={!readOnly && tools ? SHORTCUTS : undefined}
             tabIndex={-1}
             className="relative outline-none"
             style={{ width: pageWidth(design, paper), padding: sheetPadding(design) }}
@@ -289,6 +317,22 @@ const Page = ({
             </>
           )}
         </div>
+        {!readOnly && tools && (
+          // Out of the page's scale: tools are as big at any zoom, placed from sheet units by it.
+          <div className="pointer-events-none absolute inset-0 font-[family-name:var(--font-dm-sans)]">
+            <FoldMarks folds={folds} scale={scale} sheetWidth={width} deskRoom={deskRoom} actions={tools.actions} onClosed={focusPage} />
+            <PageTools
+              rootRef={rootRef}
+              areaRef={sheetsRef}
+              scale={scale}
+              sheetWidth={width}
+              sections={sections}
+              taken={taken}
+              deskRoom={deskRoom}
+              {...tools}
+            />
+          </div>
+        )}
       </div>
       <PageCards
         cards={cards}

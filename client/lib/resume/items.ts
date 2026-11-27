@@ -263,6 +263,30 @@ export const mergeEdited = (full: string, visible: string, hidden: string[]): st
   return setItemsOff(setItemsOff(merged, tickedSince, false), untickedSince, true);
 };
 
+/**
+ * Content without the blank block that is the nth to show, counting the items of
+ * top-level lists and the other top-level blocks: as its editor has them. A list it
+ * split is joined again.
+ */
+export const withoutBlankAt = (html: string, shown: number): string => {
+  const content = parseHtml(html);
+  const units = Array.from(content.children)
+    .flatMap((node) => (isList(node) ? listElements(node) : [node]))
+    .filter((unit) => !isOff(unit));
+  const unit = units[shown];
+  if (!unit || textOf(unit) !== "") return html;
+  const parent = unit.parentElement!;
+  const { previousElementSibling: before, nextElementSibling: after } = unit;
+  unit.remove();
+  if (parent !== content) {
+    if (parent.children.length === 0) parent.remove();
+  } else if (isList(before) && isList(after) && before.nodeName === after.nodeName) {
+    before.append(...after.childNodes);
+    after.remove();
+  }
+  return asServerHtml(content.innerHTML);
+};
+
 /** Content without a blank bullet at the end of its last list, or of the list nested there. */
 export const withoutBlankEnd = (html: string): string => {
   const content = parseHtml(html);

@@ -1,3 +1,4 @@
+import { withoutBlankAt } from "@/lib/resume/items";
 import { createMonthDrafts } from "@/lib/resume/monthDrafts";
 import { createDrafts } from "@/lib/resume/sectionDrafts";
 import { emptyEntry } from "@/lib/resume/sectionEntries";
@@ -32,11 +33,15 @@ let months: ReturnType<typeof createMonthDrafts>;
 let hook: ReturnType<typeof useCvEdits>;
 let root: Root;
 let setView: (view: "cards" | "page") => void;
+/** What the views were asked to go to. */
+let asked: EditTarget[];
+/** What the hook takes the drafts to be. */
+let current: () => CurriculumSection[];
 
 const Cv = () => {
   const [view, set] = useState<"cards" | "page">("cards");
   const result = useCvEdits({
-    current: drafts.current,
+    current: () => current(),
     change: drafts.change,
     view,
     showCv: () => {},
@@ -63,7 +68,9 @@ const load = (...sections: CurriculumSection[]) => {
   root = createRoot(document.createElement("div"));
   act(() => root.render(<Cv />));
   take();
+  asked = [];
   hook.channel.handle((target) => {
+    asked.push(target);
     const at = document.querySelector(`[data-section-id="${target.sectionId}"]`)!;
     if (target.what === "heading") at.querySelector<HTMLElement>(".heading")!.focus();
     else {
@@ -110,6 +117,7 @@ beforeEach(() => {
   document.hasFocus = () => true;
   months = createMonthDrafts();
   drafts = createDrafts<CurriculumSection>({ save: async (each) => each, onChange: () => {}, onError: () => {} });
+  current = drafts.current;
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -294,6 +302,111 @@ describe("a bullet in a left out entry", () => {
     press();
     expect(shown()).toBe("a,b");
     expect(entryNow("a")!.content).toBe(BULLETS);
+  });
+});
+
+describe("adding at a place", () => {
+  const addAt = (entryId: string | null, after: string | null, what: "bullet" | "paragraph" | "entry") =>
+    press(() => hook.edits.addAt({ sectionId: 1, entryId, after }, what));
+
+  it.each(["bullet", "paragraph"] as const)("asks for a %s there", (kind) => {
+    load(section(1));
+    addAt("a", "x", kind);
+    expect(asked.at(-1)).toEqual({ sectionId: 1, what: "insert", entryId: "a", after: "x", kind });
+    expect(hook.added).toMatchObject({ what: "bullet", sectionId: 1, entryId: "a" });
+  });
+
+  it("asks for the top of the first entry, under the heading", () => {
+    load(section(1));
+    addAt(null, null, "paragraph");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null, kind: "paragraph" });
+  });
+
+  it.each([
+    ["left out", { hidden: true }],
+    ["blank", { title: "", content: "" }],
+  ])("under the heading, skips a first entry that is %s", (_, changes) => {
+    load(section(1, { entries: [entry("a", changes), entry("b")] }));
+    addAt(null, null, "bullet");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "b", after: null });
+  });
+
+  it("under the heading, takes the first entry when all are left out", () => {
+    load(section(1, { entries: [entry("a", { hidden: true }), entry("b", { hidden: true })] }));
+    addAt(null, null, "bullet");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null });
+  });
+
+  it.each(["bullet", "paragraph"] as const)("shows a left out entry for a %s, and puts its ticks back if nothing was written", (kind) => {
+    const before = section(1, { entries: [entry("a", { content: BULLETS, hidden: true }), entry("b")] });
+    load(before);
+    addAt("a", "x", kind);
+    expect(shown()).toBe("a,b");
+    // It shows with none of its items.
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null, kind });
+    press();
+    expect(now().entries).toEqual(before.entries);
+  });
+
+  it("puts a left out section's ticks back", () => {
+    const before = section(1, { hidden: true });
+    load(before);
+    addAt(null, null, "bullet");
+    expect(shown()).toBe("a");
+    press();
+    expect(now().hidden).toBe(true);
+    expect(now().entries).toEqual(before.entries);
+  });
+
+  it.each([["y"], ["gone"]])("asks for the entry's top for an item that isn't shown: %s", (after) => {
+    load(section(1));
+    addAt("a", after, "bullet");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null });
+  });
+
+  it("adds an entry to a section that has none", () => {
+    load(section(1));
+    // Drafts give a section one; what is passed in may not.
+    current = () => drafts.current().map((each) => ({ ...each, entries: [] }));
+    addAt(null, null, "bullet");
+    current = drafts.current;
+    expect(asked.at(-1)).toMatchObject({ sectionId: 1, what: "title" });
+    expect(hook.added).toMatchObject({ what: "entry" });
+  });
+
+  it("puts ticks back once a paragraph that split a left out entry's list is dropped", () => {
+    const content = '<ul><li data-cv-item="x"><p>X</p></li><li data-cv-item="y"><p>Y</p></li></ul>';
+    const before = section(1, { entries: [entry("a", { content, hidden: true }), entry("b")] });
+    load(before);
+    addAt("a", null, "paragraph");
+    const shownContent = entryNow("a")!.content;
+    // Saved with it, then its editor went and it was dropped again.
+    write("a", { content: shownContent.replace("</li><li", "</li></ul><p></p><ul><li") });
+    write("a", { content: withoutBlankAt(entryNow("a")!.content, 0) });
+    press();
+    expect(now().entries).toEqual(before.entries);
+  });
+
+  it("adds an entry first, or after another, and asks for its title", () => {
+    load(section(1));
+    addAt(null, null, "entry");
+    const first = now().entries[0].id;
+    expect(now().entries.map(({ id }) => id)).toEqual([first, "a", "b"]);
+    expect(asked.at(-1)).toEqual({ sectionId: 1, what: "title", entryId: first });
+    expect(hook.added).toMatchObject({ what: "entry", entryId: first });
+
+    addAt("a", null, "entry");
+    expect(now().entries.map(({ id }) => id).slice(1)).toEqual(["a", now().entries[2].id, "b"]);
+  });
+
+  it("takes a new entry in a left out section away again if it stays blank", () => {
+    const before = section(1, { hidden: true });
+    load(before);
+    addAt("a", null, "entry");
+    expect(shown()).toBe(now().entries[1].id);
+    press();
+    expect(now().entries).toEqual(before.entries);
+    expect(now().hidden).toBe(true);
   });
 });
 

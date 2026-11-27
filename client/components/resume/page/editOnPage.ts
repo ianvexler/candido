@@ -1,3 +1,4 @@
+import type { DropLost } from "../addBullet";
 import type { EditTarget } from "../editChannel";
 import { bringIntoView, editInEditor, focusText } from "../placeCaret";
 import type { CardPlace } from "./cardPlace";
@@ -10,7 +11,7 @@ interface EditOnPageOptions {
   /** The entry is in the CV. */
   hasEntry: (sectionId: number, entryId: string) => boolean;
   /** An empty bullet's editor went. */
-  onLost: (sectionId: number, entryId: string) => void;
+  onLost: (sectionId: number, entryId: string, drop: DropLost) => void;
 }
 
 // The asks that focused the text an editor takes the place of.
@@ -43,7 +44,7 @@ export const editOnPage = (target: EditTarget, { root, editors, openCard, hasEnt
 
   const editor = editors.of(sectionId).current.get(entryId);
   if (editor && !editor.isDestroyed && entry?.contains(editor.view.dom)) {
-    return editInEditor(editor, target, () => onLost(sectionId, entryId));
+    return editInEditor(editor, target, (drop) => onLost(sectionId, entryId, drop));
   }
   // Loads the editor. Once: the focus may go on before that is there.
   const text = loading.has(target) ? null : find(entry, '.page-entry-body > [role="textbox"]');

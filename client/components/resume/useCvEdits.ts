@@ -1,7 +1,7 @@
-import { addEntry, isIn, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
+import { addEntry, insertEntry, isIn, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
 import { isLeftOut } from "@/lib/resume/exportDocument";
 import { listItems } from "@/lib/resume/items";
-import { emptyEntry } from "@/lib/resume/sectionEntries";
+import { emptyEntry, entryUnderHeading } from "@/lib/resume/sectionEntries";
 import type { SectionChange, SectionDraft, SectionPatch } from "@/lib/resume/sectionDrafts";
 import { CurriculumSection, SUMMARY_ID } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,12 +10,17 @@ import { createEditChannel, EditTarget } from "./editChannel";
 import { Added, useAdded } from "./useAdded";
 import type { CvView } from "./useCvView";
 
+/** A place to add at: after an item of an entry, or its top for null; under a section's heading for a null entry. */
+export type AddPlace = { sectionId: number; entryId: string | null; after: string | null };
+
 /** What the checklist adds and edits. The functions stay the same. */
 export type CvEdits = {
   /** Ticks what isn't in the CV first. */
   edit: (target: EditTarget) => void;
   addEntry: (sectionId: number) => void;
   addBullet: (sectionId: number, entryId: string) => void;
+  /** An entry goes after the place's entry, or first; a bullet or paragraph after its item. */
+  addAt: (place: AddPlace, what: "bullet" | "paragraph" | "entry") => void;
 };
 
 const itemOf = (target: EditTarget) =>
@@ -128,6 +133,11 @@ export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEd
       );
     };
 
+    const newEntry = (sectionId: number, afterEntryId: string | null) => {
+      const entry = emptyEntry();
+      add({ sectionId, entryId: entry.id, what: "title" }, "entry", (section) => insertEntry(section, afterEntryId, entry));
+    };
+
     return {
       edit: (target) => {
         const last = goOn(target);
@@ -144,6 +154,18 @@ export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEd
       },
       addBullet: (sectionId, entryId) =>
         add({ sectionId, entryId, what: "bullet" }, "bullet", (section) => showForBullet(section, entryId)),
+      addAt: ({ sectionId, entryId, after }, what) => {
+        const section = find(sectionId);
+        if (!section) return;
+        // Under the heading: the top of the first entry that shows and has text, or a new one without any.
+        const into = entryId ?? entryUnderHeading(section.entries)?.id;
+        if (what === "entry" || into === undefined) return newEntry(sectionId, entryId);
+        // Its editor has only the items that show: one that is left out shows with none.
+        const shows = after !== null && isIn(section, into, after) && known(sectionId, into).includes(after);
+        const at = entryId !== null && shows ? after : null;
+        const target: EditTarget = { sectionId, what: "insert", entryId: into, after: at, kind: what };
+        add(target, "bullet", (section) => showForBullet(section, into));
+      },
     };
   }, [change, find, go, goOn, isUnfinished]);
 

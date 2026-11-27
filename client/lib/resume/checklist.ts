@@ -83,7 +83,8 @@ const cached = <A extends (string | null)[], T>(compute: (...args: A) => T) => {
   };
 };
 
-const itemsOf = cached((html: string): readonly Item[] => listItems(html));
+/** An entry content's items, remembered. */
+export const itemsOf = cached((html: string): readonly Item[] => listItems(html));
 const stateOf = cached(itemState);
 const shownOf = cached(shownText);
 
@@ -415,6 +416,15 @@ export const addEntry = (section: SectionDraft, entry: SectionEntry): SectionPat
   entries: [...(section.hidden ? section.entries.map(hideEntry) : section.entries), entry],
 });
 
+/** Puts an entry after another, or first for null, as addEntry does. */
+export const insertEntry = (section: SectionDraft, afterEntryId: string | null, entry: SectionEntry): SectionPatch => {
+  const entries = section.hidden ? section.entries.map(hideEntry) : section.entries;
+  const index = afterEntryId === null ? -1 : entries.findIndex(({ id }) => id === afterEntryId);
+  // One that is gone since goes last.
+  const at = afterEntryId !== null && index < 0 ? entries.length : index + 1;
+  return { hidden: false, entries: [...entries.slice(0, at), entry, ...entries.slice(at)] };
+};
+
 /** Shows an entry for a bullet that is added to it. */
 export const showForBullet = (section: SectionDraft, entryId: string): SectionPatch => {
   const target = section.entries.find(({ id }) => id === entryId);
@@ -446,6 +456,15 @@ export const isIn = (section: SectionDraft, entryId?: string, itemId?: string): 
 
 /** Section ids in their new order; entries move with moveEntry. */
 export const moveSection = (ids: number[], id: number, by: -1 | 1): number[] => moveAt(ids, ids.indexOf(id), by);
+
+/** Section ids with one put after another, or first for null. Null if that changes nothing, or the other is gone. */
+export const placeSection = (ids: number[], id: number, afterId: number | null): number[] | null => {
+  const others = ids.filter((each) => each !== id);
+  const at = afterId === null ? 0 : others.indexOf(afterId) + 1;
+  if (afterId !== null && at === 0) return null;
+  const placed = [...others.slice(0, at), id, ...others.slice(at)];
+  return placed.join() === ids.join() ? null : placed;
+};
 
 /** What was just added: a section, or an entry or items that weren't known. */
 type Kept = { sectionId: number; entryId: string | null; known: string[] };

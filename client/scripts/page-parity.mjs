@@ -11,8 +11,9 @@
  *  - the page each block is on in the Page view with the PDF's, and the number
  *    of pages (the page starts follow from the first);
  *  - that what is left out is nowhere in either.
- * It then deletes the CV. With --typing it measures typing in a CV of 40 sections
- * and 400 items instead.
+ * Then it points at every block and gap of the first sheet and checks that the tools
+ * that show move nothing on the page and add nothing to it. It then deletes the CV.
+ * With --typing it measures typing in a CV of 40 sections and 400 items instead.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -34,6 +35,9 @@ const USAGE = `Usage: node scripts/page-parity.mjs [options]
   --typing           Measure typing with 40 sections and 400 items. Fails
                      if the 95th percentile of a key to its paint is over
                      50ms, which is for a development build
+  --no-hover         Skip pointing at every block and gap of the first sheet,
+                     which checks that the tools that show move nothing on
+                     the page and add nothing to it
   --no-pdf-text      Go on without a PDF text reader, comparing only the
                      number of pages with the PDF (else that is an error)
   --allow-remote     Allow a --url or --api that isn't on this machine
@@ -45,7 +49,7 @@ PLAYWRIGHT_PATH names a Playwright install if "playwright" can't be imported.
 PARITY_PDF_TEXT names a command that prints a PDF's text, a form feed after
 each page, when pdftotext isn't installed.`;
 
-const FLAGS = new Set(["all", "typing", "help", "no-pdf-text", "allow-remote", "yes-this-is-a-throwaway-account"]);
+const FLAGS = new Set(["all", "typing", "help", "no-hover", "no-pdf-text", "allow-remote", "yes-this-is-a-throwaway-account"]);
 const OPTIONS = new Set(["url", "api", "state", "only"]);
 
 const args = (() => {
@@ -91,6 +95,12 @@ for (const origin of [CLIENT, API]) {
   }
 }
 const TYPING_LIMIT = 50;
+/** Points the hover pass must point at in a case, at the least: else it hardly checked. */
+const HOVER_LEAST = 40;
+/** A window as tall as the first sheet and the bar above it, at 100%. */
+const HOVER_HEIGHT = 1600;
+/** As the page's: how far from the pointer a gap's "+ Section" may be, half its least hover area and some. */
+const LEAST_GAP = 16;
 
 const stop = (message) => {
   console.error(message);
@@ -144,7 +154,7 @@ const signIn = async (browser) => {
   await context.addInitScript(() => {
     window.print = () => {};
     try {
-      localStorage.setItem("candido:cv-view", "page");
+      localStorage.setItem("candido:cv-view-2", "page");
     } catch {
       // No storage, no choice.
     }
@@ -387,6 +397,160 @@ const openPage = async (page, id) => {
   await page.getByRole("button", { name: "100%" }).first().click({ timeout: 5000 }).catch(() => {});
 };
 
+// --- Hover ------------------------------------------------------------------
+
+/**
+ * Runs in the page: what to point at on the first sheet, kept in the page to be pointed at one by
+ * one: each block, and each section, for the gap above it.
+ */
+const findHoverTargets = () => {
+  const root = document.querySelector("[data-cv-page]");
+  // All of the first sheet in the window: the pointer can't go past it, and scrolling would mount editors.
+  root?.scrollIntoView({ block: "start", behavior: "instant" });
+  const sheet = document.querySelector(".paged-cv [aria-hidden]")?.children[0]?.getBoundingClientRect();
+  if (!root || !sheet) return { blocks: [], gaps: 0 };
+  const onFirst = (element) => {
+    const box = element.getBoundingClientRect();
+    return box.height > 0 && box.top >= sheet.top && box.bottom <= Math.min(sheet.bottom, innerHeight);
+  };
+  const selector = '.rc-heading, [data-block="heading"], [data-block="head"] > *:not(.rc-heading), .rc-summary, [data-cv-item]';
+  // An item that holds others is pointed at through them.
+  const blocks = [...root.querySelectorAll(selector)].filter((each) => onFirst(each) && !each.querySelector("[data-cv-item]"));
+  const gaps = [...root.querySelectorAll("[data-section-id]")].filter(onFirst);
+  window.__hover = { blocks, gaps };
+  return { blocks: blocks.map((each) => each.textContent.trim().slice(0, 40)), gaps: gaps.length };
+};
+
+/**
+ * Runs in the page: where to point at a target, in client px. A block's middle and the margin
+ * beside its first line, halfway from its column's text to the sheet's edge; or the gap above a
+ * section, halfway from the block above it in its column.
+ */
+const hoverPoint = ({ kind, at }) => {
+  const root = document.querySelector("[data-cv-page]");
+  const element = window.__hover[kind][at];
+  const columns = [...root.querySelectorAll(".rs-side, .rs-main")];
+  const column = columns.find((each) => each.contains(element)) ?? root.querySelector(".resume-classic");
+  const edges = column.getBoundingClientRect();
+  const box = element.getBoundingClientRect();
+  if (kind === "blocks") {
+    const sheet = document.querySelector(".paged-cv [aria-hidden]").children[0].getBoundingClientRect();
+    const right = column.matches(".rs-main");
+    return {
+      top: box.top,
+      bottom: box.bottom,
+      middle: { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 },
+      margin: { x: right ? (edges.right + sheet.right) / 2 : (sheet.left + edges.left) / 2, y: Math.min(box.top + 8, box.bottom - 1) },
+    };
+  }
+  const above = [...column.querySelectorAll("[data-section-id], [data-block]")]
+    .map((each) => each.getBoundingClientRect())
+    .filter((each) => each.height > 0 && each.bottom <= box.top + 0.5)
+    .reduce((lowest, each) => Math.max(lowest, each.bottom), -Infinity);
+  const y = Number.isFinite(above) && box.top - above >= 4 ? (above + box.top) / 2 : box.top - 2;
+  return { x: (edges.left + edges.right) / 2, y };
+};
+
+/** Runs in the page: records what changes in the page's root from now on. */
+const watchRoot = () => {
+  const root = document.querySelector("[data-cv-page]");
+  window.__rootChanges = [];
+  window.__rootWatch?.disconnect();
+  window.__rootWatch = new MutationObserver((records) => {
+    for (const record of records) {
+      const where = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      const name = `${where?.tagName?.toLowerCase() ?? "?"}${where?.className ? `.${String(where.className).split(" ")[0]}` : ""}`;
+      if (record.type === "childList") {
+        record.addedNodes.forEach((node) => window.__rootChanges.push(`added ${node.nodeName.toLowerCase()} in ${name}`));
+        record.removedNodes.forEach((node) => window.__rootChanges.push(`removed ${node.nodeName.toLowerCase()} from ${name}`));
+      } else window.__rootChanges.push(`${record.type === "attributes" ? `attribute ${record.attributeName}` : "text"} of ${name}`);
+    }
+  });
+  window.__rootWatch.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
+};
+
+/** After the frame the pointer is followed in, and React's render of it. */
+const nextPaint = (page) => page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+
+/**
+ * Points at every block of the first sheet, its margin and its gutter's "+", and every gap above a
+ * section, and checks that no block moved (0px), the pages are as many, and nothing changed in
+ * the page's root. Counts the tools seen, so a pass that shows none is caught too.
+ */
+const checkHover = async (page, name, before) => {
+  const viewport = page.viewportSize();
+  await page.setViewportSize({ width: viewport.width, height: HOVER_HEIGHT });
+  try {
+    return await hoverAll(page, name, before);
+  } finally {
+    await page.setViewportSize(viewport);
+  }
+};
+
+const hoverAll = async (page, name, before) => {
+  await page.evaluate(findHoverTargets);
+  // Editors that mount for what is now in view.
+  await settled(page, '[aria-label="CV page"]');
+  const { blocks, gaps } = await page.evaluate(findHoverTargets);
+  await page.evaluate(watchRoot);
+  const counts = { points: 0, gutters: 0, sections: 0 };
+  const moved = new Set();
+  const check = async (where) => {
+    counts.points++;
+    const now = await page.evaluate(scanPage, { selector: '[aria-label="CV page"]' });
+    if (now.sheets.length !== before.sheets.length) fail(name, "pages change on hover", `${where}: ${before.sheets.length} then ${now.sheets.length}`);
+    for (const [label, was] of Object.entries(before.labels)) {
+      const is = now.labels[label];
+      if (moved.has(label)) continue;
+      if (!is || is.top !== was.top || is.left !== was.left || is.height !== was.height) {
+        moved.add(label);
+        fail(name, "a block moves on hover", `${label} ${where}: top ${was.top.toFixed(2)} then ${is ? is.top.toFixed(2) : "gone"}`);
+      }
+    }
+  };
+  const pointAt = async ({ x, y }) => {
+    await page.mouse.move(x, y);
+    await nextPaint(page);
+  };
+
+  const bare = [];
+  for (const [at, text] of blocks.entries()) {
+    const { top, bottom, middle, margin } = await page.evaluate(hoverPoint, { kind: "blocks", at });
+    await pointAt(middle);
+    await check(`over block ${at + 1}`);
+    await pointAt(margin);
+    await check(`beside block ${at + 1}`);
+    // This block's, not one lingering from the block before: level with it, or just below a mark there.
+    const add = await page.locator('[data-page-gutter] button[aria-label="Add below"]').boundingBox();
+    if (add && add.y + add.height >= top && add.y <= bottom + 2 * add.height) {
+      counts.gutters++;
+      await pointAt({ x: add.x + add.width / 2, y: add.y + add.height / 2 });
+      await check(`on block ${at + 1}'s +`);
+    } else bare.push(text);
+  }
+  const noSection = [];
+  for (let at = 0; at < gaps; at++) {
+    const point = await page.evaluate(hoverPoint, { kind: "gaps", at });
+    await pointAt(point);
+    // This gap's, not one lingering from the gap before.
+    const pill = await page.locator("[data-page-section]").boundingBox();
+    if (pill && Math.abs(pill.y + pill.height / 2 - point.y) <= LEAST_GAP) counts.sections++;
+    else noSection.push(at + 1);
+    await check(`in gap ${at + 1}`);
+  }
+  await page.mouse.move(0, 0);
+
+  const changes = await page.evaluate(() => {
+    window.__rootWatch.disconnect();
+    return [...new Set(window.__rootChanges)];
+  });
+  changes.slice(0, 5).forEach((change) => fail(name, "changed in the page on hover", change));
+  if (counts.points < HOVER_LEAST) fail(name, "hover", `only ${counts.points} points pointed at, not ${HOVER_LEAST}`);
+  bare.forEach((text) => fail(name, "no gutter by a block", text));
+  if (noSection.length > 0) fail(name, 'no "+ Section" in a gap', `above sections ${noSection.join(", ")} of ${gaps}`);
+  return counts;
+};
+
 // --- Cases ------------------------------------------------------------------
 
 const TEMPLATES = ["classic", "sidebar"];
@@ -529,7 +693,9 @@ const runCase = async (page, api, id, sectionIds, chosen, hint) => {
     }
     for (const label of fixture.absent) if (label in inPdf) fail(name, "left out, but in the PDF", label);
   }
-  return { name, units, blocks: expected.length, onPdf, pages: `${sheets.length}/${pdfPages}`, worst, read: texts !== null };
+  // Last: it moves the pointer.
+  const hover = args["no-hover"] ? null : await checkHover(page, name, shown);
+  return { name, units, blocks: expected.length, onPdf, pages: `${sheets.length}/${pdfPages}`, worst, read: texts !== null, hover };
 };
 
 // --- Typing -----------------------------------------------------------------
@@ -678,7 +844,7 @@ const main = async () => {
       row.result = failures.length === before ? "ok" : "FAIL";
       row.seconds = Math.round((Date.now() - started) / 1000);
       rows.push(row);
-      console.log(`${row.result.padEnd(4)} ${row.name} ${row.pages ? `pages ${row.pages}, ${row.blocks} blocks (${row.onPdf} placed by the PDF), worst ${row.worst.toFixed(2)}px, ` : ""}${row.seconds}s`);
+      console.log(`${row.result.padEnd(4)} ${row.name} ${row.pages ? `pages ${row.pages}, ${row.blocks} blocks (${row.onPdf} placed by the PDF), worst ${row.worst.toFixed(2)}px, ` : ""}${row.hover ? `hovered ${row.hover.points} points (${row.hover.gutters} gutters, ${row.hover.sections} "+ Section"), ` : ""}${row.seconds}s`);
     }
 
     console.log("");
@@ -692,7 +858,11 @@ const main = async () => {
     const blocks = rows.reduce((sum, row) => sum + (row.blocks ?? 0), 0);
     const onPdf = rows.reduce((sum, row) => sum + (row.onPdf ?? 0), 0);
     const read = rows.every((row) => row.read !== false);
-    console.log(`${rows.length} cases, ${rows.length - bad} ok, ${bad} failed; ${blocks} blocks compared with the print page, ${onPdf} with the page they are on in the PDF.`);
+    const hovered = rows.reduce((sum, row) => sum + (row.hover?.points ?? 0), 0);
+    console.log(
+      `${rows.length} cases, ${rows.length - bad} ok, ${bad} failed; ${blocks} blocks compared with the print page, ${onPdf} with the page they are on in the PDF` +
+        (args["no-hover"] ? "." : `; ${hovered} points hovered.`)
+    );
     if (!read) {
       console.log("No PDF text reader (pdftotext, or PARITY_PDF_TEXT): only the number of pages was compared with the PDF, not which page each block is on.");
     }

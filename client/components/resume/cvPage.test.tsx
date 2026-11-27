@@ -119,7 +119,7 @@ const sectionSaves = () => sent.filter(({ url }) => url.includes("/sections/"));
 const tab = () => ({ close: vi.fn(), location: { href: "" } });
 
 const mount = async (view: "cards" | "page") => {
-  localStorage.setItem("candido:cv-view", view);
+  localStorage.setItem("candido:cv-view-2", view);
   const params = Object.assign(Promise.resolve({ id: "7" }), { status: "fulfilled", value: { id: "7" } });
   await act(async () =>
     root.render(

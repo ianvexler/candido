@@ -5,7 +5,6 @@ import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { cn } from "@/lib/utils";
 import { SUMMARY_ID, SectionEntry } from "@/lib/types";
 import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
-import { withoutBlankEnd } from "@/lib/resume/items";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
 import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
@@ -141,8 +140,9 @@ const SectionEntryEditor = ({
       return field.current !== null;
     }
     if (!editor || editor.isDestroyed) return false;
-    const drop = (latest: SectionEntry) => ({ content: withoutBlankEnd(latest.content) });
-    return editInEditor(editor, target, () => onEntryChange(entry.id, drop, version, true));
+    return editInEditor(editor, target, (drop) =>
+      onEntryChange(entry.id, (latest) => ({ content: drop(latest.content) }), version, true)
+    );
   };
   const onTarget = useEffectEvent(goTo);
   const channel = useContext(EditChannelContext);

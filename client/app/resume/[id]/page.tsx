@@ -63,12 +63,13 @@ const CvPage = ({ id }: { id: string }) => {
     isUnfinished,
   });
 
-  // Stays the same, for the checklist's memo.
-  const addNamedSection = useCallback(async (name: string) => {
+  // Stays the same, for the checklist's memo. Without `afterSectionId` it goes last.
+  const addNamedSection = useCallback(async (name: string, afterSectionId?: number | null) => {
     setAdding(true);
     const movedOn = watchMovedOn();
     try {
       const section = await addSection(name);
+      if (section && afterSectionId !== undefined) actions.placeSection(section.id, afterSectionId);
       if (section && !movedOn()) goToNew(section.id);
       return true;
     } catch (error) {
@@ -79,8 +80,12 @@ const CvPage = ({ id }: { id: string }) => {
       movedOn();
       setAdding(false);
     }
-  }, [addSection, goToNew]);
+  }, [addSection, goToNew, actions]);
   const addPlainSection = useCallback(() => void addNamedSection("Section"), [addNamedSection]);
+  const addSectionAfter = useCallback(
+    async (name: string, afterSectionId: number | null) => void (await addNamedSection(name, afterSectionId)),
+    [addNamedSection]
+  );
 
   const libraryLoaded = !library.loading && !library.failed;
   const createdAt = curriculum?.created_at;
@@ -98,6 +103,12 @@ const CvPage = ({ id }: { id: string }) => {
     const section = known.current.rows.find((row) => row.sectionId === sectionId);
     return deletionNote(section, known.current.libraryLoaded, entryId);
   }, []);
+
+  // Stays the same while they do, for the page's memo.
+  const tools = useMemo(
+    () => ({ rows, actions, edits, addSection: addSectionAfter }),
+    [rows, actions, edits, addSectionAfter]
+  );
 
   const twoColumn = look.design.template === "sidebar";
   const columns = useMemo(
@@ -251,6 +262,7 @@ const CvPage = ({ id }: { id: string }) => {
               {...page}
               {...suggestions}
               headerBinding={headerBinding}
+              tools={tools}
               open={added}
               leaveRef={leaveRef}
               look={designPanel}

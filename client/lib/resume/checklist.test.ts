@@ -5,8 +5,10 @@ import {
   buildChecklist,
   entryOffer,
   filterChecklist,
+  insertEntry,
   itemOffer,
   moveSection,
+  placeSection,
   putBack,
   showForBullet,
   suggestionPlace,
@@ -421,6 +423,16 @@ describe("tickSection", () => {
   });
 });
 
+describe("placeSection", () => {
+  it("puts a section after another", () => expect(placeSection([1, 2, 3, 4], 4, 1)).toEqual([1, 4, 2, 3]));
+  it("puts it first for null", () => expect(placeSection([1, 2, 3], 3, null)).toEqual([3, 1, 2]));
+  it("has nothing to do when the other is gone", () => expect(placeSection([1, 2, 3], 3, 9)).toBeNull());
+  it("has nothing to do when it is there already", () => {
+    expect(placeSection([1, 2, 3], 2, 1)).toBeNull();
+    expect(placeSection([1, 2, 3], 1, null)).toBeNull();
+  });
+});
+
 it("moveSection swaps with a neighbour and keeps every id", () => {
   expect(moveSection([1, 2, 3], 2, -1)).toEqual([2, 1, 3]);
   expect(moveSection([1, 2, 3], 2, 1)).toEqual([1, 3, 2]);
@@ -674,6 +686,18 @@ describe("adding", () => {
   it("shows only the new entry of a left out section", () => {
     const section = cv([entry("a", ul(li("x"))), entry("b")], { hidden: true });
     expect(ticks(apply(section, addEntry(section, blank)))).toBe("a(x) b() N()");
+  });
+
+  it("puts an entry after another, or first", () => {
+    const section = cv([entry("a"), entry("b")]);
+    const order = (afterId: string | null) => apply(section, insertEntry(section, afterId, blank)).entries.map(({ id }) => id);
+    expect(order("a")).toEqual(["a", "n", "b"]);
+    expect(order(null)).toEqual(["n", "a", "b"]);
+  });
+
+  it("shows only an entry put into a left out section", () => {
+    const section = cv([entry("a", ul(li("x"))), entry("b")], { hidden: true });
+    expect(ticks(apply(section, insertEntry(section, "a", blank)))).toBe("a(x) N() b()");
   });
 
   it("shows only the entry a bullet goes to, with none of its items", () => {

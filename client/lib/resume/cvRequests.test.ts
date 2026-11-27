@@ -72,7 +72,8 @@ describe("include", () => {
   it("shows a section the CV didn't have", async () => {
     const { requests, sendInclude, replace } = setup([]);
     sendInclude.mockResolvedValue([section(7)]);
-    await requests.include(payload);
+    // Which section it is in, for whoever places it.
+    await expect(requests.include(payload)).resolves.toBe(7);
     expect(replace).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 

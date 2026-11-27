@@ -145,7 +145,7 @@ export const findDatesMarks = (
   scale: number,
   sections: ExportSection[],
   unfinished: EntryPlace[],
-  others: HiddenMarkAt[]
+  others: Pick<HiddenMarkAt, "top" | "side">[]
 ): DatesMarkAt[] => {
   const keys = new Set(unfinished.map(cardKey));
   const base = root.getBoundingClientRect().top;
@@ -196,7 +196,7 @@ export const CardMarks = ({ marks, inside, openKey, openCard, addContact }: Card
         aria-haspopup="dialog"
         aria-expanded={openKey === "contact"}
         onClick={() => openCard({ kind: "contact" }, addContact.named ? "email" : "name")}
-        className="absolute size-6 text-muted-foreground/70 print:hidden [&_svg]:size-3.5"
+        className="absolute z-10 size-6 text-muted-foreground/70 print:hidden [&_svg]:size-3.5"
         style={markStyle(addContact.top, "left", inside)}
       >
         <PlusIcon />
@@ -211,7 +211,7 @@ export const CardMarks = ({ marks, inside, openKey, openCard, addContact }: Card
           side={side}
           aria-haspopup="dialog"
           onClick={() => openCard(place, "dates")}
-          className="absolute size-6 text-destructive hover:text-destructive print:hidden [&_svg]:size-3.5"
+          className="absolute z-10 size-6 text-destructive hover:text-destructive print:hidden [&_svg]:size-3.5"
           style={markStyle(top, side, inside)}
         >
           <TriangleAlertIcon />
