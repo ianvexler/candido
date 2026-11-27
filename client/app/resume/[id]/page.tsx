@@ -34,7 +34,7 @@ interface ResumePageProps {
 }
 
 const CvPage = ({ id }: { id: string }) => {
-  const { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf } = useCv(id);
+  const { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf, exporting } = useCv(id);
   const { sections, versions, change } = drafts;
   const { pending, actions, addSection } = checklist;
   const [view, setView] = useCvView();
@@ -252,6 +252,7 @@ const CvPage = ({ id }: { id: string }) => {
             curriculum={curriculum}
             onRename={saveTitle}
             onExport={() => void exportPdf()}
+            exporting={exporting}
             view={view}
             onViewChange={changeView}
             design={!onPage && <DesignSheet {...designPanel} />}

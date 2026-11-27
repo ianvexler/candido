@@ -2,14 +2,14 @@ import ResumePage from "@/app/resume/[id]/page";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { waitForSaves } from "@/lib/resume/saveTracker";
 import { emptyEntry } from "@/lib/resume/sectionEntries";
-import { act, AnchorHTMLAttributes, Suspense } from "react";
+import { act, AnchorHTMLAttributes, ReactElement, Suspense } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const { toast, api } = vi.hoisted(() => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() }),
   api: {
     get: vi.fn<(url: string) => Promise<unknown>>(),
     put: vi.fn<(url: string, body: Record<string, unknown>) => Promise<unknown>>(),
@@ -116,7 +116,6 @@ const typeTitle = async (text: string) => {
 };
 const titleOf = ({ body }: Request) => (body.entries as { title: string }[])[0].title;
 const sectionSaves = () => sent.filter(({ url }) => url.includes("/sections/"));
-const tab = () => ({ close: vi.fn(), location: { href: "" } });
 
 const mount = async (view: "cards" | "page") => {
   localStorage.setItem("candido:cv-view-2", view);
@@ -256,9 +255,32 @@ describe("switching views", () => {
 });
 
 describe("export", () => {
-  it("saves the text, the header and the design before the tab gets its address", async () => {
-    const opened = tab();
-    vi.spyOn(window, "open").mockReturnValue(opened as never);
+  /** The server's answer for the PDF, held until the test lets it go. */
+  let answer: (response: Response) => void;
+  let fetched: ReturnType<typeof vi.fn>;
+  let clicked: HTMLAnchorElement[];
+  beforeEach(() => {
+    fetched = vi.fn(() => new Promise<Response>((done) => (answer = done)));
+    vi.stubGlobal("fetch", fetched);
+    clicked = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this);
+    });
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:pdf"), revokeObjectURL: vi.fn() });
+  });
+  const pdf = (status = 200) =>
+    new Response(status === 200 ? new Blob(["%PDF"]) : JSON.stringify({ error: "Couldn't make the PDF." }), {
+      status,
+      headers:
+        status === 200
+          ? { "Content-Disposition": `attachment; filename="Sam - CV.pdf"; filename*=UTF-8''Sam%20-%20CV.pdf` }
+          : {},
+    });
+  const exportButton = () =>
+    [...document.querySelectorAll("button")].find((each) => /Export PDF|Making PDF/.test(each.textContent ?? ""))!;
+
+  it("saves the text, the header and the design, then downloads the PDF without leaving the editor", async () => {
+    const open = vi.spyOn(window, "open");
     await mount("page");
     await typeTitle("Northwind Ltd");
     const name = document.querySelector<HTMLElement>(".rc-name.page-text")!;
@@ -278,17 +300,45 @@ describe("export", () => {
       ["/curriculums/7", "styles"],
     ]);
     for (const request of sent) {
-      expect(opened.location.href).toBe("");
+      expect(fetched).not.toHaveBeenCalled();
       await act(async () => request.done());
     }
     await wait();
-    expect(opened.location.href).toBe("/resume/7/print");
-    expect(opened.close).not.toHaveBeenCalled();
+    expect(fetched).toHaveBeenCalledWith("/resume/7/pdf", { credentials: "include" });
+    expect(exportButton().textContent).toContain("Making PDF…");
+    expect(exportButton().disabled).toBe(true);
+
+    await act(async () => answer(pdf()));
+    await wait();
+    expect(clicked).toHaveLength(1);
+    expect(clicked[0].download).toBe("Sam - CV.pdf");
+    expect(clicked[0].href).toBe("blob:pdf");
+    await act(async () => void (await new Promise((done) => setTimeout(done, 0))));
+    expect(document.querySelector("a[download]")).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+    expect(exportButton().textContent).toContain("Export PDF");
+    expect(exportButton().disabled).toBe(false);
+  });
+
+  it("says so when the PDF couldn't be made, and offers the print view", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    await mount("page");
+    await press("Export PDF");
+    await wait();
+    await act(async () => answer(pdf(500)));
+    await wait();
+    expect(clicked).toHaveLength(0);
+    const shown = toast.error.mock.calls.at(-1)![0] as (t: { id: string }) => ReactElement;
+    const box = document.createElement("div");
+    const where = createRoot(box);
+    await act(async () => where.render(shown({ id: "t" })));
+    expect(box.textContent).toContain("Couldn't make the PDF.");
+    await act(async () => [...box.querySelectorAll("button")].find((each) => each.textContent === "Open print view")!.click());
+    expect(open).toHaveBeenCalledWith("/resume/7/print", "_blank");
+    act(() => where.unmount());
   });
 
   it.each(["text", "header"])("doesn't go on with %s that couldn't be saved", async (what) => {
-    const opened = tab();
-    vi.spyOn(window, "open").mockReturnValue(opened as never);
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     await mount("page");
     const field = what === "text" ? title()! : document.querySelector<HTMLElement>(".rc-name.page-text")!;
@@ -300,8 +350,7 @@ describe("export", () => {
     await press("Export PDF");
     await act(async () => sent[0].fail());
     await wait();
-    expect(opened.location.href).toBe("");
-    expect(opened.close).toHaveBeenCalled();
+    expect(fetched).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Your latest changes couldn't be saved, so the PDF wasn't made. Try again.");
     log.mockRestore();
   });

@@ -5,7 +5,7 @@ import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile
 import Loader from "@/components/common/Loader";
 import { resolveHeader } from "@/components/resume/resumeHeader";
 import { ResumeTemplate } from "@/components/resume/templates/ResumeTemplate";
-import { usePrintOnce } from "@/components/resume/usePrintOnce";
+import { usePdfReady, usePrintOnce } from "@/components/resume/usePrintOnce";
 import { Button } from "@/components/ui/Button";
 import { pageMargin, sheetPadding } from "@/lib/resume/design";
 import { buildResumeDocument, isEmptyDocument, pdfFileName, ResumeDocument } from "@/lib/resume/exportDocument";
@@ -13,7 +13,7 @@ import { lookOf } from "@/lib/resume/useCvDesign";
 import { PaperSize } from "@/lib/types";
 import { ArrowLeftIcon, PrinterIcon } from "lucide-react";
 import NextLink from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useSyncExternalStore } from "react";
 
 // The on-screen sheet is at least one page tall, so a short resume still looks
 // like a full sheet of paper. Printing drops the minimum (print:min-h-0!) so it
@@ -21,6 +21,18 @@ import { use, useEffect, useState } from "react";
 const SHEET_SIZE: Record<PaperSize, { width: string; minHeight: string }> = {
   a4: { width: "210mm", minHeight: "297mm" },
   letter: { width: "8.5in", minHeight: "11in" },
+};
+
+const noChanges = () => () => {};
+/** Opened by the server's browser to make the PDF (?pdf=1): it doesn't print, and says when it is ready. */
+const useMakingPdf = () =>
+  useSyncExternalStore(noChanges, () => new URLSearchParams(window.location.search).has("pdf"), () => false);
+
+/** 404 for a CV that isn't there or isn't theirs (the API says 403), 401 once signed out; else the server's fault. */
+const statusOf = (error: unknown): 401 | 404 | 500 => {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  if (status === 401) return 401;
+  return status === 404 || status === 403 ? 404 : 500;
 };
 
 interface PrintPageProps {
@@ -31,7 +43,8 @@ const PrintResumePage = ({ params }: PrintPageProps) => {
   const { id } = use(params);
   const [resume, setResume] = useState<ResumeDocument | null>(null);
   const [{ design, paper }, setLook] = useState(() => lookOf({}));
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<401 | 404 | 500 | null>(null);
+  const makingPdf = useMakingPdf();
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +63,7 @@ const PrintResumePage = ({ params }: PrintPageProps) => {
       })
       .catch((error) => {
         console.error(error);
-        if (!cancelled) setLoadError(true);
+        if (!cancelled) setLoadError(statusOf(error));
       });
 
     return () => {
@@ -70,7 +83,17 @@ const PrintResumePage = ({ params }: PrintPageProps) => {
 
   const empty = resume ? isEmptyDocument(resume) : true;
 
-  usePrintOnce(id, resume !== null && !empty);
+  usePrintOnce(id, !makingPdf && resume !== null && !empty);
+  usePdfReady(
+    makingPdf,
+    loadError
+      ? { ready: "error", status: loadError }
+      : !resume
+        ? { ready: false }
+        : empty
+          ? { ready: "error", status: 422 }
+          : { ready: true }
+  );
 
   if (loadError) {
     return (
@@ -96,19 +119,21 @@ const PrintResumePage = ({ params }: PrintPageProps) => {
       {/* Print margins; the on-screen sheet uses the same padding so it matches the PDF. */}
       <style>{`@page { size: ${paper === "letter" ? "letter" : "A4"}; margin: ${pageMargin(design)}; }`}</style>
 
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-2 print:hidden">
-        <Button variant="ghost" size="sm" asChild>
-          <NextLink href={`/resume/${id}`}>
-            <ArrowLeftIcon />
-            Back to editor
-          </NextLink>
-        </Button>
+      {!makingPdf && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-2 print:hidden">
+          <Button variant="ghost" size="sm" asChild>
+            <NextLink href={`/resume/${id}`}>
+              <ArrowLeftIcon />
+              Back to editor
+            </NextLink>
+          </Button>
 
-        <Button size="sm" onClick={() => window.print()} disabled={empty}>
-          <PrinterIcon />
-          Print again
-        </Button>
-      </div>
+          <Button size="sm" onClick={() => window.print()} disabled={empty}>
+            <PrinterIcon />
+            Print again
+          </Button>
+        </div>
+      )}
 
       {empty ? (
         <div className="flex flex-col items-center gap-2 px-4 py-24 text-center">

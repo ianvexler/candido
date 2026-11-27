@@ -34,6 +34,9 @@ services:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NODE_OPTIONS: --max-old-space-size=1536
+      # The server's Chrome makes PDFs from the page at the user's own address; inside
+      # Docker, localhost is the container, so it reaches the host's ports instead.
+      PDF_HOST_RESOLVER_RULES: MAP localhost host.docker.internal
     depends_on:
       - backend
 

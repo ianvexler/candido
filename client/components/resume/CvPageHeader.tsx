@@ -6,7 +6,7 @@ import Segmented from "@/components/ui/Segmented";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { Curriculum } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ArrowLeftIcon, DownloadIcon, LibraryBigIcon } from "lucide-react";
+import { ArrowLeftIcon, DownloadIcon, LibraryBigIcon, Loader2Icon } from "lucide-react";
 import NextLink from "next/link";
 import { ReactNode, useState } from "react";
 import toast from "react-hot-toast";
@@ -21,6 +21,8 @@ interface CvPageHeaderProps {
   curriculum: Curriculum;
   onRename: (title: string) => Promise<void>;
   onExport: () => void;
+  /** The PDF is being made: Export waits for it. */
+  exporting?: boolean;
   view: CvView;
   onViewChange: (view: CvView) => void;
   /** What opens the design, where that isn't beside the CV. */
@@ -30,7 +32,7 @@ interface CvPageHeaderProps {
 }
 
 /** A CV's name, how it is shown, and the ways out of its page. */
-const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, design, compact }: CvPageHeaderProps) => {
+const CvPageHeader = ({ curriculum, onRename, onExport, exporting = false, view, onViewChange, design, compact }: CvPageHeaderProps) => {
   const [title, setTitle] = useState(curriculum.title);
 
   const saveTitle = async () => {
@@ -98,12 +100,12 @@ const CvPageHeader = ({ curriculum, onRename, onExport, view, onViewChange, desi
         {design}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="sm" onClick={onExport}>
-              <DownloadIcon />
-              Export PDF
+            <Button size="sm" onClick={onExport} disabled={exporting} aria-busy={exporting}>
+              {exporting ? <Loader2Icon className="animate-spin" /> : <DownloadIcon />}
+              {exporting ? "Making PDF…" : "Export PDF"}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Opens the print dialog. Choose Save as PDF.</TooltipContent>
+          <TooltipContent side="bottom">Downloads the CV as a PDF, as it looks on the page.</TooltipContent>
         </Tooltip>
       </div>
     </header>

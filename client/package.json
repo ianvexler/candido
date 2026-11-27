@@ -41,6 +41,7 @@
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
+    "puppeteer-core": "^24.43.1",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",

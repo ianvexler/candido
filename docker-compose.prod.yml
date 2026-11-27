@@ -15,6 +15,13 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
+      # Where Export's PDFs are made from: the address the app is used at (README, "Export's PDF").
+      PDF_PUBLIC_ORIGIN: ${PDF_PUBLIC_ORIGIN:-https://candidohq.com}
+      # nginx's certificate is Cloudflare's origin one, which Chrome doesn't trust: its key's hash (README).
+      PDF_IGNORE_CERT_SPKI: ${PDF_IGNORE_CERT_SPKI:-}
+    # The PDFs' Chrome reaches the site through this host's nginx, not out and back in.
+    extra_hosts:
+      - "candidohq.com:host-gateway"
     logging: *logging
     restart: unless-stopped
 
