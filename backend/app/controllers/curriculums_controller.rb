@@ -2,7 +2,7 @@ class CurriculumsController < ApplicationController
   include CurriculumScoped
 
   before_action :require_authentication
-  before_action :set_curriculum, only: %i[show update destroy]
+  before_action :set_curriculum, only: %i[show update destroy purpose]
 
   def index
     curriculums = current_user.curriculums
@@ -34,6 +34,13 @@ class CurriculumsController < ApplicationController
     render_curriculum(@curriculum)
   end
 
+  # Switches the CV to `cv_label_id` (null for everything) and ticks by it. Answers 409 with
+  # "ticks_differ" if ticks were changed since the current purpose set them, unless `force`.
+  def purpose
+    @curriculum.change_purpose!(owned_label(params[:cv_label_id]), force: ActiveModel::Type::Boolean.new.cast(params[:force]) || false)
+    render_curriculum(@curriculum)
+  end
+
   def destroy
     snapshot = serialize(@curriculum, with: CurriculumBlueprint)
     @curriculum.destroy!
@@ -42,10 +49,23 @@ class CurriculumsController < ApplicationController
 
   private
 
+  # With `cv_label_id` the CV is for that purpose and ticks what fits it.
   def create_from_library
-    title = params[:title].presence || Curriculum.free_title(current_user, "New CV")
-    templates = current_user.section_templates.in_library_order
-    render_curriculum(Curriculum.create_with_sections!(current_user, curriculum_params.merge(title: title), templates))
+    label = owned_label(params[:cv_label_id])
+    title = params[:title].presence || Curriculum.free_title(current_user, label ? "#{label.name} CV" : "New CV")
+    templates = current_user.section_templates.in_library_order.to_a
+    attributes = curriculum_params.merge(title: title, cv_label_id: label&.id)
+    render_curriculum(Curriculum.create_with_sections!(current_user, attributes, templates))
+  end
+
+  # The current user's purpose with this id, nil for none. Anyone else's is reported as not found.
+  def owned_label(id)
+    return if id.blank?
+
+    label = current_user.cv_labels.find_by(id: id)
+    raise ApiError.new("Purpose not found", status: :not_found) if label.nil?
+
+    label
   end
 
   def set_curriculum

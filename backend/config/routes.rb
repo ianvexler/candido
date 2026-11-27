@@ -67,6 +67,7 @@ Rails.application.routes.draw do
     post "curriculums", to: "curriculums#create"
     get "curriculums/:id", to: "curriculums#show"
     put "curriculums/:id", to: "curriculums#update"
+    put "curriculums/:id/purpose", to: "curriculums#purpose"
     delete "curriculums/:id", to: "curriculums#destroy"
     post "curriculums/:curriculum_id/include", to: "curriculum_sections#include_from_library"
     post "curriculums/:curriculum_id/sections", to: "curriculum_sections#create"
