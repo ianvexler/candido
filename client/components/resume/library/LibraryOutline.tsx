@@ -9,6 +9,7 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { GripVerticalIcon, UserIcon } from "lucide-react";
 import { ComponentProps, memo, ReactNode, useMemo } from "react";
 import { overRow } from "../ChecklistSection";
+import { WITH_CONTROLS } from "../ChecklistRow";
 import RowMenu from "../RowMenu";
 
 /** What the library shows: the profile (null) or a section, scrolled to one of its entries. */
@@ -86,7 +87,7 @@ const Row = ({ kind, label, count, selected, onSelect, rowId, rowRef, handleRef,
         </span>
       )}
     </button>
-    {menu ?? <span aria-hidden className="w-6 shrink-0" />}
+    {menu ? <span className={cn("shrink-0", WITH_CONTROLS.show)}>{menu}</span> : <span aria-hidden className="w-7 shrink-0" />}
   </div>
 );
 

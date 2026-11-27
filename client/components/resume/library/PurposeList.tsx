@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { FolderIcon, FolderOpenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { KeyboardEvent, ReactNode, useCallback, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { WITH_CONTROLS } from "../ChecklistRow";
 import RowMenu from "../RowMenu";
 
 const STORAGE_KEY = "library-purpose";
@@ -156,7 +157,7 @@ const PurposeRow = ({
           </span>
         )}
       </button>
-      {menu ?? <span aria-hidden className="w-6 shrink-0" />}
+      {menu ? <span className={cn("shrink-0", WITH_CONTROLS.show)}>{menu}</span> : <span aria-hidden className="w-7 shrink-0" />}
     </div>
   );
 };

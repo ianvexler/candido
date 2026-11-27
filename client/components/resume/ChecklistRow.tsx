@@ -65,7 +65,7 @@ const OVER_LABEL =
   "absolute top-0 right-0 rounded-md bg-background group-hover/row:bg-[color-mix(in_oklab,var(--muted)_60%,var(--background))] [@media(hover:none)]:static [@media(hover:none)]:bg-transparent";
 
 // For the pointer, or the keyboard, or with the row's menu open; always for touch.
-const WITH_CONTROLS = {
+export const WITH_CONTROLS = {
   show: "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100 group-has-[[aria-haspopup=menu][data-state=open]]/row:pointer-events-auto group-has-[[aria-haspopup=menu][data-state=open]]/row:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
   hide: "group-hover/row:opacity-0 group-has-focus-visible/row:opacity-0 group-has-[[aria-haspopup=menu][data-state=open]]/row:opacity-0 [@media(hover:none)]:hidden",
 };
