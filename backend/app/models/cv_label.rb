@@ -29,6 +29,9 @@ class CvLabel < ApplicationRecord
   validate :name_is_free
   # Before the CVs are released; labels are not part of anything a CV holds.
   before_destroy :strip_from_templates, prepend: true
+  # First of all: the CVs before the library, the order a CV's own changes take them in
+  # (see Curriculum#change_purpose!), so the two can't wait on each other.
+  before_destroy :lock_curriculums, prepend: true
 
   def self.find_owned!(user, id)
     label = find_by(id: id)
@@ -63,6 +66,10 @@ class CvLabel < ApplicationRecord
 
     taken = user.cv_labels.where("lower(name) = ?", name.downcase).where.not(id: id).exists?
     errors.add(:base, "You already have a collection called #{name}") if taken
+  end
+
+  def lock_curriculums
+    curriculums.reorder(:id).lock.load
   end
 
   def strip_from_templates

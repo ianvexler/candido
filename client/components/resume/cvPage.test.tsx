@@ -36,6 +36,29 @@ vi.mock("next/navigation", () => ({
 // next/font only works inside Next's own build.
 vi.mock("./templates/fonts", () => ({ FONT_FAMILIES: {} }));
 vi.mock("./EditorControls", () => ({ BlockToolbar: () => null, FormatBubble: () => null }));
+// The page's handling of a choice is under test here, not Radix's select.
+vi.mock("./PurposeSelect", () => ({
+  default: ({ labels, value, onChange, disabled }: {
+    labels: { id: number; name: string }[];
+    value: number | null;
+    onChange: (id: number | null) => void;
+    disabled?: boolean;
+  }) => (
+    <select
+      aria-label="Collection"
+      value={value ?? ""}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
+    >
+      <option value="">All content</option>
+      {labels.map((label) => (
+        <option key={label.id} value={label.id}>
+          {label.name}
+        </option>
+      ))}
+    </select>
+  ),
+}));
 
 type Body = Record<string, unknown>;
 type Request = { url: string; body: Body; done: () => void; fail: () => void };
@@ -66,6 +89,7 @@ const CURRICULUM = {
   header: {},
   job_board_entry_id: null,
   tailored_for: null,
+  cv_label_id: null as number | null,
   created_at: "2026-01-01",
   sections: [section()],
 };
@@ -442,5 +466,66 @@ describe("a header that is blank", () => {
     expect(document.querySelector('[role="dialog"] [data-field="headline"]')).not.toBeNull();
     await wait(700);
     expect(sent.at(-1)!.body.header).toMatchObject({ name: "Ada" });
+  });
+});
+
+describe("the collection", () => {
+  const DATA = { id: 3, name: "Data" };
+  const collection = () => document.querySelector<HTMLSelectElement>('select[aria-label="Collection"]');
+  const withGets = (labels: unknown[], curriculum: Body = {}) =>
+    api.get.mockImplementation(async (url) => {
+      if (/^\/cv_labels$/.test(url)) return { data: { cv_labels: labels } };
+      if (/^\/curriculums\/7$/.test(url)) return { data: { curriculum: { ...CURRICULUM, ...curriculum } } };
+      return { data: GETS.find(([pattern]) => pattern.test(url))?.[1] };
+    });
+  const choose = async (value: string) => {
+    const select = collection()!;
+    await act(async () => {
+      select.value = value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await wait();
+  };
+  const purposeCalls = () => api.put.mock.calls.filter(([url]) => url.endsWith("/purpose"));
+
+  it("isn't offered without collections", async () => {
+    withGets([]);
+    await mount("cards");
+    expect(collection()).toBeNull();
+  });
+
+  it("asks before resetting ticks changed by hand, then changes it", async () => {
+    withGets([DATA]);
+    let first = true;
+    const sections = api.put.getMockImplementation()!;
+    api.put.mockImplementation((url, body) => {
+      if (!url.endsWith("/purpose")) return sections(url, body);
+      if (first) {
+        first = false;
+        return Promise.reject({ response: { status: 409, data: { error: "ticks_differ" } } });
+      }
+      return Promise.resolve({ data: { curriculum: { ...CURRICULUM, cv_label_id: body.cv_label_id } } });
+    });
+    await mount("cards");
+
+    await choose("3");
+    expect(purposeCalls().map(([, body]) => body)).toEqual([{ cv_label_id: 3, force: false }]);
+    expect(document.body.textContent).toContain("Change the collection?");
+    expect(collection()!.disabled).toBe(true);
+
+    await press("Change collection");
+    await wait();
+    expect(purposeCalls().map(([, body]) => body)).toEqual([
+      { cv_label_id: 3, force: false },
+      { cv_label_id: 3, force: true },
+    ]);
+    expect(collection()!.value).toBe("3");
+    expect(collection()!.disabled).toBe(false);
+  });
+
+  it("shows all content when the CV's collection was deleted elsewhere", async () => {
+    withGets([DATA], { cv_label_id: 9 });
+    await mount("cards");
+    expect(collection()!.value).toBe("");
   });
 });

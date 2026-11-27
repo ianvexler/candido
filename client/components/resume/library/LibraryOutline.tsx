@@ -64,11 +64,12 @@ const Row = ({ kind, label, count, selected, onSelect, rowId, rowRef, handleRef,
         setRenaming(true);
       }
     : undefined;
-  const finish = (save: boolean) => {
+  /** `refocus` when the key that ended it was pressed here; a click elsewhere keeps its focus. */
+  const finish = (save: boolean, refocus: boolean) => {
     if (save && onRename && draft.trim() !== (name ?? "").trim()) onRename(draft.trim());
     setRenaming(false);
     // Back to the row, as the field it had is gone.
-    requestAnimationFrame(() => outlineRowButton(rowId)?.focus());
+    if (refocus) requestAnimationFrame(() => outlineRowButton(rowId)?.focus());
   };
   const Icon = ICONS[kind];
 
@@ -106,13 +107,13 @@ const Row = ({ kind, label, count, selected, onSelect, rowId, rowRef, handleRef,
           onChange={(event) => setDraft(event.target.value)}
           onFocus={(event) => event.currentTarget.select()}
           // Not when Escape took it away.
-          onBlur={(event) => event.currentTarget.isConnected && renaming && finish(true)}
+          onBlur={(event) => event.currentTarget.isConnected && renaming && finish(true, false)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") finish(true);
+            if (event.key === "Enter") finish(true, true);
             if (event.key === "Escape") {
               // Not the page's or a dialog's Escape.
               event.stopPropagation();
-              finish(false);
+              finish(false, true);
             }
           }}
           placeholder={kind === "section" ? "Section heading" : "Entry title"}

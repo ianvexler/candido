@@ -15,7 +15,7 @@ import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
 import LeaveOutArea, { LEAVE_OUT_LOCKED } from "./LeaveOutArea";
-import LabelArea, { LibraryLabelling } from "./library/LabelArea";
+import LabelArea, { EVERY_COLLECTION, labelChips, LibraryLabelling } from "./library/LabelArea";
 import LabelPicker from "./library/LabelPicker";
 import RowMenu from "./RowMenu";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/DropdownMenu";
@@ -86,6 +86,12 @@ const SectionEntryEditor = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
+  // Its own collections; with none it is in every one, which needs no chip on the entry.
+  const entryChips = library
+    ? labelChips(library.labels, { own: library.itemLabels[entry.id] ?? [], inherited: [] }).filter(
+        ({ name }) => name !== EVERY_COLLECTION
+      )
+    : [];
   const description = entry.description ?? "";
   // In the library each entry is a card, headed by its title.
   const showTitle = library !== undefined || Boolean(entry.title) || startedBlank || title.open;
@@ -193,18 +199,13 @@ const SectionEntryEditor = ({
           )}
           {library && (
             <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
-              {(library.itemLabels[entry.id] ?? []).length > 0 && (
-                <ul aria-label="Labels of this entry" className="flex items-center gap-1">
-                  {(library.itemLabels[entry.id] ?? []).map((id) => {
-                    const name = library.labels.find((label) => label.id === id)?.name;
-                    return (
-                      name && (
-                        <li key={id} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                          {name}
-                        </li>
-                      )
-                    );
-                  })}
+              {entryChips.length > 0 && (
+                <ul aria-label="Collections of this entry" className="flex items-center gap-1">
+                  {entryChips.map(({ name }) => (
+                    <li key={name} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {name}
+                    </li>
+                  ))}
                 </ul>
               )}
               <LabelPicker
@@ -219,6 +220,13 @@ const SectionEntryEditor = ({
                 onOpenChange={setLabelsOpen}
                 title="Collections of this entry"
                 align="end"
+                // Opened from the menu, so focus goes back to the menu's button.
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault();
+                  document
+                    .querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(entry.id)}"] button[aria-haspopup="menu"]`)
+                    ?.focus();
+                }}
               >
                 {/* Opened from the menu; this only places it. */}
                 <span aria-hidden className="size-0" />

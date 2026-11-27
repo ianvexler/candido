@@ -43,6 +43,8 @@ interface LabelPickerProps {
   children: ReactNode;
   align?: "start" | "end";
   side?: "top" | "bottom";
+  /** Where focus goes as it closes, when `children` can't take it back. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 const ROW = "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm [@media(pointer:coarse)]:min-h-11";
@@ -60,6 +62,7 @@ const LabelPicker = ({
   children,
   align = "end",
   side = "bottom",
+  onCloseAutoFocus,
 }: LabelPickerProps) => {
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -107,6 +110,7 @@ const LabelPicker = ({
           sideOffset={4}
           collisionPadding={8}
           aria-label={title}
+          onCloseAutoFocus={onCloseAutoFocus}
           onEscapeKeyDown={(event) => {
             // Escape leaves the new name first.
             if (creating) {

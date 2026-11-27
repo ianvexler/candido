@@ -28,7 +28,8 @@ export interface LibraryLabelling {
 
 export type Chip = { name: string; fromEntry: boolean };
 
-const EVERY_PURPOSE: Chip[] = [{ name: "Every collection", fromEntry: false }];
+export const EVERY_COLLECTION = "Every collection";
+const EVERY_PURPOSE: Chip[] = [{ name: EVERY_COLLECTION, fromEntry: false }];
 
 /** The item's own labels, then its entry's; "Every purpose" with none. */
 export const labelChips = (labels: CvLabel[], { own, inherited }: { own: number[]; inherited: number[] }): Chip[] => {

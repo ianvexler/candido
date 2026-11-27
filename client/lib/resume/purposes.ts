@@ -35,21 +35,25 @@ export const labelsOf = (
 };
 
 const CACHE_SIZE = 3000;
-const parsed = new Map<string, string[]>();
+type Parsed = { items: ReturnType<typeof listItems>; ids: string[] };
+const parsed = new Map<string, Parsed>();
 
-/** The ids of an entry's items, in order. Items that have none yet are left out, as on the server. */
-const itemIds = (entry: SectionEntry): string[] => {
+/** An entry's items, parsed once per content: counts, filters and the outline all read them. */
+const parse = (entry: SectionEntry): Parsed => {
   const content = entry.content ?? "";
   const known = parsed.get(content);
   if (known) return known;
 
   if (parsed.size >= CACHE_SIZE) parsed.clear();
-  const ids = listItems(content)
-    .map((item) => item.id)
-    .filter((id) => id !== "");
-  parsed.set(content, ids);
-  return ids;
+  const items = listItems(content);
+  // Items that have no id yet are left out, as on the server.
+  const result = { items, ids: items.map((item) => item.id).filter((id) => id !== "") };
+  parsed.set(content, result);
+  return result;
 };
+
+/** The ids of an entry's items, in order. */
+const itemIds = (entry: SectionEntry): string[] => parse(entry).ids;
 
 const fits = (labels: number[], labelId: number | null) => labels.length === 0 || labels.includes(labelId as number);
 
@@ -150,7 +154,7 @@ const ordered = (templates: SectionTemplate[]) =>
 const outlineEntry = (template: SectionTemplate, entry: SectionEntry, filter: PurposeFilter) => {
   const count = entryCount(template, entry, filter);
   if (count === 0) return null;
-  return { id: entry.id, title: entryTitle(entry, listItems(entry.content ?? "")[0]), name: entry.title ?? "", count };
+  return { id: entry.id, title: entryTitle(entry, parse(entry).items[0]), name: entry.title ?? "", count };
 };
 
 /**
@@ -170,7 +174,7 @@ export const outline = (templates: SectionTemplate[], filter: PurposeFilter, que
         sectionMatches ||
         entryTexts(entry).some((text) => matches(text, needle)) ||
         matches(shown.title, needle) ||
-        listItems(entry.content ?? "").some((item) => matches(item.text, needle));
+        parse(entry).items.some((item) => matches(item.text, needle));
       return found ? [shown] : [];
     });
     if (entries.length === 0) return [];

@@ -101,20 +101,20 @@ const ResumesPage = () => {
     }
   };
 
-  // Asks what it is for, unless there are no purposes to pick from.
+  // Asks what it is for, unless there are no collections to pick from. Without
+  // them (they couldn't be loaded) it starts from all content.
   const onCreate = async () => {
     setCreating(true);
-    try {
-      const { cv_labels: labels } = await getCvLabels();
-      if (labels.length > 0) {
-        setChoosing(labels);
-        setCreating(false);
-      } else if (!(await create(null))) {
-        setCreating(false);
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to create CV");
+    const labels = await getCvLabels()
+      .then((response) => response.cv_labels)
+      .catch((error) => {
+        console.error(error);
+        return [];
+      });
+    if (labels.length > 0) {
+      setChoosing(labels);
+      setCreating(false);
+    } else if (!(await create(null))) {
       setCreating(false);
     }
   };

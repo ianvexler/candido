@@ -151,6 +151,16 @@ RSpec.describe "CV labels" do
   end
 
   describe "DELETE /api/v1/cv_labels/:id" do
+    it "asks to try again, changing nothing, when the database stops it for a deadlock" do
+      allow_any_instance_of(CvLabel).to receive(:destroy!).and_raise(ActiveRecord::Deadlocked)
+
+      delete "/api/v1/cv_labels/#{label.id}", headers: headers
+
+      expect(response).to have_http_status(:conflict)
+      expect(response.parsed_body["error"]).to eq("That clashed with another change. Try again.")
+      expect(CvLabel.exists?(label.id)).to be(true)
+    end
+
     it "removes the label from every section, dropping keys left empty" do
       other = create(:cv_label, user: user)
       second = create(:section_template, user: user, entries: [ { id: "two", content: '<p data-cv-item="c">C</p>' } ])

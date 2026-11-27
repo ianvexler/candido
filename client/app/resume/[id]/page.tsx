@@ -54,16 +54,24 @@ const CvPage = ({ id }: { id: string }) => {
     if (justMade) router.replace(`/resume/${id}`, { scroll: false });
   }, [justMade, router, id]);
 
-  // Without them the purpose can't be changed, but the CV still opens.
+  // Without them the collection can't be changed, but the CV still opens. Loaded
+  // again on coming back, as they may have been renamed or deleted in the library.
   useEffect(() => {
     let cancelled = false;
-    getCvLabels()
-      .then((response) => {
-        if (!cancelled) setLabels(response.cv_labels);
-      })
-      .catch((error) => console.error(error));
+    const loadLabels = () =>
+      getCvLabels()
+        .then((response) => {
+          if (!cancelled) setLabels(response.cv_labels);
+        })
+        .catch((error) => console.error(error));
+    const onShow = () => {
+      if (document.visibilityState === "visible") void loadLabels();
+    };
+    void loadLabels();
+    document.addEventListener("visibilitychange", onShow);
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onShow);
     };
   }, []);
   const [view, setView] = useCvView();
@@ -318,7 +326,12 @@ const CvPage = ({ id }: { id: string }) => {
               (labels.length > 0 || curriculum.cv_label_id !== null) && (
                 <PurposeSelect
                   labels={labels}
-                  value={curriculum.cv_label_id}
+                  // One deleted in the library is gone on the server too: all content.
+                  value={
+                    labels.length === 0 || labels.some(({ id }) => id === curriculum.cv_label_id)
+                      ? curriculum.cv_label_id
+                      : null
+                  }
                   onChange={(labelId) => void choosePurpose(labelId)}
                   disabled={changingPurpose || resetTo !== null}
                 />

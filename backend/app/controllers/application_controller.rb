@@ -7,6 +7,7 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable
   rescue_from ActionController::ParameterMissing, with: :render_bad_request
   rescue_from ActiveRecord::RecordNotUnique, with: :render_conflict
+  rescue_from ActiveRecord::Deadlocked, with: :render_try_again
 
   private
 
@@ -30,7 +31,12 @@ class ApplicationController < ActionController::API
     render json: { error: "That changed in another tab or window. Reload and try again." }, status: :conflict
   end
 
-  def render_bad_request(error)
+  # Two requests waited on each other and the database stopped one. Nothing was changed by it.
+  def render_try_again(_error)
+    render json: { error: "That clashed with another change. Try again." }, status: :conflict
+  end
+
+    def render_bad_request(error)
     render json: { error: error.message }, status: :bad_request
   end
 end
