@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { display } from "@/components/landing/fonts";
 import { ReactNode } from "react";
 import Navbar from "@/components/layout/Navbar";
 import MainContent from "@/components/layout/MainContent";
@@ -33,7 +34,7 @@ interface RootLayoutProps {
 const RootLayout = ({ children }: RootLayoutProps) => {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${geistMono.variable} font-sans flex min-h-screen flex-col antialiased`}>
+      <body className={`${dmSans.variable} ${geistMono.variable} ${display.variable} font-sans flex min-h-screen flex-col antialiased`}>
         <AuthProvider>
           <JobsRefreshProvider>
             <TooltipProvider>

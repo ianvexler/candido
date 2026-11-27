@@ -1,3 +1,5 @@
+import { TagIcon } from "lucide-react";
+import PanelEmpty from "./PanelEmpty";
 import { JobBoardEntriesStats } from "@/lib/types";
 
 interface TopTagsProps {
@@ -7,7 +9,11 @@ interface TopTagsProps {
 const TopTags = ({ tags }: TopTagsProps) => {
   const used = tags.filter((tag) => tag.count > 0);
   if (used.length === 0) {
-    return <p className="text-sm text-muted-foreground">Tag your jobs to see what you apply for most.</p>;
+    return (
+      <PanelEmpty icon={TagIcon} title="No tags yet">
+        Tag your jobs to see what you apply for most.
+      </PanelEmpty>
+    );
   }
 
   const max = Math.max(...used.map((tag) => tag.count));
@@ -20,8 +26,8 @@ const TopTags = ({ tags }: TopTagsProps) => {
             <span className="truncate">{tag.name}</span>
             <span className="tabular-nums text-muted-foreground">{tag.count}</span>
           </div>
-          <div className="h-2 rounded-r-sm bg-candido/20" aria-hidden>
-            <div className="h-full rounded-r-sm bg-candido" style={{ width: `${(tag.count / max) * 100}%` }} />
+          <div className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <div className="h-full rounded-full bg-candido" style={{ width: `${(tag.count / max) * 100}%` }} />
           </div>
         </li>
       ))}

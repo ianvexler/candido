@@ -1,4 +1,3 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
 
@@ -10,15 +9,13 @@ interface DashboardCardProps {
 }
 
 const DashboardCard = ({ title, description, children, className }: DashboardCardProps) => (
-  <Card className={cn("min-w-0", className)}>
-    <CardHeader className="gap-0.5 px-6 pt-2">
-      <CardTitle className="text-base">
-        <h2>{title}</h2>
-      </CardTitle>
-      {description && <CardDescription>{description}</CardDescription>}
-    </CardHeader>
-    <CardContent className="px-6 pb-2 flex-1">{children}</CardContent>
-  </Card>
+  <section className={cn("flex min-w-0 flex-col gap-5 rounded-xl border bg-card p-6 shadow-sm", className)}>
+    <header>
+      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+    </header>
+    <div className="flex flex-1 flex-col">{children}</div>
+  </section>
 );
 
 export default DashboardCard;

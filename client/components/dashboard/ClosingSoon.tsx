@@ -1,3 +1,5 @@
+import { CalendarCheckIcon } from "lucide-react";
+import PanelEmpty from "./PanelEmpty";
 import Link from "next/link";
 import { closingLabel } from "@/lib/dashboard/chart";
 import { ClosingJob } from "@/lib/types";
@@ -11,7 +13,11 @@ interface ClosingSoonProps {
 
 const ClosingSoon = ({ jobs, total }: ClosingSoonProps) => {
   if (jobs.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nothing pending closes in the next two weeks.</p>;
+    return (
+      <PanelEmpty icon={CalendarCheckIcon} title="Nothing closing in the next two weeks">
+        Jobs with a closing date that you haven&apos;t applied to yet will show up here.
+      </PanelEmpty>
+    );
   }
 
   return (
@@ -24,9 +30,9 @@ const ClosingSoon = ({ jobs, total }: ClosingSoonProps) => {
           return (
             <li key={job.id}>
               <Link href={`/board?job=${job.id}`} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted">
-                <span className="flex size-10 shrink-0 flex-col items-center justify-center rounded-md bg-candido/25 leading-tight">
-                  <span className="text-[10px] uppercase">{format(closingDate, "MMM")}</span>
-                  <span className="text-sm font-semibold">{format(closingDate, "d")}</span>
+                <span className="flex size-11 shrink-0 flex-col items-center justify-center rounded-md bg-candido-ink leading-none">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-candido">{format(closingDate, "MMM")}</span>
+                  <span className="mt-0.5 font-heading text-lg font-black text-white">{format(closingDate, "d")}</span>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{job.title}</span>

@@ -1,27 +1,33 @@
-import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-import { LucideIcon } from "lucide-react";
 import { ReactNode } from "react";
+import Eyebrow from "./Eyebrow";
 
 interface StatTileProps {
   label: string;
   value: string | number;
   detail: ReactNode;
-  icon: LucideIcon;
-  iconClassName: string;
+  /** Ink with an amber figure, for the number that matters most. */
+  highlight?: boolean;
 }
 
-const StatTile = ({ label, value, detail, icon: Icon, iconClassName }: StatTileProps) => (
-  <Card className="flex-row items-start justify-between gap-3 p-5">
-    <div className="min-w-0">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </div>
-    <div className={cn("hidden sm:block shrink-0 rounded-lg p-2.5", iconClassName)} aria-hidden>
-      <Icon className="size-5" />
-    </div>
-  </Card>
+const StatTile = ({ label, value, detail, highlight = false }: StatTileProps) => (
+  <div
+    className={cn(
+      "row-span-3 grid min-w-0 grid-rows-subgrid gap-y-0 rounded-xl border p-5",
+      highlight ? "border-candido-ink bg-candido-ink text-white" : "bg-card shadow-sm"
+    )}
+  >
+    <Eyebrow className={cn("items-start [&>span]:mt-[0.5lh]", highlight && "text-gray-400")}>{label}</Eyebrow>
+    <p
+      className={cn(
+        "mt-3 font-heading text-5xl leading-none font-black tracking-tight tabular-nums",
+        highlight && "text-candido"
+      )}
+    >
+      {value}
+    </p>
+    <p className={cn("mt-2 text-xs", highlight ? "text-gray-300" : "text-muted-foreground")}>{detail}</p>
+  </div>
 );
 
 export default StatTile;
