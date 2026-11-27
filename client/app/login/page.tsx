@@ -9,6 +9,7 @@ import AuthField from "@/components/auth/AuthField";
 import AuthShell from "@/components/auth/AuthShell";
 import Loader from "@/components/common/Loader";
 import { useAuth } from "@/contexts/AuthContext";
+import Crew from "@/lib/images/Crew.webp";
 import { safeRedirectPath } from "@/lib/routes";
 
 const LoginPage = () => {
@@ -61,6 +62,7 @@ const LoginPage = () => {
   return (
     <AuthShell
       headline="Back on site"
+      art={Crew}
       tagline="Your board, your CVs and every application you've sent are right where you left them."
     >
       <h1 className="text-[44px]">Sign in</h1>
