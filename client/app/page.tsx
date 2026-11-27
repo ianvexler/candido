@@ -111,7 +111,7 @@ const LandingPage = () => (
             <li>Import your spreadsheet, or add the first job you like.</li>
             <li>Bring in your CV and tailor your application to that job.</li>
           </ol>
-          <CtaLink href="/register" className="mt-6">Create account</CtaLink>
+          <CtaLink href="/register" className="mt-10">Create account</CtaLink>
         </div>
         <Image src={Builder} alt="" sizes="(min-width: 768px) 380px" className="mx-auto block w-full max-w-[380px]" />
       </div>
