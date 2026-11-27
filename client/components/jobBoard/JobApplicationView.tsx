@@ -26,7 +26,7 @@ interface JobApplicationViewProps {
   entry: JobBoardEntry;
   allEntries: JobBoardEntry[];
   /** The page it was opened from. */
-  from: "board" | "sheet";
+  from: "board" | "applications";
   /** Back to the job's side panel. */
   onBack: () => void;
   /** The job was moved to Rejected or Archived. */

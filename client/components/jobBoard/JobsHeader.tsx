@@ -15,7 +15,7 @@ interface JobsHeaderProps {
   children?: ReactNode;
 }
 
-/** The header shared by the board and the sheet: title, filters, Import and Add job. */
+/** The header shared by the board and the applications list: title, filters, Import and Add job. */
 const JobsHeader = ({ title, description, onAddJob, children }: JobsHeaderProps) => {
   const [importOpen, setImportOpen] = useState(false);
 

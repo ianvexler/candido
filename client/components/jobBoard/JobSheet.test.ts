@@ -32,7 +32,7 @@ const render = (jobs: JobBoardEntry[], openId?: number) =>
   act(async () =>
     root.render(
       createElement(JobSheet, {
-        entry: jobs.find(({ id }) => id === openId), allEntries: jobs, from: "board",
+        entry: jobs.find(({ id }) => id === openId), allEntries: jobs,
         onClose: () => {}, onPatchJob: () => {}, onDelete: () => {},
       })
     )

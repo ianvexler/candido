@@ -7,11 +7,10 @@ import { SheetContent, SheetTitle } from "@/components/ui/Sheet";
 import { emptyJobFields, fromDateInput, hasRequiredFields, isBlankJob } from "@/lib/jobBoard/jobFields";
 import { useJobFields } from "@/lib/jobBoard/useJobFields";
 import { JobBoardEntry } from "@/lib/types";
+import { XIcon } from "lucide-react";
 import { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
-import DescriptionEditor from "./form/DescriptionEditor";
-import PanelFields, { PanelLabel } from "./form/PanelFields";
-import PanelHeader from "./form/PanelHeader";
+import { DescriptionSection, JobFacts, JobHeader, StatusPill } from "./form/JobFields";
 
 interface JobFormSheetProps {
   /** For suggesting tags. */
@@ -20,10 +19,11 @@ interface JobFormSheetProps {
   onAddJob: (job: JobBoardEntry) => void;
 }
 
-/** The side panel for adding a job. Nothing is added until it's asked for. */
+/** The side panel for adding a job, laid out like a job's own. Nothing is added until it's asked for. */
 const JobFormSheet = ({ allEntries, onClose, onAddJob }: JobFormSheetProps) => {
   const { fields, setField, editor } = useJobFields(emptyJobFields());
   const [creating, setCreating] = useState(false);
+  // A new job's empty fields are only wrong once adding it is tried.
   const [showErrors, setShowErrors] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -79,24 +79,37 @@ const JobFormSheet = ({ allEntries, onClose, onAddJob }: JobFormSheetProps) => {
       }}
       className="flex w-full flex-col gap-0 border-l border-border p-0 sm:max-w-2xl"
     >
-      <SheetTitle className="sr-only">Create job</SheetTitle>
-      <PanelHeader fields={fields} setField={setField} disabled={creating} showErrors={showErrors} onClose={close} />
+      <SheetTitle className="sr-only">Add job</SheetTitle>
 
       <form
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           void create();
         }}
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6"
+        className="min-h-0 flex-1 overflow-y-auto bg-muted/30"
       >
-        <PanelFields fields={fields} setField={setField} allEntries={allEntries} disabled={creating} showErrors={showErrors} />
-        <div className="flex flex-col gap-2">
-          <PanelLabel>Description</PanelLabel>
-          <DescriptionEditor editor={editor} contentClassName="min-h-[140px]" />
+        <div className="flex flex-col px-6 pb-8 pt-6 sm:px-9 sm:pt-7">
+          <JobHeader
+            fields={fields}
+            setField={setField}
+            disabled={creating}
+            invalid={showErrors}
+            showErrors={showErrors}
+            actions={
+              <>
+                <StatusPill fields={fields} setField={setField} disabled={creating} />
+                <Button type="button" variant="ghost" size="icon-sm" onClick={close} aria-label="Close">
+                  <XIcon />
+                </Button>
+              </>
+            }
+          />
+          <JobFacts fields={fields} setField={setField} disabled={creating} allEntries={allEntries} />
+          <DescriptionSection editor={editor} />
+          <Button type="submit" disabled={creating} className="mt-7 w-full sm:w-auto sm:self-start">
+            {creating ? "Adding…" : "Add job"}
+          </Button>
         </div>
-        <Button type="submit" disabled={creating} className="w-fit">
-          {creating ? "Creating..." : "Create"}
-        </Button>
       </form>
 
       <ConfirmationModal
@@ -106,7 +119,7 @@ const JobFormSheet = ({ allEntries, onClose, onAddJob }: JobFormSheetProps) => {
         onCancel={onClose}
         title="Discard new job?"
         description="Do you want to discard or add this job?"
-        confirmLabel="Create"
+        confirmLabel="Add job"
         cancelLabel="Discard"
       />
     </SheetContent>

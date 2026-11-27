@@ -1,4 +1,4 @@
-import { FileUserIcon, LayoutDashboardIcon, LibraryBigIcon, LucideIcon, SquareKanbanIcon, Table2Icon } from "lucide-react";
+import { FileUserIcon, LayoutDashboardIcon, LibraryBigIcon, LucideIcon, SendIcon, SquareKanbanIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -34,11 +34,11 @@ export const boardItem: NavItem = {
   isActive: (pathname) => isUnder(pathname, "/board"),
 };
 
-export const sheetItem: NavItem = {
-  href: "/sheet",
-  label: "Sheet",
-  icon: Table2Icon,
-  isActive: (pathname) => isUnder(pathname, "/sheet"),
+export const applicationsItem: NavItem = {
+  href: "/applications",
+  label: "Applications",
+  icon: SendIcon,
+  isActive: (pathname) => isUnder(pathname, "/applications"),
 };
 
 export const cvsItem: NavItem = {
@@ -57,9 +57,9 @@ export const sectionLibraryItem: NavItem = {
 
 export const navGroups: NavGroup[] = [
   { label: "Overview", items: [dashboardItem] },
-  { label: "Job search", items: [boardItem, sheetItem], showsJobCounts: true },
+  { label: "Job search", items: [boardItem, applicationsItem], showsJobCounts: true },
   { label: "Documents", items: [cvsItem, sectionLibraryItem] },
 ];
 
 /** The pages on the mobile tab bar; the rest sit in its account menu. */
-export const mobileTabs: NavItem[] = [dashboardItem, boardItem, sheetItem, cvsItem];
+export const mobileTabs: NavItem[] = [dashboardItem, boardItem, applicationsItem, cvsItem];

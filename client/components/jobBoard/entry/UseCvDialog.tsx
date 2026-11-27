@@ -97,7 +97,7 @@ const UseCvDialog = ({ open, onClose, entry, onCreated }: UseCvDialogProps) => {
         <Dialog.Overlay className="fixed inset-0 z-100 bg-black/50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-101 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-background p-6 shadow-lg">
           <Dialog.Title asChild>
-            <h2 className="text-lg font-semibold">Tailor one of my CVs</h2>
+            <h2 className="text-lg font-semibold">Pick a CV to tailor</h2>
           </Dialog.Title>
           <Dialog.Description asChild>
             <p className="mt-1 text-sm text-muted-foreground">

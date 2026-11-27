@@ -33,7 +33,7 @@ export const activeCount = (counts: Pick<JobCounts, "applied" | "assessment" | "
 
 /**
  * How many jobs sit in each stage, for the sidebar. Loads from the server when
- * you move between pages or import jobs; the board and sheet keep it current
+ * you move between pages or import jobs; the board and applications list keep it current
  * while you edit with {@link usePublishJobCounts}.
  */
 const useJobCounts = (pathname: string, enabled: boolean) => {

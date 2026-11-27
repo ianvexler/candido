@@ -11,6 +11,7 @@ import { CvTailoringReport, JobBoardEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CheckIcon, CircleDashedIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import DocEmptyState from "./DocEmptyState";
 import DocSlot from "./DocSlot";
 import JobCvPreview from "./JobCvPreview";
 
@@ -119,12 +120,8 @@ const JobSend = ({ entry, onPatchEntry, beforeLeave }: JobSendProps) => {
           beforeLeave={beforeLeave}
           isNext={ready?.state === "no_cv"}
           next={nextForCv()}
+          renderEmpty={(slot) => <DocEmptyState kind="cv" applied={!ready} {...slot} />}
         />
-        {ready?.state === "no_cv" && (
-          <p className="text-sm text-muted-foreground">
-            Copy one of your CVs for this job and get edits that help it fit. Your original isn&apos;t changed.
-          </p>
-        )}
         {ready?.state === "not_reviewed" && (
           <p className="text-sm text-muted-foreground">
             See how your CV fits, and get suggested edits. It and this job are sent to Anthropic&apos;s Claude.
@@ -140,10 +137,13 @@ const JobSend = ({ entry, onPatchEntry, beforeLeave }: JobSendProps) => {
       </TabsContent>
 
       <TabsContent value="cover_letter" forceMount className="space-y-6 data-[state=inactive]:hidden">
-        <DocSlot kind="cover_letter" titled entry={entry} onPatchEntry={onPatchEntry} />
-        {ready && letter === "empty" && (
-          <p className="text-sm text-muted-foreground">Optional. Add the letter you want to send with your CV.</p>
-        )}
+        <DocSlot
+          kind="cover_letter"
+          titled
+          entry={entry}
+          onPatchEntry={onPatchEntry}
+          renderEmpty={(slot) => <DocEmptyState kind="cover_letter" applied={!ready} {...slot} />}
+        />
         {letter === "text" && (
           <div className="rounded-sm bg-white px-6 py-6 text-sm leading-relaxed break-words whitespace-pre-line shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-8">
             {entry.cover_letter_text}

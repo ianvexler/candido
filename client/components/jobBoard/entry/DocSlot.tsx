@@ -39,6 +39,13 @@ interface DocSlotProps {
   next?: ReactNode;
   /** Wraps actions that navigate away (e.g. a discard-changes prompt). */
   beforeLeave?: (action: () => void) => void;
+  /** Shown at the start of the row, e.g. an icon for the document's state. */
+  leading?: ReactNode;
+  /**
+   * Replaces the row while the slot is empty, e.g. a larger prompt on the job's page. It gets the
+   * ways to fill the slot, in button order, and a function that starts one. A PDF can be dropped on it.
+   */
+  renderEmpty?: (props: { ways: FillWay[]; fill: (way: FillWay) => void; saving: boolean; dragging: boolean }) => ReactNode;
 }
 
 const runNow = (action: () => void) => action();
@@ -49,7 +56,19 @@ const runNow = (action: () => void) => action();
  * Its parent must remount it for another job (key it by the job's id), so a paste box
  * or prompt never carries over.
  */
-const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, titled = false, badge, next, beforeLeave = runNow }: DocSlotProps) => {
+const DocSlot = ({
+  kind,
+  entry,
+  onPatchEntry,
+  isNext = false,
+  canTailor = true,
+  titled = false,
+  badge,
+  next,
+  beforeLeave = runNow,
+  leading,
+  renderEmpty,
+}: DocSlotProps) => {
   const router = useRouter();
   const config = DOC_KINDS[kind];
   const state = config.state(entry);
@@ -243,6 +262,24 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
         </div>
       </div>
     );
+  } else if (state === "empty" && renderEmpty) {
+    body = (
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(!saving);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file && !saving) takeFile(file);
+        }}
+      >
+        {renderEmpty({ ways: config.ways.filter((way) => canTailor || way !== "use"), fill, saving, dragging })}
+      </div>
+    );
   } else {
     const { detail, actions } = row();
     body = (
@@ -267,6 +304,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
         )}
       >
         <div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-x-2 gap-y-1">
+          {leading}
           {titled ? (
             <>
               <h3 className="min-w-0 truncate text-base font-medium" title={typeof detail === "string" ? detail : undefined}>
@@ -338,7 +376,7 @@ const DocSlot = ({ kind, entry, onPatchEntry, isNext = false, canTailor = true, 
 const FILL_LABELS: Record<FillWay, string> = {
   upload: "Upload",
   paste: "Paste",
-  use: "Tailor one of my CVs",
+  use: "Tailor a CV",
 };
 
 const FILL_ICONS: Record<FillWay, ReactNode> = {
