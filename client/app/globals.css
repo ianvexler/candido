@@ -6,6 +6,8 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* The desktop sidebar folded down to its icon rail; set on <html> by lib/sidebar.ts. */
+@custom-variant sidebar-collapsed (&:where([data-sidebar="collapsed"] *));
 
 @theme inline {
   --color-background: var(--background);
