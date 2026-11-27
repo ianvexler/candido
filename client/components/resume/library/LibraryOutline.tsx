@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { arrayMove } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
-import { GripVerticalIcon, UserIcon } from "lucide-react";
-import { ComponentProps, memo, ReactNode, useMemo } from "react";
+import { DropdownMenuItem } from "@/components/ui/DropdownMenu";
+import { GripVerticalIcon, LayoutListIcon, PencilIcon, UserIcon } from "lucide-react";
+import { ComponentProps, memo, ReactNode, useMemo, useState } from "react";
 import { overRow } from "../ChecklistSection";
 import { WITH_CONTROLS } from "../ChecklistRow";
 import RowMenu from "../RowMenu";
@@ -19,10 +20,11 @@ type DragEndEvent = Parameters<NonNullable<ComponentProps<typeof DragDropProvide
 type DragData = { sectionId: number; entryId?: string };
 
 /** The button of the outline's row for a selection. */
-export const outlineRow = ({ sectionId, entryId }: LibrarySelection) => {
-  const id = sectionId === null ? "profile" : entryId === undefined ? String(sectionId) : `${sectionId}/${entryId}`;
-  return document.querySelector<HTMLElement>(`[data-outline-row="${CSS.escape(id)}"] button[data-select]`);
-};
+const outlineRowButton = (rowId: string) =>
+  document.querySelector<HTMLElement>(`[data-outline-row="${CSS.escape(rowId)}"] button[data-select]`);
+
+export const outlineRow = ({ sectionId, entryId }: LibrarySelection) =>
+  outlineRowButton(sectionId === null ? "profile" : entryId === undefined ? String(sectionId) : `${sectionId}/${entryId}`);
 
 const moved = <T,>(list: T[], index: number, by: -1 | 1) => arrayMove(list, index, index + by);
 
@@ -37,7 +39,12 @@ interface RowProps {
   handleRef?: (element: Element | null) => void;
   /** Shows the handle. */
   draggable?: boolean;
-  menu?: ReactNode;
+  /** Given with `onRename`: the name as it is, without a stand-in like "Untitled". */
+  name?: string;
+  /** Renames it here; a double click or the menu starts it. */
+  onRename?: (name: string) => void;
+  /** Gets what starts renaming, for its menu. */
+  menu?: (startRenaming: (() => void) | undefined) => ReactNode;
 }
 
 const KIND_STYLES = {
@@ -46,7 +53,26 @@ const KIND_STYLES = {
   entry: "pl-5",
 };
 
-const Row = ({ kind, label, count, selected, onSelect, rowId, rowRef, handleRef, draggable = false, menu }: RowProps) => (
+const ICONS = { profile: UserIcon, section: LayoutListIcon, entry: null };
+
+const Row = ({ kind, label, count, selected, onSelect, rowId, rowRef, handleRef, draggable = false, name, onRename, menu }: RowProps) => {
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState("");
+  const startRenaming = onRename
+    ? () => {
+        setDraft(name ?? "");
+        setRenaming(true);
+      }
+    : undefined;
+  const finish = (save: boolean) => {
+    if (save && onRename && draft.trim() !== (name ?? "").trim()) onRename(draft.trim());
+    setRenaming(false);
+    // Back to the row, as the field it had is gone.
+    requestAnimationFrame(() => outlineRowButton(rowId)?.focus());
+  };
+  const Icon = ICONS[kind];
+
+  return (
   <div
     ref={rowRef}
     data-outline-row={rowId}
@@ -71,25 +97,67 @@ const Row = ({ kind, label, count, selected, onSelect, rowId, rowRef, handleRef,
         <GripVerticalIcon className="size-4" />
       </button>
     )}
-    <button
-      type="button"
-      data-select
-      aria-current={selected || undefined}
-      onClick={onSelect}
-      className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-foreground"
-    >
-      {kind === "profile" && <UserIcon className="size-4 shrink-0 text-muted-foreground" />}
-      <span className={cn("min-w-0 flex-1 truncate", kind === "entry" && "text-[13px]")}>{label}</span>
-      {count !== undefined && (
-        <span className="shrink-0 text-xs font-normal text-muted-foreground tabular-nums">
-          {count}
-          <span className="sr-only"> {count === 1 ? "item" : "items"}</span>
-        </span>
-      )}
-    </button>
-    {menu ? <span className={cn("shrink-0", WITH_CONTROLS.show)}>{menu}</span> : <span aria-hidden className="w-7 shrink-0" />}
+    {renaming ? (
+      <div className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1">
+        {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
+        <input
+          autoFocus
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+          // Not when Escape took it away.
+          onBlur={(event) => event.currentTarget.isConnected && renaming && finish(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") finish(true);
+            if (event.key === "Escape") {
+              // Not the page's or a dialog's Escape.
+              event.stopPropagation();
+              finish(false);
+            }
+          }}
+          placeholder={kind === "section" ? "Section heading" : "Entry title"}
+          aria-label={`Rename ${label}`}
+          className={cn(
+            "min-w-0 flex-1 rounded-sm bg-background px-1 py-0.5 outline-2 outline-foreground",
+            kind === "entry" && "text-[13px]"
+          )}
+        />
+      </div>
+    ) : (
+      <button
+        type="button"
+        data-select
+        aria-current={selected || undefined}
+        onClick={onSelect}
+        onDoubleClick={startRenaming}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-foreground"
+      >
+        {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
+        <span className={cn("min-w-0 flex-1 truncate", kind === "entry" && "text-[13px]")}>{label}</span>
+        {count !== undefined && (
+          <span className="shrink-0 text-xs font-normal text-muted-foreground tabular-nums">
+            {count}
+            <span className="sr-only"> {count === 1 ? "item" : "items"}</span>
+          </span>
+        )}
+      </button>
+    )}
+    {menu ? (
+      <span className={cn("shrink-0", WITH_CONTROLS.show)}>{menu(startRenaming)}</span>
+    ) : (
+      <span aria-hidden className="w-7 shrink-0" />
+    )}
   </div>
-);
+  );
+};
+
+const renameItem = (startRenaming: (() => void) | undefined) =>
+  startRenaming && (
+    <DropdownMenuItem onSelect={startRenaming}>
+      <PencilIcon />
+      Rename
+    </DropdownMenuItem>
+  );
 
 interface EntryRowProps {
   sectionId: number;
@@ -100,13 +168,14 @@ interface EntryRowProps {
   selected: boolean;
   onSelect: (selection: LibrarySelection) => void;
   onReorderEntries: (sectionId: number, ids: string[]) => void;
+  onRenameEntry: (sectionId: number, entryId: string, title: string) => void;
 }
 
 /**
  * Rows stay mounted with their menu and drag registration while dragging is off,
  * which only disables them: remounting them all made choosing a purpose slow.
  */
-const EntryRow = ({ sectionId, entry, index, ids, sortable, selected, onSelect, onReorderEntries }: EntryRowProps) => {
+const EntryRow = ({ sectionId, entry, index, ids, sortable, selected, onSelect, onReorderEntries, onRenameEntry }: EntryRowProps) => {
   const canMove = sortable && ids.length > 1;
   // Every listed row is in the group, so its indexes stay complete.
   const { ref, handleRef } = useSortable({
@@ -134,7 +203,9 @@ const EntryRow = ({ sectionId, entry, index, ids, sortable, selected, onSelect, 
       rowRef={ref}
       handleRef={handleRef}
       draggable={canMove}
-      menu={
+      name={entry.name}
+      onRename={(title) => onRenameEntry(sectionId, entry.id, title)}
+      menu={(startRenaming) => (
         <RowMenu
           lazy
           label={label}
@@ -143,8 +214,10 @@ const EntryRow = ({ sectionId, entry, index, ids, sortable, selected, onSelect, 
             canMoveDown: canMove && index < ids.length - 1,
             onMove: (by) => onReorderEntries(sectionId, moved(ids, index, by)),
           }}
-        />
-      }
+        >
+          {renameItem(startRenaming)}
+        </RowMenu>
+      )}
     />
   );
 };
@@ -157,7 +230,7 @@ const MemoEntryRow = memo(EntryRow, (before, after) =>
   (Object.keys(after) as (keyof EntryRowProps)[]).every((key) => {
     if (key === "entry") {
       const [a, b] = [before.entry, after.entry];
-      return a.id === b.id && a.title === b.title && a.count === b.count;
+      return a.id === b.id && a.title === b.title && a.name === b.name && a.count === b.count;
     }
     if (key === "ids") return sameIds(before.ids, after.ids);
     return Object.is(before[key], after[key]);
@@ -174,6 +247,8 @@ interface SectionRowsProps {
   onSelect: (selection: LibrarySelection) => void;
   onReorderSections: (ids: number[]) => void;
   onReorderEntries: (sectionId: number, ids: string[]) => void;
+  onRenameSection: (sectionId: number, name: string) => void;
+  onRenameEntry: (sectionId: number, entryId: string, title: string) => void;
 }
 
 const SectionRows = ({
@@ -185,6 +260,8 @@ const SectionRows = ({
   onSelect,
   onReorderSections,
   onReorderEntries,
+  onRenameSection,
+  onRenameEntry,
 }: SectionRowsProps) => {
   const canMove = sortable && ids.length > 1;
   const { ref, targetRef, handleRef } = useSortable({
@@ -214,7 +291,9 @@ const SectionRows = ({
         rowRef={targetRef}
         handleRef={handleRef}
         draggable={canMove}
-        menu={
+        name={section.name}
+        onRename={(name) => onRenameSection(section.id, name)}
+        menu={(startRenaming) => (
           <RowMenu
             lazy
             label={label}
@@ -223,8 +302,10 @@ const SectionRows = ({
               canMoveDown: canMove && index < ids.length - 1,
               onMove: (by) => onReorderSections(moved(ids, index, by)),
             }}
-          />
-        }
+          >
+            {renameItem(startRenaming)}
+          </RowMenu>
+        )}
       />
       <ul>
         {section.entries.map((entry, position) => (
@@ -238,6 +319,7 @@ const SectionRows = ({
               selected={selectedEntry === entry.id}
               onSelect={onSelect}
               onReorderEntries={onReorderEntries}
+              onRenameEntry={onRenameEntry}
             />
           </li>
         ))}
@@ -263,6 +345,10 @@ interface LibraryOutlineProps {
   onReorderSections: (ids: number[]) => void;
   /** Every entry's id of the section, in the new order. */
   onReorderEntries: (sectionId: number, ids: string[]) => void;
+  /** A section's heading, from its row. */
+  onRenameSection: (sectionId: number, name: string) => void;
+  /** An entry's title, from its row. */
+  onRenameEntry: (sectionId: number, entryId: string, title: string) => void;
   query: string;
   onQuery: (query: string) => void;
   /** A purpose is chosen, so not everything is listed. */
@@ -276,6 +362,8 @@ const LibraryOutline = ({
   onSelect,
   onReorderSections,
   onReorderEntries,
+  onRenameSection,
+  onRenameEntry,
   query,
   onQuery,
   filtered,
@@ -338,6 +426,8 @@ const LibraryOutline = ({
               onSelect={onSelect}
               onReorderSections={onReorderSections}
               onReorderEntries={onReorderEntries}
+              onRenameSection={onRenameSection}
+              onRenameEntry={onRenameEntry}
             />
           ))}
         </ul>

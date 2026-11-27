@@ -227,6 +227,17 @@ const SectionLibraryPage = () => {
     (sectionId: number, ids: string[]) => change(sectionId, (draft) => ({ entries: inOrder(draft.entries, ids) })),
     [change]
   );
+  const renameSection = useCallback(
+    (sectionId: number, name: string) => change(sectionId, { section_type: name }),
+    [change]
+  );
+  const renameEntry = useCallback(
+    (sectionId: number, entryId: string, title: string) =>
+      change(sectionId, (draft) => ({
+        entries: draft.entries.map((entry) => (entry.id === entryId ? { ...entry, title } : entry)),
+      })),
+    [change]
+  );
 
   const addSections = (added: SectionTemplate[]) => {
     add(added);
@@ -341,6 +352,8 @@ const SectionLibraryPage = () => {
             onSelect={select}
             onReorderSections={reorderSections}
             onReorderEntries={reorderEntries}
+            onRenameSection={renameSection}
+            onRenameEntry={renameEntry}
             query={query}
             onQuery={setQuery}
             filtered={filter.kind !== "all"}

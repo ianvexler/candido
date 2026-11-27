@@ -69,7 +69,10 @@ const RowMenu = ({ label, actions = [], move, children, onCloseAutoFocus, lazy =
         aria-expanded={false}
         onPointerEnter={() => setArmed("pointer")}
         onFocus={() => setArmed("focus")}
-        // A tap can come before the menu was woken by pointing.
+        // A press can come before the menu was woken by pointing, as with a tap or a quick click.
+        onPointerDown={(event) => {
+          if (event.button === 0) setArmed("press");
+        }}
         onClick={() => setArmed("press")}
       />
     );

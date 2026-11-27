@@ -13,7 +13,8 @@ export type OutlineSection = {
   id: number;
   name: string;
   count: number;
-  entries: { id: string; title: string; count: number }[];
+  /** `title` is what to show; `name` is the entry's own title, which may be blank. */
+  entries: { id: string; title: string; name: string; count: number }[];
 };
 
 type Labelled = Pick<SectionTemplate, "entries" | "item_labels">;
@@ -149,7 +150,7 @@ const ordered = (templates: SectionTemplate[]) =>
 const outlineEntry = (template: SectionTemplate, entry: SectionEntry, filter: PurposeFilter) => {
   const count = entryCount(template, entry, filter);
   if (count === 0) return null;
-  return { id: entry.id, title: entryTitle(entry, listItems(entry.content ?? "")[0]), count };
+  return { id: entry.id, title: entryTitle(entry, listItems(entry.content ?? "")[0]), name: entry.title ?? "", count };
 };
 
 /**
