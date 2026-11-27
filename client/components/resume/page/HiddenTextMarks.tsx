@@ -44,7 +44,16 @@ export const freeBelow = (from: number, others: number[], size: number) => {
   return at;
 };
 
-export const isHiddenMark = (mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
+/** The middle nearest `from`, above or below, within `low` to `high` and `size` or more from each of `others`; null without one. */
+export const freeWithin = (from: number, others: number[], size: number, low: number, high: number) => {
+  const isFree = (at: number) => others.every((other) => Math.abs(other - at) >= size - HAIR);
+  const near = [from, ...others.flatMap((other) => [other - size, other + size])]
+    .filter((at) => at >= low && at <= high && isFree(at))
+    .sort((a, b) => Math.abs(a - from) - Math.abs(b - from));
+  return near[0] ?? null;
+};
+
+export const isHiddenMark =(mark: HiddenMarkAt | FoldAt): mark is HiddenMarkAt => "places" in mark;
 
 /**
  * Hidden-text marks that would overlap as one, each by its text; then each fold in the nearest

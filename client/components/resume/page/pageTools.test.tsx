@@ -2,12 +2,12 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
 import type { ChecklistSection } from "@/lib/resume/checklist";
 import type { ChecklistActions } from "@/lib/resume/useCvChecklist";
 import type { CurriculumSection } from "@/lib/types";
-import { act, createRef, useRef } from "react";
+import { act, useRef } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CvEdits } from "../useCvEdits";
 import type { Gap, PlacedBlock } from "./pagePlaces";
-import PageTools, { PageToolsHandle } from "./PageTools";
+import PageTools from "./PageTools";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -43,7 +43,7 @@ const rows = [
 ] as unknown as ChecklistSection[];
 
 // The drafts: what the put-back list reads. The library's items aren't in them.
-const sections = [
+const SECTIONS = [
   {
     id: 1,
     entries: [
@@ -60,8 +60,8 @@ let host: HTMLDivElement;
 let root: Root;
 let actions: { tick: ReturnType<typeof vi.fn>; orderSections: ReturnType<typeof vi.fn> };
 let edits: { addAt: ReturnType<typeof vi.fn> };
-const handle = createRef<PageToolsHandle>();
 
+let sections = SECTIONS;
 let taken: { top: number; side: "left" | "right"; desk?: boolean }[] = [];
 let scale = 1;
 let deskRoom = 0;
@@ -88,7 +88,6 @@ const Sheet = () => {
         </div>
         <div id="margin" />
         <PageTools
-          ref={handle}
           rootRef={rootRef}
           areaRef={areaRef}
           scale={scale}
@@ -142,8 +141,10 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   taken = [];
+  sections = SECTIONS;
   scale = 1;
   deskRoom = 0;
 });
@@ -245,6 +246,20 @@ describe("PageTools", () => {
     await press(named("Add below"));
     await press(item("Entry"));
     expect(edits.addAt).toHaveBeenCalledWith({ sectionId: 1, entryId: null, after: null }, "entry");
+  });
+
+  it("puts back by a heading what its first entry that shows leaves out", async () => {
+    const [first] = SECTIONS[0].entries;
+    const out = '<ul><li data-cv-item="o1" data-cv-off="true"><p>Old one</p></li><li data-cv-item="o2" data-cv-off="true"><p>Old two</p></li></ul>';
+    sections = [{ ...SECTIONS[0], entries: [{ ...first, id: "e0", hidden: true, content: out }, first] }] as unknown as CurriculumSection[];
+    places.blockAt.mockReturnValue({ ...itemBlock, kind: "heading" });
+    await render();
+    await move(itemText());
+    await press(named("Add below"));
+    expect(item("Put back a left-out bullet")?.textContent).toContain("(1)");
+    await press(item("Put back a left-out bullet"));
+    await press(item("Rebuilt the checkout"));
+    expect(actions.tick).toHaveBeenCalledWith({ sectionId: 1, templateId: null, entryId: "e1", itemId: "i2", inCv: true }, true);
   });
 
   it("shows where it adds, under the block, only once + is pointed at", async () => {
@@ -381,6 +396,37 @@ describe("PageTools", () => {
     expect(Math.abs(middle - 130)).toBeGreaterThanOrEqual(24);
   });
 
+  it("moves up off a mark within its block's rows, rather than down past them", async () => {
+    scale = 0.924;
+    taken = [{ top: 165, side: "left" }];
+    places.blockAt.mockReturnValue({ ...itemBlock, left: 40, bottom: 220 });
+    await render();
+    await move(itemText());
+    const { top, stacked } = gutterBox();
+    expect(stacked).toBe(true);
+    // Its middle a mark's apart above the mark: (25 + 12 + 1) screen px.
+    expect(top).toBeCloseTo(165 * 0.924 - 38 - 25);
+  });
+
+  it("keeps its block across the margin down to a gutter pushed off it, but not across the text", async () => {
+    // A heading level with a fold, and the next entry's title level with the one below it.
+    taken = [
+      { top: 128, side: "left" },
+      { top: 153, side: "left" },
+    ];
+    places.blockBeside.mockReturnValue(nextBlock);
+    await render();
+    await move(itemText());
+    // Below both marks.
+    expect(gutterBox().top).toBeCloseTo(178 - 12);
+    for (const y of [130, 150, 158, 170, 178]) {
+      await move(margin(), 10, y);
+      expect(named("Leave out Cut latency")).not.toBeNull();
+    }
+    await move(document.getElementById("next")!, 400, 150);
+    expect(named("Leave out Rebuilt the checkout")).not.toBeNull();
+  });
+
   it("moves off a mark at a fraction of a px at a fractional scale, and ends", async () => {
     scale = 0.924;
     taken = [{ top: 113.37, side: "left" }];
@@ -390,19 +436,13 @@ describe("PageTools", () => {
     expect(document.querySelector("[data-page-gutter]")).not.toBeNull();
   });
 
-  it("puts a left-out item back from its list, opened for a place", async () => {
-    await act(async () => handle.current!.openAdd({ sectionId: 1, entryId: "e1", after: "i1" }));
+  it("puts a left-out item back from its list", async () => {
+    await move(itemText());
+    await press(named("Add below"));
     await press(item("Put back a left-out bullet"));
     expect(item("From the library")).toBeNull();
     await press(item("Rebuilt the checkout"));
     expect(actions.tick).toHaveBeenCalledWith({ sectionId: 1, templateId: null, entryId: "e1", itemId: "i2", inCv: true }, true);
-  });
-
-  it("opens the menu for a block, by its gutter", async () => {
-    await act(async () => handle.current!.openAdd({ sectionId: 1, kind: "item", entryId: "e1", itemId: "i1" }));
-    expect(named("Add below")?.getAttribute("aria-expanded")).toBe("true");
-    await press(item("Paragraph"));
-    expect(edits.addAt).toHaveBeenCalledWith({ sectionId: 1, entryId: "e1", after: "i1" }, "paragraph");
   });
 
   it("closes a menu from its button", async () => {
@@ -411,6 +451,57 @@ describe("PageTools", () => {
     expect(item("Bullet")).not.toBeNull();
     await press(named("Add below"));
     expect(item("Bullet")).toBeNull();
+  });
+
+  it("closes once the focus goes out of it and its button, not into it", async () => {
+    await move(itemText());
+    await press(named("Add below"));
+    await act(async () => item("Paragraph")!.focus());
+    await act(async () => named("Add below")!.focus());
+    expect(item("Bullet")).not.toBeNull();
+    await act(async () => itemText().focus());
+    expect(item("Bullet")).toBeNull();
+  });
+
+  it("bounds a long put-back list to the room there is, and scrolls to the row the keys go to", async () => {
+    const many = Array.from({ length: 40 }, (_, index) => `<li data-cv-item="m${index}" data-cv-off="true"><p>Old ${index}</p></li>`).join("");
+    sections = [{ ...SECTIONS[0], entries: [{ ...SECTIONS[0].entries[0], content: `<ul>${many}</ul>` }] }] as unknown as CurriculumSection[];
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    await render();
+    await move(itemText());
+    await press(named("Add below"));
+    await press(item("Put back a left-out bullet"));
+    await act(async () => frame());
+    const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
+    const box = menu.parentElement!;
+    expect(box.className).toContain("overflow-y-auto");
+    expect(box.style.maxHeight).toMatch(/px$/);
+    await act(async () => {
+      menu.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" }));
+    });
+    expect(document.activeElement?.textContent).toBe("Old 39");
+    expect(scrolled.mock.contexts.at(-1)).toBe(document.activeElement);
+  });
+
+  it.each([
+    ["MacIntel", "Add below (⌥↵)"],
+    ["Win32", "Add below (Alt+Enter)"],
+  ])("says its shortcut in its tooltip, on %s", async (platform, tip) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    await render();
+    await move(itemText());
+    expect(named("Add below")?.getAttribute("aria-keyshortcuts")).toBe("Alt+Enter");
+    await act(async () => named("Add below")!.focus());
+    expect(document.querySelector('[data-slot="tooltip-content"]')?.textContent).toContain(tip);
+  });
+
+  it("looks for a section gap only off the blocks", async () => {
+    places.gapAt.mockClear();
+    await move(itemText());
+    expect(places.gapAt).not.toHaveBeenCalled();
+    await move(margin(), 400, 300);
+    expect(places.gapAt).toHaveBeenCalled();
   });
 
   it("shows a light + Section across its gap, and opens the section menu", async () => {

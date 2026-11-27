@@ -51,6 +51,10 @@ export const cleanFields = (sectionType: string, entries: SectionEntry[]): Secti
 export const isEmptyEntry = (entry: SectionEntry) =>
   Object.values({ ...cleanEntry(entry), id: "", hidden: false, description_off: false }).every((value) => !value);
 
+/** The entry a section's heading adds a bullet or paragraph into: its first that shows and has text, else its first. */
+export const entryUnderHeading = <T extends SectionEntry>(entries: T[]): T | undefined =>
+  entries.find((entry) => !entry.hidden && !isEmptyEntry(entry)) ?? entries[0];
+
 /** "YYYY-MM-DD" strings compare correctly as text. */
 export const endsBeforeStart = (entry: SectionEntry) =>
   !entry.current && Boolean(entry.start_date && entry.end_date) && entry.end_date! < entry.start_date!;

@@ -110,6 +110,20 @@ describe("FoldMarks", () => {
     expect(rows()[0].getAttribute("aria-checked")).toBe("true");
     expect(rows()[1].getAttribute("aria-checked")).toBe("false");
   });
+
+  it("scrolls its list to the row the keys go to", async () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    await press(mark());
+    const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
+    expect(menu.parentElement!.className).toContain("overflow-y-auto");
+    await act(async () => {
+      rows()[0].focus();
+      menu.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
+    });
+    expect(document.activeElement).toBe(rows()[1]);
+    expect(scrolled.mock.contexts.at(-1)).toBe(rows()[1]);
+  });
 });
 
 describe("freeBelow", () => {

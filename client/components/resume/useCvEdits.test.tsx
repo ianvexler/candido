@@ -322,6 +322,21 @@ describe("adding at a place", () => {
     expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null, kind: "paragraph" });
   });
 
+  it.each([
+    ["left out", { hidden: true }],
+    ["blank", { title: "", content: "" }],
+  ])("under the heading, skips a first entry that is %s", (_, changes) => {
+    load(section(1, { entries: [entry("a", changes), entry("b")] }));
+    addAt(null, null, "bullet");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "b", after: null });
+  });
+
+  it("under the heading, takes the first entry when all are left out", () => {
+    load(section(1, { entries: [entry("a", { hidden: true }), entry("b", { hidden: true })] }));
+    addAt(null, null, "bullet");
+    expect(asked.at(-1)).toMatchObject({ what: "insert", entryId: "a", after: null });
+  });
+
   it.each(["bullet", "paragraph"] as const)("shows a left out entry for a %s, and puts its ticks back if nothing was written", (kind) => {
     const before = section(1, { entries: [entry("a", { content: BULLETS, hidden: true }), entry("b")] });
     load(before);

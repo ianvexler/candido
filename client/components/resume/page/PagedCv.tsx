@@ -8,7 +8,6 @@ import type { CurriculumSection, CvSuggestion, PaperSize, ResumeHeader } from "@
 import {
   FocusEvent,
   memo,
-  Ref,
   RefObject,
   useCallback,
   useContext,
@@ -45,7 +44,7 @@ import { useNearEntries } from "./useNearEntries";
 import { usePageCards } from "./usePageCards";
 import { usePageEditing } from "./usePageEditing";
 import { PagePaging, usePaging } from "./usePaging";
-import PageTools, { PageToolsActions, PageToolsHandle } from "./PageTools";
+import PageTools, { PageToolsActions, SHORTCUTS } from "./PageTools";
 
 export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   /** The drafts. */
@@ -69,10 +68,8 @@ export interface PagedCvProps extends Omit<SuggestionProps, "suggestions"> {
   leaveRef?: RefObject<(() => boolean) | null>;
   /** Only shown, as it prints. */
   readOnly?: boolean;
-  /** What the page's ticks and add points do; without, it has none. Must stay the same while it has nothing new. */
+  /** What the page's gutters, folds and "+ Section" do; without, it has none. Must stay the same while it has nothing new. */
   tools?: PageToolsActions | null;
-  /** Opens the add points' menus, as a keyboard shortcut does. */
-  toolsRef?: Ref<PageToolsHandle>;
 }
 
 const samePlace = (a: KeptPlace | null, b: KeptPlace | null) => a?.sectionId === b?.sectionId && a?.entryId === b?.entryId;
@@ -93,7 +90,6 @@ const Page = ({
   leaveRef,
   readOnly = false,
   tools = null,
-  toolsRef,
   activeSuggestionId,
   onSuggestionClick,
   onSuggestionClose,
@@ -287,6 +283,7 @@ const Page = ({
             data-cv-page={pageId}
             role="region"
             aria-label="CV page"
+            aria-keyshortcuts={!readOnly && tools ? SHORTCUTS : undefined}
             tabIndex={-1}
             className="relative outline-none"
             style={{ width: pageWidth(design, paper), padding: sheetPadding(design) }}
@@ -325,7 +322,6 @@ const Page = ({
           <div className="pointer-events-none absolute inset-0 font-[family-name:var(--font-dm-sans)]">
             <FoldMarks folds={folds} scale={scale} sheetWidth={width} deskRoom={deskRoom} actions={tools.actions} onClosed={focusPage} />
             <PageTools
-              ref={toolsRef}
               rootRef={rootRef}
               areaRef={sheetsRef}
               scale={scale}

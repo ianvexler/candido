@@ -1,7 +1,7 @@
 import { addEntry, insertEntry, isIn, putBack, showForBullet, tickEntry, tickItem, tickSection } from "@/lib/resume/checklist";
 import { isLeftOut } from "@/lib/resume/exportDocument";
 import { listItems } from "@/lib/resume/items";
-import { emptyEntry } from "@/lib/resume/sectionEntries";
+import { emptyEntry, entryUnderHeading } from "@/lib/resume/sectionEntries";
 import type { SectionChange, SectionDraft, SectionPatch } from "@/lib/resume/sectionDrafts";
 import { CurriculumSection, SUMMARY_ID } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -157,8 +157,8 @@ export const useCvEdits = ({ current, change, view, showCv, isUnfinished }: CvEd
       addAt: ({ sectionId, entryId, after }, what) => {
         const section = find(sectionId);
         if (!section) return;
-        // Under the heading: the top of the first entry, or a new one without any.
-        const into = entryId ?? section.entries[0]?.id;
+        // Under the heading: the top of the first entry that shows and has text, or a new one without any.
+        const into = entryId ?? entryUnderHeading(section.entries)?.id;
         if (what === "entry" || into === undefined) return newEntry(sectionId, entryId);
         // Its editor has only the items that show: one that is left out shows with none.
         const shows = after !== null && isIn(section, into, after) && known(sectionId, into).includes(after);

@@ -22,7 +22,7 @@ const inside = (element: Element, path: number[] = []): [Element, number[]][] =>
   });
 
 /** The first of a block that shows: its first paragraph may be all hidden. */
-export const firstShown = (block: Element): Element =>
+const firstShown = (block: Element): Element =>
   [...block.children].find((child) => child.getBoundingClientRect().height > 0) ?? block;
 
 /** The page's columns: the sidebar template's two, or the one of the others. */

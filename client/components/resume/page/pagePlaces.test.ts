@@ -67,7 +67,7 @@ describe("addPlaceOf", () => {
 });
 
 describe("gapAt", () => {
-  it("has no add points inside a section: only between sections", () => {
+  it("has no \"+ Section\" inside a section: only between sections", () => {
     page(classic);
     expect(at(142)).toBeNull();
     expect(at(122)).toBeNull();

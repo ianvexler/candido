@@ -89,7 +89,10 @@ const FoldMarks = memo(({ folds, scale, sheetWidth, deskRoom, actions, onClosed 
     if (by !== undefined && all.length > 0) {
       event.preventDefault();
       const at = all.indexOf(document.activeElement as HTMLElement);
-      all[(at + by + all.length) % all.length].focus();
+      const next = all[(at + by + all.length) % all.length];
+      // In a list taller than its room: to where it shows, and no further.
+      next.focus({ preventScroll: true });
+      next.scrollIntoView({ block: "nearest" });
     } else if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();

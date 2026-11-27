@@ -181,7 +181,7 @@ const paragraphPlace = (doc: PMNode, item: { node: PMNode; pos: number }) => {
 
 /**
  * Puts the caret in a new bullet or paragraph after an item, or at the top for null:
- * a bullet after one goes in its list, or else in a new list; a paragraph after one
+ * a bullet after one goes in its list, or the list that follows, or else a new one; a paragraph after one
  * splits its list. False, changing nothing, without the item. One left empty goes.
  */
 export const insertBlock = (
@@ -206,15 +206,20 @@ export const insertBlock = (
   const newList = () => schema.nodes.bulletList.create(null, bullet());
   // A step of its own for undo, before and after.
   const tr = closeHistory(state.tr);
+  // A list right there takes a bullet at its start: a second list beside it would save as two.
+  const listAt = (at: number) => LISTS.includes(doc.resolve(at).nodeAfter?.type.name ?? "");
   let caret: number;
   if (!item) {
     if (empty) tr.replaceWith(0, doc.content.size, newList());
+    else if (kind === "bullet" && listAt(0)) tr.insert(1, bullet());
     else tr.insert(0, kind === "bullet" ? newList() : paragraph());
     caret = kind === "bullet" ? 3 : 1;
   } else if (kind === "bullet") {
     const at = item.pos + item.node.nodeSize;
     const inList = item.node.type.name === "listItem";
-    tr.insert(at, inList ? bullet() : newList());
+    if (inList) tr.insert(at, bullet());
+    else if (listAt(at)) tr.insert(at + 1, bullet());
+    else tr.insert(at, newList());
     caret = at + (inList ? 2 : 3);
   } else {
     const { at, split } = paragraphPlace(doc, item);

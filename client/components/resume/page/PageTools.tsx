@@ -4,14 +4,14 @@ import type { ChecklistSection } from "@/lib/resume/checklist";
 import type { ChecklistActions, ChecklistTarget } from "@/lib/resume/useCvChecklist";
 import { CurriculumSection, SUMMARY_ID } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { autoUpdate, flip, FloatingPortal, offset, shift, useFloating } from "@floating-ui/react";
+import { autoUpdate, flip, FloatingPortal, offset, shift, size, useFloating } from "@floating-ui/react";
 import { CheckIcon, PlusIcon } from "lucide-react";
-import { ComponentProps, ReactNode, Ref, RefObject, useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from "react";
+import { ComponentProps, ReactNode, RefObject, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { textStart } from "../ChecklistRow";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import type { AddPlace, CvEdits } from "../useCvEdits";
 import AddMenu from "./AddMenu";
-import { freeBelow, MARK_SIZE } from "./HiddenTextMarks";
+import { freeBelow, freeWithin, MARK_SIZE } from "./HiddenTextMarks";
 import { columnsOf } from "./measureBlocks";
 import { addPlaceOf, BlockRef, blockAt, blockBeside, columnEdges, Gap, gapAt, PlacedBlock } from "./pagePlaces";
 import SectionMenu from "./SectionMenu";
@@ -34,14 +34,6 @@ export const LINGER = 300;
 
 type Menu = { kind: "add"; block: PlacedBlock; place: AddPlace } | { kind: "section"; gap: Gap; afterSectionId: number | null };
 
-/** What a keyboard shortcut opens. */
-export type PageToolsHandle = {
-  /** The add menu by a block's gutter: the block, or the one a place adds after. */
-  openAdd: (at: BlockRef | AddPlace) => void;
-  /** At `at`, or above the section after the given one. */
-  openSection: (afterSectionId: number | null, at?: Gap) => void;
-};
-
 const targetOf = (block: BlockRef): ChecklistTarget => {
   const { sectionId } = block;
   const target: ChecklistTarget = { sectionId, templateId: null, inCv: true };
@@ -61,28 +53,11 @@ const nameOf = (rows: ChecklistSection[], block: BlockRef) => {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** The block a place adds after. */
-const blockOfPlace = ({ sectionId, entryId, after }: AddPlace): BlockRef =>
-  entryId === null
-    ? { sectionId, kind: "heading" }
-    : after === null
-      ? { sectionId, kind: "entry", entryId }
-      : { sectionId, kind: "item", entryId, itemId: after };
-
-/** A block's element on the page, to be placed by. */
-const elementOf = (root: HTMLElement, block: BlockRef): Element | null => {
-  const section = root.querySelector(`[data-section-id="${block.sectionId}"]`);
-  if (!section || block.kind === "heading") return section?.querySelector('.rc-heading, [data-block="heading"]') ?? null;
-  const entry = section.querySelector(`[data-entry-id="${CSS.escape(block.entryId)}"]`);
-  if (!entry || block.kind === "entry") return entry;
-  if (block.kind === "summary") return entry.querySelector(".rc-summary");
-  return entry.querySelector(`[data-cv-item="${CSS.escape(block.itemId)}"]`);
-};
-
 /**
  * Where the gutter is for: its block's rows, from its column's far edge out past the sheet's, and
  * the gutter itself; each give or take a little. Not the gutter's rows across the text: a stacked
- * one reaches past a short block, over the next blocks' text.
+ * one reaches past a short block, over the next blocks' text. A gutter pushed off its block by
+ * marks: also the margin between them, so it can be gone to beside the blocks it is level with.
  */
 const holds = (block: PlacedBlock, gutter: GutterPlace, x: number, y: number, scale: number) => {
   const slack = SLACK / scale;
@@ -93,7 +68,13 @@ const holds = (block: PlacedBlock, gutter: GutterPlace, x: number, y: number, sc
     screenX <= gutter.left + gutter.width + SLACK &&
     screenY >= gutter.top - SLACK &&
     screenY <= gutter.top + gutter.height + SLACK;
-  return rows || onIt;
+  const inMargin = block.side === "left" ? x <= block.left : x >= block.right;
+  const between =
+    gutter.off &&
+    inMargin &&
+    y >= Math.min(block.top, gutter.top / scale) - slack &&
+    y <= Math.max(block.bottom, (gutter.top + gutter.height) / scale) + slack;
+  return rows || onIt || between;
 };
 
 /** A value shown while pointed at, and for a while after. */
@@ -146,33 +127,63 @@ interface ToolMenuProps {
   children: ReactNode;
 }
 
-/** A menu by its tool, out of the page's scale. A press elsewhere closes it. */
+/** Least room a menu is given before it flips, in px. */
+const LEAST_MENU = 120;
+
+/**
+ * A menu by its tool, out of the page's scale, as tall as there is room for and scrolled beyond.
+ * A press or the focus elsewhere closes it.
+ */
 export const ToolMenu = ({ anchor, onClose, keepOpenOn, children }: ToolMenuProps) => {
-  const { refs, floatingStyles, elements } = useFloating({
+  const { refs, floatingStyles } = useFloating({
     placement: "bottom-start",
     elements: { reference: anchor },
-    middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
+    middleware: [
+      offset(6),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply: ({ availableHeight, elements: { floating } }) => {
+          floating.style.maxHeight = `${Math.max(LEAST_MENU, availableHeight)}px`;
+        },
+      }),
+    ],
     whileElementsMounted: autoUpdate,
   });
   const close = useEffectEvent(onClose);
-  const { floating } = elements;
   const { setFloating } = refs;
+  // Read when the event comes: what it holds takes the focus as it mounts, before a render could pass it.
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const holdMenu = useCallback(
+    (node: HTMLDivElement | null) => {
+      menuRef.current = node;
+      setFloating(node);
+    },
+    [setFloating]
+  );
   useEffect(() => {
-    const onDown = ({ target }: PointerEvent) => {
-      if (!(target instanceof Node) || floating?.contains(target) || anchor?.contains(target)) return;
-      if (keepOpenOn && target instanceof Element && target.closest(keepOpenOn)) return;
-      close(false);
+    const isOutside = (target: EventTarget | null) => {
+      if (!(target instanceof Node) || menuRef.current?.contains(target) || anchor?.contains(target)) return false;
+      return !(keepOpenOn && target instanceof Element && target.closest(keepOpenOn));
     };
-    document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [floating, anchor, keepOpenOn]);
+    const onOut = ({ target }: Event) => {
+      if (isOutside(target)) close(false);
+    };
+    document.addEventListener("pointerdown", onOut, true);
+    document.addEventListener("focusin", onOut, true);
+    return () => {
+      document.removeEventListener("pointerdown", onOut, true);
+      document.removeEventListener("focusin", onOut, true);
+    };
+  }, [anchor, keepOpenOn]);
 
   return (
     <FloatingPortal>
       <div
-        ref={setFloating}
+        ref={holdMenu}
         style={floatingStyles}
-        className="z-30 rounded-[10px] border border-border bg-background p-1.5 text-[13px] text-foreground shadow-lg print:hidden"
+        className="z-30 overflow-y-auto rounded-[10px] border border-border bg-background p-1.5 text-[13px] text-foreground shadow-lg print:hidden"
       >
         {children}
       </div>
@@ -192,12 +203,22 @@ export type PageToolsActions = {
 export type Taken = { top: number; side: "left" | "right"; desk?: boolean };
 
 /** Where a gutter is drawn, in screen px from the sheet's top left. */
-type GutterPlace = { left: number; top: number; width: number; height: number; size: number; stacked: boolean; desk: boolean };
+type GutterPlace = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  size: number;
+  stacked: boolean;
+  desk: boolean;
+  /** Pushed off its block's rows by marks. */
+  off: boolean;
+};
 
 /**
  * Never over the text: beside the sheet when there is room there; else in the margin, its two
  * side by side, or stacked, or smaller, against the text and never past the sheet's edge. Level
- * with the block's first line, or down past any mark on its side.
+ * with the block's first line, or the nearest free place by its rows, or down past any mark on its side.
  */
 const placeGutter = (block: PlacedBlock, taken: Taken[], scale: number, sheetWidth: number, deskRoom: number): GutterPlace => {
   const left = block.side === "left";
@@ -220,8 +241,10 @@ const placeGutter = (block: PlacedBlock, taken: Taken[], scale: number, sheetWid
   const apart = (height / 2 + Math.max(MARK_SIZE * scale, BUTTON) / 2 + 1) / scale;
   // Only marks where it is: beside the sheet, or in the margin.
   const others = taken.filter((mark) => mark.side === block.side && Boolean(mark.desk) === desk).map(({ top }) => top);
-  const top = freeBelow(middle, others, apart) * scale - height / 2;
-  return { left: x, top, width, height, size, stacked: !row, desk };
+  // Level with its block if there is room anywhere there, up or down; else past the marks below.
+  const within = freeWithin(middle, others, apart, block.top, Math.max(block.bottom, middle));
+  const top = (within ?? freeBelow(middle, others, apart)) * scale - height / 2;
+  return { left: x, top, width, height, size, stacked: !row, desk, off: within === null };
 };
 
 // In px, not rem: the app's rem isn't 16px.
@@ -231,13 +254,21 @@ const SIZES: Record<number, string> = { [BUTTON]: "size-[24px] [&_svg]:size-[14p
 interface GutterButtonProps extends ComponentProps<"button"> {
   label: string;
   side: "top" | "left" | "right";
+  /** Its keyboard shortcut, as the tooltip says it. */
+  shortcut?: string;
 }
+
+/** The page's shortcuts: the add menu, and the section menu. */
+export const SHORTCUTS = "Alt+Enter Alt+Shift+Enter";
+
+/** Alt+Enter as the keyboard says it: Option and Return on a Mac. */
+const addShortcut = () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌥↵" : "Alt+Enter");
 
 /**
  * A gutter's button and its tooltip. The tooltip is out of the sheets' box: if it took the
  * pointer, moving over it would leave the tools on the block they were for.
  */
-const GutterButton = ({ label, side, children, ...props }: GutterButtonProps) => (
+const GutterButton = ({ label, side, shortcut, children, ...props }: GutterButtonProps) => (
   <Tooltip disableHoverableContent>
     <TooltipTrigger asChild>
       <button type="button" aria-label={label} {...props}>
@@ -245,13 +276,12 @@ const GutterButton = ({ label, side, children, ...props }: GutterButtonProps) =>
       </button>
     </TooltipTrigger>
     <TooltipContent side={side} data-page-tip className="pointer-events-none">
-      {label}
+      {shortcut ? `${label} (${shortcut})` : label}
     </TooltipContent>
   </Tooltip>
 );
 
 interface PageToolsProps extends PageToolsActions {
-  ref?: Ref<PageToolsHandle>;
   /** The page's root: what prints. Nothing is put in it. */
   rootRef: RefObject<HTMLElement | null>;
   /** The sheets' box on screen, unscaled, that the tools are placed in and the pointer is followed over. */
@@ -270,7 +300,7 @@ interface PageToolsProps extends PageToolsActions {
  * The gutter by the block under the pointer, and the "+ Section" of the gap between sections.
  * Drawn at screen size in the sheets' unscaled box, placed from sheet units by the scale.
  */
-const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken = [], deskRoom = 0, rows, actions, edits, addSection }: PageToolsProps) => {
+const PageTools = ({ rootRef, areaRef, scale, sheetWidth, sections, taken = [], deskRoom = 0, rows, actions, edits, addSection }: PageToolsProps) => {
   const hovered = useLingering<PlacedBlock>();
   const pointed = useLingering<Gap>();
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -296,19 +326,22 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
     const x = (event.clientX - box.left) / scale;
     const y = (event.clientY - box.top) / scale;
 
+    const under = root.contains(target) ? blockAt(root, scale, target) : null;
     const current = hovered.value;
     const kept = current && (target.closest("[data-page-gutter]") || holds(current, gutterOf(current), x, y, scale));
     if (current && kept) hovered.show(current);
     else {
-      const found = (root.contains(target) ? blockAt(root, scale, target) : null) ?? blockBeside(root, scale, event.clientX, event.clientY);
+      const found = under ?? blockBeside(root, scale, event.clientX, event.clientY);
       // Between an entry's lines and its items is no block's; from another, only a little way in.
       const edge = current ? EDGE / scale : 0;
       if (found && y >= found.top + edge && y <= found.bottom - edge) hovered.show(found);
       else hovered.linger();
     }
 
+    // Gaps are only between sections: not measured for over a block's text.
+    const onBlock = under !== null && y >= under.top && y <= under.bottom;
     const gap = pointed.value;
-    const next = gap && target.closest("[data-page-section]") ? gap : gapAt(root, scale, event.clientX, event.clientY, order);
+    const next = gap && target.closest("[data-page-section]") ? gap : onBlock ? null : gapAt(root, scale, event.clientX, event.clientY, order);
     if (next) pointed.show(next);
     else pointed.linger();
   });
@@ -404,21 +437,6 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
     return () => root?.removeEventListener("keydown", onShortcut, true);
   }, [rootRef]);
 
-  useImperativeHandle(ref, () => ({
-    openAdd: (at) => {
-      const root = rootRef.current;
-      const place = "kind" in at ? addPlaceOf(at) : at;
-      const element = root && elementOf(root, "kind" in at ? at : blockOfPlace(at));
-      const block = root && element && blockAt(root, scale, element);
-      if (block) openFor(block, place);
-    },
-    openSection: (afterSectionId, at) => {
-      const root = rootRef.current;
-      const gap = at ?? (root && sectionGap(root, scale, order, afterSectionId));
-      if (gap) setMenu({ kind: "section", gap, afterSectionId });
-    },
-  }));
-
   const block = menu?.kind === "add" ? menu.block : menu ? null : hovered.value;
   const gap = menu?.kind === "section" ? menu.gap : menu ? null : pointed.value;
   const adding = menu?.kind === "add";
@@ -451,6 +469,8 @@ const PageTools = ({ ref, rootRef, areaRef, scale, sheetWidth, sections, taken =
           >
             <GutterButton
               label="Add below"
+              shortcut={addShortcut()}
+              aria-keyshortcuts="Alt+Enter"
               side={tipSide}
               ref={setAddAnchor}
               aria-haspopup="menu"

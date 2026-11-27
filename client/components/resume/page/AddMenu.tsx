@@ -1,15 +1,16 @@
 "use client";
 
+import { entryUnderHeading } from "@/lib/resume/sectionEntries";
 import type { CurriculumSection } from "@/lib/types";
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import { textStart } from "../ChecklistRow";
 import type { AddPlace, CvEdits } from "../useCvEdits";
 import { leftOutItemsOf } from "./folds";
 
-/** The entry a place adds into: its own, or under a heading the section's first, as addAt has it. */
+/** The entry a place adds into: its own, or under a heading the one addAt adds into. */
 const entryOf = (sections: CurriculumSection[], { sectionId, entryId }: AddPlace) => {
   const entries = sections.find(({ id }) => id === sectionId)?.entries ?? [];
-  return (entryId === null ? entries[0] : entries.find(({ id }) => id === entryId)) ?? null;
+  return (entryId === null ? entryUnderHeading(entries) : entries.find(({ id }) => id === entryId)) ?? null;
 };
 
 /** The items of a place's entry that the CV has and leaves out. */
@@ -31,7 +32,7 @@ interface AddMenuProps {
 
 const ITEM = "flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-[#fff4dc] focus-visible:bg-[#fff4dc]";
 
-/** What a "+ Add" adds at its place. A plain list: no search. */
+/** What a gutter's "+" adds at its place. A plain list: no search. */
 const AddMenu = ({ place, sections, edits, onPutBack, onClose }: AddMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [listing, setListing] = useState(false);
@@ -47,7 +48,10 @@ const AddMenu = ({ place, sections, edits, onPutBack, onClose }: AddMenuProps) =
     const by = { ArrowDown: 1, ArrowUp: -1 }[event.key];
     if (by !== undefined && all.length > 0) {
       event.preventDefault();
-      all[(at + by + all.length) % all.length].focus();
+      const next = all[(at + by + all.length) % all.length];
+      // In a list taller than its room: to where it shows, and no further.
+      next.focus({ preventScroll: true });
+      next.scrollIntoView({ block: "nearest" });
     } else if (event.key === "Escape") {
       event.preventDefault();
       // Not for a card or editor beneath.

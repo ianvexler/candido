@@ -293,10 +293,57 @@ describe("a block put at a place", () => {
     editor.destroy();
     vi.advanceTimersByTime(1);
     const saved =
-      '<p data-cv-item="z" data-cv-off="true">Out</p><p data-cv-item="p1">Intro</p><ul><li><p></p></li></ul><ul><li data-cv-item="b2"><p>Two</p></li></ul>';
+      '<p data-cv-item="z" data-cv-off="true">Out</p><p data-cv-item="p1">Intro</p><ul><li><p></p></li><li data-cv-item="b2"><p>Two</p></li></ul>';
     expect(onLost.mock.calls[0][0](saved)).toBe(
       '<p data-cv-item="z" data-cv-off="true">Out</p><p data-cv-item="p1">Intro</p><ul><li data-cv-item="b2"><p>Two</p></li></ul>'
     );
+  });
+
+  describe("by a list", () => {
+    const TOP = LIST;
+    const AFTER = '<p data-cv-item="p1">Intro</p><ul><li data-cv-item="b2"><p>Two</p></li></ul>';
+    const cases = [
+      ["at the top of a body that starts with a list, in it", TOP, null, "<ul><li><p>new</p></li><li><p>One</p></li><li><p>Two</p></li></ul>"],
+      ["after a paragraph a list follows, at that list's start", AFTER, "p1", "<p>Intro</p><ul><li><p>new</p></li><li><p>Two</p></li></ul>"],
+      ["at the top of an ordered list", '<ol><li data-cv-item="b1"><p>One</p></li></ol>', null, "<ol><li><p>new</p></li><li><p>One</p></li></ol>"],
+    ] as const;
+
+    it.each(cases)("is a bullet %s", (_, content, after, wanted) => {
+      open(content);
+      expect(insert(after, "bullet")).toBe(true);
+      expect(editor.view.hasFocus()).toBe(true);
+      expect(caretIn()).toBe("listItem");
+      type("new");
+      expect(plain().replace(/<ol[^>]*>/, "<ol>")).toBe(wanted);
+    });
+
+    it.each(cases)("goes %s when left empty", (_, content, after) => {
+      open(content);
+      const before = html();
+      insert(after, "bullet");
+      leave();
+      expect(html()).toBe(before);
+    });
+
+    it.each(cases)("goes %s when written in and emptied", (_, content, after) => {
+      open(content);
+      const before = html();
+      insert(after, "bullet");
+      type("x");
+      editor.commands.deleteRange({ from: editor.state.selection.from - 1, to: editor.state.selection.from });
+      leave();
+      expect(html()).toBe(before);
+    });
+
+    it.each(cases)("is dropped %s from the saved text if its editor goes first", (_, content, after) => {
+      open(content);
+      const before = html();
+      insert(after, "bullet");
+      const saved = html();
+      editor.destroy();
+      vi.advanceTimersByTime(1);
+      expect(onLost.mock.calls[0][0](saved)).toBe(before);
+    });
   });
 
   it("stays with text", () => {
