@@ -38,10 +38,11 @@ const LandingPage = () => (
           <Image src={Logo} alt="Candido" priority className="h-auto w-[104px] sm:w-[128px]" />
         </div>
 
-        <nav aria-label="Main" className="flex items-center gap-5 pt-3 text-[16px] font-semibold sm:gap-7">
-          <a href="#board" className="hidden hover:underline md:block">Board</a>
-          <a href="#cvs" className="hidden hover:underline md:block">CVs</a>
-          <a href="#sheet" className="hidden hover:underline md:block">Sheet</a>
+        <nav aria-label="Main" className="flex items-center gap-5 whitespace-nowrap pt-3 text-[16px] font-semibold sm:gap-7">
+          <a href="#board" className="hidden hover:underline lg:block">Board</a>
+          <a href="#tailoring" className="hidden hover:underline lg:block">AI tailoring</a>
+          <a href="#sheet" className="hidden hover:underline lg:block">Sheet</a>
+          <a href="#import" className="hidden hover:underline lg:block">Import</a>
           <Link href="/login" className="py-2 hover:underline">Sign in</Link>
           <CtaLink href="/register" className="hidden min-h-11 px-5 text-[16px] sm:inline-flex">Create account</CtaLink>
         </nav>
@@ -69,7 +70,7 @@ const LandingPage = () => (
       </main>
     </div>
 
-    <section id="cvs" className="mx-auto max-w-[1120px] px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-24">
+    <section id="tailoring" className="mx-auto max-w-[1120px] px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-24">
       <SectionIntro title="Tailor your application to every role">
         Bring the CV you already have. For each job, AI shows how well you fit, spots what&apos;s missing and tailors
         your CV and cover letter so you stand out. You stay in control of every change.
@@ -88,7 +89,7 @@ const LandingPage = () => (
       </div>
     </section>
 
-    <section className="bg-[var(--landing-amber)]">
+    <section id="import" className="bg-[var(--landing-amber)]">
       <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 sm:py-24">
         <SectionIntro title="Bring your spreadsheet with you">
           Already tracking jobs in a sheet? Upload it and each row becomes a card on your board. You don&apos;t have
