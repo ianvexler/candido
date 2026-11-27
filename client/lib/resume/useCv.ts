@@ -6,6 +6,7 @@ import { getResumeProfile } from "@/api/resources/resumeProfile/getResumeProfile
 import { Curriculum, CurriculumSection, ResumeHeader } from "@/lib/types";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { downloadPdf, pdfFailed } from "./downloadPdf";
 import { flushAll } from "./flushAll";
 import type { HeaderValues } from "./headerDraft";
 import { trackSave, waitForSaves } from "./saveTracker";
@@ -87,21 +88,26 @@ export const useCv = (id: string) => {
     setCurriculum(response.curriculum);
   };
 
-  // Open the tab right away (popup blockers allow it during the click), then point
-  // it at the print page, which prints itself, once edits have reached the server.
+  const [exporting, setExporting] = useState(false);
+  // Saves first, so the PDF has the latest edits, then has the server make it.
   const exportPdf = async () => {
-    const printTab = window.open("", "_blank");
-    const result = await flushAll([flush, flushHeader, flushLook]);
-    if (result === "saving") toast("Your latest changes are still saving, so the PDF may not include them.");
-    if (result === "failed") {
-      printTab?.close();
-      toast.error("Your latest changes couldn't be saved, so the PDF wasn't made. Try again.");
-      return;
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const result = await flushAll([flush, flushHeader, flushLook]);
+      if (result === "saving") toast("Your latest changes are still saving, so the PDF may not include them.");
+      if (result === "failed") {
+        toast.error("Your latest changes couldn't be saved, so the PDF wasn't made. Try again.");
+        return;
+      }
+      await downloadPdf(curriculumId);
+    } catch (error) {
+      console.error(error);
+      pdfFailed(curriculumId);
+    } finally {
+      setExporting(false);
     }
-    const url = `/resume/${curriculumId}/print`;
-    if (printTab) printTab.location.href = url;
-    else window.location.assign(url);
   };
 
-  return { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf };
+  return { curriculum, profile, loadError, drafts, library, checklist, review, header, look, saveTitle, exportPdf, exporting };
 };
