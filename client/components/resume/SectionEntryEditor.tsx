@@ -7,7 +7,7 @@ import { SUMMARY_ID, SectionEntry } from "@/lib/types";
 import { MonthDraftsContext } from "@/lib/resume/monthDrafts";
 import { isEmptyEntry } from "@/lib/resume/sectionEntries";
 import { Editor, EditorContent } from "@tiptap/react";
-import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, LayersIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarMinusIcon, CalendarPlusIcon, HeadingIcon, TextIcon, Trash2Icon } from "lucide-react";
 import { memo, RefObject, useCallback, useContext, useEffect, useEffectEvent, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { EditChannelContext, EditTarget } from "./editChannel";
@@ -15,10 +15,10 @@ import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
 import LeaveOutArea, { LEAVE_OUT_LOCKED } from "./LeaveOutArea";
-import LabelArea, { EVERY_COLLECTION, labelChips, LibraryLabelling } from "./library/LabelArea";
-import LabelPicker from "./library/LabelPicker";
-import RowMenu from "./RowMenu";
-import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/DropdownMenu";
+import LabelArea, { LibraryLabelling } from "./library/LabelArea";
+import LibraryEntryControls from "./library/LibraryEntryControls";
+import type { RowMenuAction } from "./RowMenu";
+import { CV_LOOK, LIBRARY_LOOK } from "./sectionLooks";
 import { editInEditor, focusText } from "./placeCaret";
 import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
 import { hasDetails, suggestsDetails } from "./sectionDetails";
@@ -85,16 +85,9 @@ const SectionEntryEditor = ({
   const [detailsVersion, setDetailsVersion] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteNote, setDeleteNote] = useState("");
-  const [labelsOpen, setLabelsOpen] = useState(false);
-  // Its own collections; with none it is in every one, which needs no chip on the entry.
-  const entryChips = library
-    ? labelChips(library.labels, { own: library.itemLabels[entry.id] ?? [], inherited: [] }).filter(
-        ({ name }) => name !== EVERY_COLLECTION
-      )
-    : [];
+  const look = (library ? LIBRARY_LOOK : CV_LOOK).entry;
   const description = entry.description ?? "";
-  // In the library each entry is a card, headed by its title.
-  const showTitle = library !== undefined || Boolean(entry.title) || startedBlank || title.open;
+  const showTitle = look.alwaysTitled || Boolean(entry.title) || startedBlank || title.open;
   const summaryOff = onLeaveOut !== undefined && Boolean(entry.description_off && description.trim());
   const showSummary = !summaryOff && (Boolean(description) || summary.open);
 
@@ -125,18 +118,27 @@ const SectionEntryEditor = ({
     version,
     onChange: onEntryChange,
     editors,
-    placeholder: library ? "Write, or type - for a bullet" : "Write here. Start a line with - for bullets.",
+    placeholder: look.bodyPlaceholder,
     className: cn(
       "cv-document-editor outline-none min-h-6 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
       highlightClasses
     ),
   });
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  // Run by the menu, once it has closed.
+  // Run by the library's menu, once it has closed.
   const addSummary = () => {
     flushSync(() => summary.setOpen(true));
     document.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(entry.id)}"] textarea[aria-label="Summary"]`)?.focus();
   };
+  // In the library's menu, in words; the CV's are the icons below.
+  const libraryActions: RowMenuAction[] = [
+    ...(!showSummary && !summaryOff ? [{ label: "Add summary", icon: <TextIcon />, onSelect: addSummary }] : []),
+    ...(!hasDetails(entry)
+      ? [{ label: "Add role and dates", icon: <CalendarPlusIcon />, onSelect: () => setOpenDetails(true) }]
+      : suggestsDetails(sectionType)
+        ? []
+        : [{ label: "Remove role and dates", icon: <CalendarMinusIcon />, onSelect: clearDetails }]),
+  ];
   const { card, cardOpen, onEditorClick } = useEntrySuggestions({
     entry,
     version,
@@ -177,14 +179,7 @@ const SectionEntryEditor = ({
 
   return (
     <>
-      <div
-        data-entry-id={entry.id}
-        className={cn(
-          "group/entry relative",
-          library &&
-            "rounded-lg border border-border bg-background px-5 pt-3.5 pb-4 transition-colors hover:border-foreground/15 focus-within:border-foreground/25"
-        )}
-      >
+      <div data-entry-id={entry.id} className={cn("group/entry relative", look.card)}>
         <div className={cn("flex items-start justify-between gap-2", !showTitle && "h-0")}>
           {showTitle && (
             <input
@@ -192,79 +187,23 @@ const SectionEntryEditor = ({
               value={entry.title}
               onChange={edit("title")}
               {...title.focusProps}
-              placeholder={library ? "Entry title" : "Title"}
+              placeholder={look.titlePlaceholder}
               aria-label="Title"
-              className={cn(ghostInput, "block flex-1 py-0.5 font-semibold", library ? "text-base" : "text-xl")}
+              className={cn(ghostInput, "block flex-1 py-0.5 font-semibold", look.title)}
             />
           )}
-          {library && (
-            <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
-              {entryChips.length > 0 && (
-                <ul aria-label="Collections of this entry" className="flex items-center gap-1">
-                  {entryChips.map(({ name }) => (
-                    <li key={name} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                      {name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <LabelPicker
-                labels={library.labels}
-                filter={library.filter}
-                mode={{ kind: "toggle", own: library.itemLabels[entry.id] ?? [], inherited: [] }}
-                onChoose={(labelId, on) =>
-                  library.onLabel(labelId, on, [{ section_template_id: library.sectionId, id: entry.id }])
-                }
-                onCreate={library.onCreate}
-                open={labelsOpen}
-                onOpenChange={setLabelsOpen}
-                title="Collections of this entry"
-                align="end"
-                // Opened from the menu, so focus goes back to the menu's button.
-                onCloseAutoFocus={(event) => {
-                  event.preventDefault();
-                  document
-                    .querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(entry.id)}"] button[aria-haspopup="menu"]`)
-                    ?.focus();
-                }}
-              >
-                {/* Opened from the menu; this only places it. */}
-                <span aria-hidden className="size-0" />
-              </LabelPicker>
-              <span className="opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
-                <RowMenu
-                  label={entry.title.trim() || "this entry"}
-                  actions={[
-                    ...(!showSummary && !summaryOff
-                      ? [{ label: "Add summary", icon: <TextIcon />, onSelect: addSummary }]
-                      : []),
-                    hasDetails(entry)
-                      ? suggestsDetails(sectionType)
-                        ? null
-                        : { label: "Remove role and dates", icon: <CalendarMinusIcon />, onSelect: clearDetails }
-                      : { label: "Add role and dates", icon: <CalendarPlusIcon />, onSelect: () => setOpenDetails(true) },
-                    // After the menu has let go of the focus, or the picker closes at once.
-                    { label: "Collections…", icon: <LayersIcon />, onSelect: () => setTimeout(() => setLabelsOpen(true)) },
-                  ].filter((action) => action !== null)}
-                  move={canMoveUp || canMoveDown ? { canMoveUp, canMoveDown, onMove: (by) => onMove(entry.id, by) } : undefined}
-                >
-                  {canDelete && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={askDelete}>
-                        <Trash2Icon />
-                        Delete entry
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </RowMenu>
-              </span>
-            </div>
-          )}
-          {!library && (
+          {library ? (
+            <LibraryEntryControls
+              entry={entry}
+              library={library}
+              actions={libraryActions}
+              move={canMoveUp || canMoveDown ? { canMoveUp, canMoveDown, onMove: (by) => onMove(entry.id, by) } : undefined}
+              onDelete={canDelete ? askDelete : undefined}
+            />
+          ) : (
           <div
             className={cn(
-              "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100 has-[[data-state=open]]:opacity-100",
+              "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100",
               // Without a title line, in the space above.
               !showTitle && "absolute -top-8 right-0"
             )}
@@ -389,12 +328,7 @@ const SectionEntryEditor = ({
           {editor && (
             <BlockToolbar
               editor={editor}
-              className={
-                library
-                  ? // In the card, below the text, so it never covers the next entry.
-                    "mt-3 hidden w-fit shadow-none group-focus-within/entry:flex"
-                  : "pointer-events-none absolute -bottom-9 left-0 opacity-0 transition-opacity group-focus-within/entry:pointer-events-auto group-focus-within/entry:opacity-100"
-              }
+              className={look.toolbar}
             />
           )}
         </div>

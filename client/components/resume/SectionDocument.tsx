@@ -15,8 +15,8 @@ import { ReactNode, RefObject, useCallback, useContext, useEffect, useMemo, useR
 import { rowBox, rowIdOf } from "./ChecklistRow";
 import { EditChannelContext } from "./editChannel";
 import IconAction from "./IconAction";
-import RowMenu from "./RowMenu";
-import { DropdownMenuItem } from "@/components/ui/DropdownMenu";
+import LibrarySectionMenu from "./library/LibrarySectionMenu";
+import { CV_LOOK, LIBRARY_LOOK } from "./sectionLooks";
 import { LabelStyles, LibraryLabelling } from "./library/LabelArea";
 import { focusText } from "./placeCaret";
 import SectionEntryEditor from "./SectionEntryEditor";
@@ -115,6 +115,7 @@ const SectionDocument = ({
   const [deleteNote, setDeleteNote] = useState("");
   const editors = useRef(new Map<string, Editor>());
   const entryLibrary = useMemo(() => library && { ...library, sectionId }, [library, sectionId]);
+  const look = library ? LIBRARY_LOOK : CV_LOOK;
   const headingRef = useRef<HTMLInputElement>(null);
   const channel = useContext(EditChannelContext);
 
@@ -190,12 +191,7 @@ const SectionDocument = ({
     <>
       <article
         data-section-id={section.id}
-        className={cn(
-          "group/section relative mx-auto w-full max-w-2xl",
-          library
-            ? "pb-6"
-            : "bg-white px-10 pb-6 pt-9 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-14"
-        )}
+        className={cn("group/section relative mx-auto w-full max-w-2xl", look.article)}
       >
         {!library && (
           <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100">
@@ -208,34 +204,16 @@ const SectionDocument = ({
         {notice}
         {library && <LabelStyles sectionId={sectionId} entries={entries} library={library} />}
 
-        <div className={cn(library && "flex items-center gap-2")}>
+        <div className={look.headingRow}>
           <input
             ref={headingRef}
             value={sectionType}
             onChange={(event) => onChange({ section_type: event.target.value })}
-            placeholder={library ? "Section heading" : "Section heading, e.g. Experience"}
+            placeholder={look.headingPlaceholder}
             aria-label="Section heading"
-            className={cn(
-              ghostInput,
-              library
-                ? "block min-w-0 flex-1 py-0.5 text-2xl font-semibold tracking-tight"
-                : "block w-full max-w-[calc(100%-9rem)] py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
-            )}
+            className={cn(ghostInput, look.heading)}
           />
-          {library && (
-            <RowMenu label={sectionType.trim() || "this section"}>
-              <DropdownMenuItem
-                onSelect={() => {
-                  setDeleteNote(describeDeletion());
-                  setDeleteOpen(true);
-                }}
-                variant="destructive"
-              >
-                <Trash2Icon />
-                {deleteLabel}
-              </DropdownMenuItem>
-            </RowMenu>
-          )}
+          {library && <LibrarySectionMenu heading={sectionType} deleteLabel={deleteLabel} onDelete={askDelete} />}
         </div>
         {library && (
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -243,7 +221,7 @@ const SectionDocument = ({
           </p>
         )}
 
-        <div className={library ? "mt-5 space-y-3" : "mt-1 space-y-11"}>
+        <div className={look.entries}>
           {shown.map((entry) => {
             const index = entries.indexOf(entry);
             const version = versions[entry.id] ?? 0;
@@ -280,11 +258,7 @@ const SectionDocument = ({
           variant="ghost"
           size="sm"
           onClick={() => changeEntries((list) => [...list, emptyEntry()])}
-          className={
-            library
-              ? "mt-3 h-11 w-full justify-start rounded-lg border border-dashed border-border px-5 text-muted-foreground hover:border-foreground/25 hover:text-foreground"
-              : "-ml-3 mt-9 text-muted-foreground opacity-0 transition-opacity group-hover/section:opacity-100 group-focus-within/section:opacity-100"
-          }
+          className={look.addEntry}
         >
           <PlusIcon />
           Add entry

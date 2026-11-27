@@ -12,6 +12,7 @@ import Description from "@/components/common/Description";
 import Loader from "@/components/common/Loader";
 import Title from "@/components/common/Title";
 import HeaderDocument from "@/components/resume/HeaderDocument";
+import LibraryProfile from "@/components/resume/library/LibraryProfile";
 import ImportCvDialog from "@/components/resume/ImportCvDialog";
 import LibraryOutline, { LibrarySelection, outlineRow } from "@/components/resume/library/LibraryOutline";
 import LibraryWorkspace from "@/components/resume/library/LibraryWorkspace";
@@ -379,7 +380,7 @@ const SectionLibraryPage = () => {
         <div hidden={!showsProfile}>
           <HeaderDocument
             version={headerVersion}
-            inLibrary
+            sheet={LibraryProfile}
             value={profile}
             save={saveProfile}
           />
