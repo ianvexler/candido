@@ -41,6 +41,8 @@ interface SectionDocumentProps extends SuggestionProps {
   notice?: ReactNode;
   /** Shows what is ticked only. Order is up to the checklist. */
   inCv?: boolean;
+  /** In a CV: nothing can be left out now, while its purpose changes. */
+  leaveOutLocked?: boolean;
   /** In the library: labelling items and entries with purposes. */
   library?: LibraryLabelling;
 }
@@ -97,6 +99,7 @@ const SectionDocument = ({
   describeDeletion,
   notice,
   inCv = false,
+  leaveOutLocked = false,
   library,
   suggestions = NO_SUGGESTIONS,
   activeSuggestionId,
@@ -225,6 +228,7 @@ const SectionDocument = ({
                 onDelete={deleteEntry}
                 describeDeletion={describeEntry}
                 onLeaveOut={inCv ? leaveOut : undefined}
+                leaveOutLocked={leaveOutLocked}
                 library={entryLibrary}
                 suggestions={suggestionsByEntry.get(entry.id)}
                 activeSuggestionId={activeSuggestionId}

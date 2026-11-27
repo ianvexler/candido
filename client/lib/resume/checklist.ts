@@ -350,18 +350,24 @@ const allOff = (entry: SectionEntry) => {
 /** Whether an item fits the CV's purpose. `itemId` is "" for an entry that has no items. */
 export type Fits = (entryId: string, itemId: string) => boolean;
 
-/** What of it fits: its items, or itself if it has none. */
-const fittingIds = (entry: SectionEntry, fits: Fits) => {
-  const ids = allIds(entry);
-  return ids.length === 0 ? (fits(entry.id, "") ? [""] : []) : ids.filter((id) => fits(entry.id, id));
+/**
+ * The ids of what fits in an entry that does, or null if it doesn't. An entry
+ * fits when one of its items does, or with none by its own labels; its summary
+ * doesn't count, and is ticked only along with an entry that fits.
+ */
+const fittingIds = (entry: SectionEntry, fits: Fits): string[] | null => {
+  const items = allIds(entry).filter((id) => id !== SUMMARY_ID);
+  const fitting = items.filter((id) => fits(entry.id, id));
+  if (items.length > 0 ? fitting.length === 0 : !fits(entry.id, "")) return null;
+  const summary = summaryOf(entry) !== null && fits(entry.id, SUMMARY_ID);
+  return [...(summary ? [SUMMARY_ID] : []), ...fitting];
 };
 
 /** Shown with its earlier item ticks, or those that fit, or all of them. */
 const showEntry = (entry: SectionEntry, fits?: Fits): SectionEntry => {
   if (!allOff(entry)) return { ...entry, hidden: false };
-  const ids = allIds(entry);
-  const fitting = fits ? fittingIds(entry, fits) : [];
-  return { ...setOff(entry, fitting.length > 0 ? fitting : ids, false), hidden: false };
+  const fitting = fits ? fittingIds(entry, fits) : null;
+  return { ...setOff(entry, fitting?.length ? fitting : allIds(entry), false), hidden: false };
 };
 
 const hideEntry = (entry: SectionEntry): SectionEntry => ({ ...entry, hidden: true });
@@ -383,7 +389,7 @@ const hasTicks = (entry: SectionEntry) => !entry.hidden && !isEmptyEntry(entry) 
 export const tickSection = (section: SectionDraft, on: boolean, fits?: Fits): SectionPatch => {
   if (!on) return { hidden: true };
   if (section.entries.some(hasTicks)) return { hidden: false };
-  const fitting = fits ? section.entries.filter((entry) => fittingIds(entry, fits).length > 0) : [];
+  const fitting = fits ? section.entries.filter((entry) => fittingIds(entry, fits) !== null) : [];
   if (fitting.length === 0) return { hidden: false, entries: section.entries.map((entry) => showEntry(entry)) };
   return {
     hidden: false,

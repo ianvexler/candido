@@ -14,7 +14,7 @@ import { EditChannelContext, EditTarget } from "./editChannel";
 import { BlockToolbar, FormatBubble } from "./EditorControls";
 import EntryDetails from "./EntryDetails";
 import IconAction from "./IconAction";
-import LeaveOutArea from "./LeaveOutArea";
+import LeaveOutArea, { LEAVE_OUT_LOCKED } from "./LeaveOutArea";
 import LabelArea, { LibraryLabelling } from "./library/LabelArea";
 import LabelPicker from "./library/LabelPicker";
 import { editInEditor, focusText } from "./placeCaret";
@@ -42,6 +42,8 @@ interface SectionEntryEditorProps extends SuggestionProps {
   describeDeletion: (id: string) => string;
   /** In a CV: offers leaving items out; see LeaveOutArea. */
   onLeaveOut?: (entryId: string, itemId: string, focusAt: number | null) => void;
+  /** Leaving out is offered but can't be done now: the CV's purpose is changing. */
+  leaveOutLocked?: boolean;
   /** In the library: labels its items and itself; see LabelArea. */
   library?: LibraryLabelling & { sectionId: number };
 }
@@ -64,6 +66,7 @@ const SectionEntryEditor = ({
   onDelete,
   describeDeletion,
   onLeaveOut,
+  leaveOutLocked = false,
   library,
   ...suggestionProps
 }: SectionEntryEditorProps) => {
@@ -270,8 +273,11 @@ const SectionEntryEditor = ({
               <button
                 type="button"
                 aria-label="Leave out the summary"
+                aria-disabled={leaveOutLocked || undefined}
+                title={leaveOutLocked ? LEAVE_OUT_LOCKED : undefined}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={(event) => {
+                  if (leaveOutLocked) return;
                   const focused = event.currentTarget.parentElement?.contains(document.activeElement);
                   summary.setOpen(false);
                   onLeaveOut(entry.id, SUMMARY_ID, focused ? 0 : null);
@@ -304,6 +310,7 @@ const SectionEntryEditor = ({
               editor={editor}
               cardOpen={cardOpen}
               onLeaveOut={(itemId, focusAt) => onLeaveOut(entry.id, itemId, focusAt)}
+              locked={leaveOutLocked}
             >
               {content}
             </LeaveOutArea>

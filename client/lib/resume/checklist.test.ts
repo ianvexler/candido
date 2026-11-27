@@ -346,15 +346,35 @@ describe("tickEntry", () => {
       expect(ticks(apply(off, tickEntry(off, "a", true, (_, item) => item === "y")))).toBe("A(x-) B(-)");
     });
 
-    it("asks about the entry's own summary", () => {
-      const summarised = cv([entry("a", ul(li("x", true)), { hidden: true, description: "About", description_off: true })]);
-      const asked: string[] = [];
-      const patch = tickEntry(summarised, "a", true, (_, item) => {
-        asked.push(item);
-        return item === "x";
-      });
-      expect(asked).toEqual(["$summary", "x"]);
-      expect(apply(summarised, patch).entries[0].description_off).toBe(true);
+    it("ticks the summary of an entry that fits, if it fits too", () => {
+      const summarised = cv([entry("a", ul(li("x", true), li("y", true)), { hidden: true, description: "About", description_off: true })]);
+      const ticked = (summaryFits: boolean) =>
+        apply(summarised, tickEntry(summarised, "a", true, (_, item) => item === "x" || (summaryFits && item === "$summary")));
+      expect(ticks(ticked(true))).toBe("A(x-)");
+      expect(ticked(true).entries[0].description_off).toBe(false);
+      expect(ticked(false).entries[0].description_off).toBe(true);
+    });
+
+    // An unlabelled entry whose items are for another purpose: its summary fits, the entry doesn't.
+    const otherPurpose = (_: string, item: string) => item === "$summary" || item === "";
+
+    it("doesn't count the summary towards an entry's fit", () => {
+      const summarised = cv([entry("a", ul(li("x", true), li("y", true)), { hidden: true, description: "About", description_off: true })]);
+      const ticked = apply(summarised, tickEntry(summarised, "a", true, otherPurpose));
+      expect(ticks(ticked)).toBe("A(xy)");
+      expect(ticked.entries[0].description_off).toBe(false);
+    });
+
+    it("leaves such an entry out of a section where something else fits", () => {
+      const section = cv(
+        [
+          entry("a", ul(li("x", true), li("y", true)), { hidden: true, description: "About", description_off: true }),
+          entry("b", ul(li("z", true)), { hidden: true }),
+        ],
+        { hidden: true }
+      );
+      const fits = (entryId: string, item: string) => otherPurpose(entryId, item) || item === "z";
+      expect(ticks(apply(section, tickSection(section, true, fits)))).toBe("a(--) B(z)");
     });
   });
 });

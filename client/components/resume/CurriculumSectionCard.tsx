@@ -20,6 +20,8 @@ interface CurriculumSectionCardProps {
   describeDeletion: (id: number, entryId?: string) => string;
   /** The resume uses a two-column template. */
   twoColumn?: boolean;
+  /** Nothing can be left out now, while the CV's purpose changes. */
+  leaveOutLocked?: boolean;
   /** This section's review suggestions; see SectionDocument. */
   suggestions?: CvSuggestion[];
   activeSuggestionId?: number | null;
@@ -36,6 +38,7 @@ const CurriculumSectionCard = ({
   onRemove,
   describeDeletion,
   twoColumn = false,
+  leaveOutLocked = false,
   ...suggestionProps
 }: CurriculumSectionCardProps) => {
   const { id } = section;
@@ -48,6 +51,7 @@ const CurriculumSectionCard = ({
     <SectionDocument
       section={section}
       inCv
+      leaveOutLocked={leaveOutLocked}
       notice={
         twoColumn && sectionColumn(section) === "sidebar" && (
           <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">

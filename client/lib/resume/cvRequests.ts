@@ -17,8 +17,9 @@ export const UNSAVED = "Your latest changes couldn't be saved, so this wasn't ad
 export const INVALID_DATES = "Fix the end month that is before its start month in this section first. Then add this.";
 const KEPT_CHANGING = "This section kept changing, so this wasn't added. Try again.";
 export const PURPOSE_UNSAVED = "Your latest changes couldn't be saved, so the purpose wasn't changed. Try again.";
-// Only someone typing on without a pause gets this far; then what was typed last may be lost.
+// Only someone typing on without a pause gets this far.
 const MAX_PURPOSE_ROUNDS = 5;
+const PURPOSE_KEPT_CHANGING = "This CV kept changing, so some ticks may not fit its new purpose. Check them.";
 
 export const TRANSFER_UNSAVED = "Your latest edit isn't saved, so nothing was changed. Try again.";
 export const TRANSFER_INVALID_DATES =
@@ -29,6 +30,16 @@ const TRANSFER_KEPT_CHANGING = "This section kept changing. Check it and try aga
 
 /** A request that stopped, with why, to show. */
 export class RequestStopped extends Error {}
+
+/**
+ * A purpose change that stopped because the CV kept being edited. The server
+ * has the purpose, `labelId`; the CV keeps its ticks as they are shown.
+ */
+export class PurposeKeptChanging extends RequestStopped {
+  constructor(readonly labelId: number | null) {
+    super(PURPOSE_KEPT_CHANGING);
+  }
+}
 
 /** A pull that stopped because its text was edited meanwhile. Nothing failed. */
 export class TextKept extends RequestStopped {
@@ -59,6 +70,8 @@ interface CvRequestsOptions {
   sendTransfer: (sectionId: number, payload: TransferPayload) => Promise<TransferResult>;
   /** Changes the CV's purpose; rejects with a 409 if ticks differ and not `force`. Resolves with the CV and its sections. */
   sendPurpose: (labelId: number | null, force: boolean) => Promise<Curriculum>;
+  /** Told when a purpose change starts and ends; see changingPurpose. */
+  onChangingPurpose?: (changing: boolean) => void;
 }
 
 const byId = (sections: CurriculumSection[], id: number) => sections.find((section) => section.id === id);
@@ -83,6 +96,7 @@ export const createCvRequests = ({
   takeTemplate,
   sendTransfer,
   sendPurpose,
+  onChangingPurpose,
 }: CvRequestsOptions) => {
   let last: Promise<unknown> = Promise.resolve();
   const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
@@ -206,6 +220,7 @@ export const createCvRequests = ({
     }
   };
 
+  let purposeChanges = 0;
   const changePurposeNow = async (labelId: number | null, force: boolean): Promise<Curriculum> => {
     for (let round = 0; ; round += 1) {
       // So the server compares against the ticks as they are now.
@@ -215,8 +230,11 @@ export const createCvRequests = ({
       const curriculum = await sendPurpose(labelId, force || round > 0);
       const after = current();
       const edited = after.length !== before.length || after.some((section, index) => section !== before[index]);
-      // Edited meanwhile: the response would undo that, so save it and tick again.
-      if (edited && round < MAX_PURPOSE_ROUNDS) continue;
+      if (edited) {
+        // The response would undo that, so save it and tick again.
+        if (round < MAX_PURPOSE_ROUNDS) continue;
+        throw new PurposeKeptChanging(curriculum.cv_label_id);
+      }
 
       const sections = curriculum.sections ?? [];
       sections.forEach(replace);
@@ -235,6 +253,20 @@ export const createCvRequests = ({
      * sections as it ticked them. Without `force`, rejects with the server's 409
      * (see isConflict) if ticks differ from what the purpose gave.
      */
-    changePurpose: (labelId: number | null, force: boolean) => enqueue(() => changePurposeNow(labelId, force)),
+    changePurpose: async (labelId: number | null, force: boolean) => {
+      purposeChanges += 1;
+      if (purposeChanges === 1) onChangingPurpose?.(true);
+      try {
+        return await enqueue(() => changePurposeNow(labelId, force));
+      } finally {
+        purposeChanges -= 1;
+        if (purposeChanges === 0) onChangingPurpose?.(false);
+      }
+    },
+    /**
+     * A purpose change is waiting or running. Ticks can't be changed meanwhile:
+     * one sent with the edits it saves would be reset without asking.
+     */
+    changingPurpose: () => purposeChanges > 0,
   };
 };
