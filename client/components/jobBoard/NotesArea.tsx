@@ -66,11 +66,11 @@ const NotesArea = ({ jobId, notes, loading, onNoteAdded }: NotesAreaProps) => {
       </div>
 
       {notes.length > 0 && (
-        <ul className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-2">
           {[...notes]
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .map((note) => (
-              <li key={note.id} className="min-w-0 border-l-2 border-candido pl-3">
+              <li key={note.id} className="min-w-0 rounded-r-md border-l-2 border-candido bg-muted py-2 pr-3 pl-3">
                 <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                   {format(new Date(note.created_at), "d MMM yyyy")}
                 </p>
