@@ -21,7 +21,15 @@
 #  User_email_key  (email) UNIQUE
 #
 class User < ApplicationRecord
-  has_secure_password
+  # The reset token is defined below, so it can live longer than Rails' 15 minute default.
+  has_secure_password reset_token: false
+
+  PASSWORD_RESET_TTL = 1.hour
+
+  # Signed with the end of the password digest, so a link stops working once it has been used.
+  generates_token_for :password_reset, expires_in: PASSWORD_RESET_TTL do
+    password_digest_value.to_s.last(10)
+  end
 
   has_many :sessions, dependent: :destroy
   has_many :job_board_entries, dependent: :destroy
@@ -108,6 +116,29 @@ class User < ApplicationRecord
   end
 
   def verification_url
-    "#{ENV.fetch("CORS_ORIGIN", "http://localhost:3000").chomp("/")}/verify?token=#{verification_token}"
+    "#{client_origin}/verify?token=#{verification_token}"
+  end
+
+  def password_reset_url
+    "#{client_origin}/reset-password?token=#{ERB::Util.url_encode(generate_token_for(:password_reset))}"
+  end
+
+  # Following the emailed link proves the user owns the address, so it verifies them too,
+  # and every signed-in session is ended in case the old password had leaked.
+  def self.reset_password!(token, password)
+    user = find_by_token_for(:password_reset, token.to_s)
+    raise ApiError.new("This reset link is invalid or has expired", status: :bad_request) if user.nil?
+
+    transaction do
+      user.update!(password: password, verified: true, verification_token: nil, verification_expires_at: nil)
+      user.sessions.destroy_all
+    end
+    user
+  end
+
+  private
+
+  def client_origin
+    ENV.fetch("CORS_ORIGIN", "http://localhost:3000").chomp("/")
   end
 end

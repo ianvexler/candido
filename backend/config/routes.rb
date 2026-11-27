@@ -6,6 +6,8 @@ Rails.application.routes.draw do
   scope path: "api/v1" do
     post "sessions/register", to: "sessions#register"
     get "sessions/verify", to: "sessions#verify"
+    post "sessions/forgot_password", to: "sessions#forgot_password"
+    post "sessions/reset_password", to: "sessions#reset_password"
     get "sessions/me", to: "sessions#me"
     post "sessions", to: "sessions#create"
     delete "sessions", to: "sessions#destroy"
