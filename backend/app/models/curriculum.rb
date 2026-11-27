@@ -13,12 +13,14 @@
 #  title                :string           not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
+#  cv_label_id          :bigint
 #  job_board_entry_id   :integer
 #  source_curriculum_id :bigint
 #  user_id              :bigint           not null
 #
 # Indexes
 #
+#  index_curriculums_on_cv_label_id           (cv_label_id)
 #  index_curriculums_on_job_board_entry_id    (job_board_entry_id)
 #  index_curriculums_on_source_curriculum_id  (source_curriculum_id)
 #  index_curriculums_on_user_id               (user_id)
@@ -26,6 +28,7 @@
 #
 # Foreign Keys
 #
+#  fk_rails_...  (cv_label_id => cv_labels.id) ON DELETE => nullify
 #  fk_rails_...  (job_board_entry_id => job_board_entries.id) ON DELETE => nullify
 #  fk_rails_...  (source_curriculum_id => curriculums.id) ON DELETE => nullify
 #  fk_rails_...  (user_id => users.id)
@@ -36,6 +39,8 @@ class Curriculum < ApplicationRecord
   PAPER_SIZES = %w[a4 letter].freeze
 
   belongs_to :user
+  # The purpose this CV is for; nil means everything.
+  belongs_to :cv_label, optional: true
   has_many :curriculum_sections, -> { order(:position) }, dependent: :destroy, inverse_of: :curriculum
   # Runs outlive the CV so they keep counting toward the daily limit.
   has_many :cv_tailorings, dependent: :nullify

@@ -122,6 +122,8 @@ RSpec.describe "Curriculums" do
       it "copies every section in library order, all ticked" do
         newer = create(:section_template, user: user, content: "<p>B</p>", created_at: 1.day.ago)
         older = create(:section_template, user: user, created_at: 2.days.ago, entries: [ { title: "One", content: "<p>A</p>" }, { title: "Two", hidden: true } ])
+        older.update_columns(position: 0)
+        newer.update_columns(position: 1)
         create(:section_template)
 
         2.times { post "/api/v1/curriculums", params: { whole_library: true }, headers: headers, as: :json }

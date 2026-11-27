@@ -35,9 +35,16 @@ Rails.application.routes.draw do
 
     get "section_templates", to: "section_templates#index"
     post "section_templates", to: "section_templates#create"
+    put "section_templates/order", to: "section_templates#order"
     get "section_templates/:id", to: "section_templates#show"
     put "section_templates/:id", to: "section_templates#update"
     delete "section_templates/:id", to: "section_templates#destroy"
+
+    get "cv_labels", to: "cv_labels#index"
+    post "cv_labels", to: "cv_labels#create"
+    put "cv_labels/:id", to: "cv_labels#update"
+    delete "cv_labels/:id", to: "cv_labels#destroy"
+    put "cv_labels/:id/items", to: "cv_labels#items"
 
     get "resume_profile", to: "resume_profiles#show"
     put "resume_profile", to: "resume_profiles#update"

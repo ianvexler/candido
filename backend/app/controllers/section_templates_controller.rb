@@ -22,8 +22,24 @@ class SectionTemplatesController < ApplicationController
     render json: { section_template: serialize(template, with: SectionTemplateBlueprint) }
   end
 
+  # Puts the user's whole library in this order.
+  def order
+    ids = Array(params[:ids]).map(&:to_s)
+    SectionTemplate.transaction do
+      owned = current_user.section_templates.order(:id).lock.to_a
+      unless ids.size == owned.size && ids.sort == owned.map { |template| template.id.to_s }.sort
+        raise ApiError.new("That isn't every section in your library", status: :unprocessable_content)
+      end
+
+      owned.each { |template| template.update_columns(position: ids.index(template.id.to_s)) }
+    end
+    render json: { section_templates: serialize(current_user.section_templates.in_library_order, with: SectionTemplateBlueprint) }
+  end
+
   def update
-    @section_template.update!(template_params)
+    @section_template.with_lock do
+      @section_template.update!(template_params)
+    end
     render json: { section_template: serialize(@section_template, with: SectionTemplateBlueprint) }
   end
 

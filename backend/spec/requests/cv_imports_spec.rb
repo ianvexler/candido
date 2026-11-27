@@ -163,6 +163,15 @@ RSpec.describe "CV imports" do
       expect(cv_import.reload.applied_at).to be_present
     end
 
+    it "adds sections after the ones already in the library" do
+      existing = create(:section_template, user: user)
+
+      apply(entry_ids: [ entry_id(0, 0), entry_id(2) ], fill_profile: false)
+
+      expect(user.section_templates.in_library_order.map(&:section_type)).to eq([ existing.section_type, "Experience", "Skills" ])
+      expect(user.section_templates.in_library_order.pluck(:position)).to eq([ 0, 1, 2 ])
+    end
+
     it "keeps several entries in one section" do
       apply(entry_ids: [ entry_id(0, 0), entry_id(0, 1) ], fill_profile: false)
 
