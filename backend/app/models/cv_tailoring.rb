@@ -37,7 +37,7 @@ class CvTailoring < ApplicationRecord
   STATUSES = %w[pending processing succeeded failed].freeze
   # Each run is a paid model call, so cap how many a user can start.
   DAILY_LIMIT = 10
-  LIMIT_MESSAGE = "You've tailored a lot of CVs today. Try again tomorrow.".freeze
+  LIMIT_NOUN = "CV reviews".freeze
   # Jobs run in-process, so a restart can drop one mid-run. Runs that haven't
   # moved for this long are treated as failed so nothing waits forever.
   STALE_AFTER = 10.minutes

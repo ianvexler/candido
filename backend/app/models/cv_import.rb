@@ -31,7 +31,7 @@ class CvImport < ApplicationRecord
   STATUSES = %w[pending processing succeeded failed].freeze
   # Each import is a paid model call, so cap how many a user can start.
   DAILY_LIMIT = 10
-  LIMIT_MESSAGE = "You've imported a lot of CVs today. Try again tomorrow.".freeze
+  LIMIT_NOUN = "CV imports".freeze
 
   belongs_to :user
 
