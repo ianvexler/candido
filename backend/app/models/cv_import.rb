@@ -26,9 +26,12 @@
 #  fk_rails_...  (user_id => users.id)
 #
 class CvImport < ApplicationRecord
+  include DailyCapped
+
   STATUSES = %w[pending processing succeeded failed].freeze
   # Each import is a paid model call, so cap how many a user can start.
   DAILY_LIMIT = 10
+  LIMIT_MESSAGE = "You've imported a lot of CVs today. Try again tomorrow.".freeze
 
   belongs_to :user
 
@@ -68,10 +71,6 @@ class CvImport < ApplicationRecord
   def expire_if_stale!
     reload if self.class.stale.where(id: id).update_all(self.class.expired_attributes).positive?
     self
-  end
-
-  def self.limit_reached?(user)
-    user.cv_imports.where(created_at: 24.hours.ago..).count >= DAILY_LIMIT
   end
 
   # Adds the chosen draft entries to the user's library, in the CV's order

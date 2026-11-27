@@ -24,6 +24,28 @@ RSpec.describe CvTailoring do
     end
   end
 
+  describe ".start!" do
+    let(:curriculum) { create(:curriculum, user: user) }
+    let(:attributes) { { curriculum: curriculum, job_title: "Engineer", company: "Acme" } }
+
+    it "records a run under the limit while holding a lock on the user" do
+      expect(user).to receive(:lock!).and_call_original
+
+      run = described_class.start!(user, **attributes)
+
+      expect(run).to be_persisted
+      expect(run.user).to eq(user)
+    end
+
+    it "refuses once the limit is reached and records nothing" do
+      create_list(:cv_tailoring, described_class::DAILY_LIMIT, user: user)
+
+      expect { described_class.start!(user, **attributes) }
+        .to raise_error(ApiError) { |error| expect(error.status).to eq(:too_many_requests) }
+        .and not_change(described_class, :count)
+    end
+  end
+
   describe ".expire_stale!" do
     it "fails runs untouched for 10 minutes" do
       stale = create(:cv_tailoring, user: user, status: "processing", updated_at: 11.minutes.ago)
