@@ -17,6 +17,8 @@ import IconAction from "./IconAction";
 import LeaveOutArea, { LEAVE_OUT_LOCKED } from "./LeaveOutArea";
 import LabelArea, { LibraryLabelling } from "./library/LabelArea";
 import LabelPicker from "./library/LabelPicker";
+import RowMenu from "./RowMenu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/DropdownMenu";
 import { editInEditor, focusText } from "./placeCaret";
 import { LEAVE_OUT_BUTTON, LEAVE_OUT_SPACE, ghostInput } from "./styles";
 import { hasDetails, suggestsDetails } from "./sectionDetails";
@@ -85,7 +87,8 @@ const SectionEntryEditor = ({
   const [deleteNote, setDeleteNote] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const description = entry.description ?? "";
-  const showTitle = Boolean(entry.title) || startedBlank || title.open;
+  // In the library each entry is a card, headed by its title.
+  const showTitle = library !== undefined || Boolean(entry.title) || startedBlank || title.open;
   const summaryOff = onLeaveOut !== undefined && Boolean(entry.description_off && description.trim());
   const showSummary = !summaryOff && (Boolean(description) || summary.open);
 
@@ -116,13 +119,18 @@ const SectionEntryEditor = ({
     version,
     onChange: onEntryChange,
     editors,
-    placeholder: "Write here. Start a line with - for bullets.",
+    placeholder: library ? "Write, or type - for a bullet" : "Write here. Start a line with - for bullets.",
     className: cn(
       "cv-document-editor outline-none min-h-6 [&_span[data-cv-hidden]]:bg-amber-100 [&_span[data-cv-hidden]]:text-amber-900/80 [&_span[data-cv-hidden]]:line-through [&_span[data-cv-hidden]]:rounded-sm [&_span[data-cv-hidden]]:px-0.5",
       highlightClasses
     ),
   });
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  // Run by the menu, once it has closed.
+  const addSummary = () => {
+    flushSync(() => summary.setOpen(true));
+    document.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(entry.id)}"] textarea[aria-label="Summary"]`)?.focus();
+  };
   const { card, cardOpen, onEditorClick } = useEntrySuggestions({
     entry,
     version,
@@ -163,7 +171,14 @@ const SectionEntryEditor = ({
 
   return (
     <>
-      <div data-entry-id={entry.id} className="group/entry relative">
+      <div
+        data-entry-id={entry.id}
+        className={cn(
+          "group/entry relative",
+          library &&
+            "rounded-lg border border-border bg-background px-5 pt-3.5 pb-4 transition-colors hover:border-foreground/15 focus-within:border-foreground/25"
+        )}
+      >
         <div className={cn("flex items-start justify-between gap-2", !showTitle && "h-0")}>
           {showTitle && (
             <input
@@ -171,11 +186,74 @@ const SectionEntryEditor = ({
               value={entry.title}
               onChange={edit("title")}
               {...title.focusProps}
-              placeholder="Title"
+              placeholder={library ? "Entry title" : "Title"}
               aria-label="Title"
-              className={cn(ghostInput, "block flex-1 py-0.5 text-xl font-semibold")}
+              className={cn(ghostInput, "block flex-1 py-0.5 font-semibold", library ? "text-base" : "text-xl")}
             />
           )}
+          {library && (
+            <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+              {(library.itemLabels[entry.id] ?? []).length > 0 && (
+                <ul aria-label="Labels of this entry" className="flex items-center gap-1">
+                  {(library.itemLabels[entry.id] ?? []).map((id) => {
+                    const name = library.labels.find((label) => label.id === id)?.name;
+                    return (
+                      name && (
+                        <li key={id} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                          {name}
+                        </li>
+                      )
+                    );
+                  })}
+                </ul>
+              )}
+              <LabelPicker
+                labels={library.labels}
+                filter={library.filter}
+                mode={{ kind: "toggle", own: library.itemLabels[entry.id] ?? [], inherited: [] }}
+                onChoose={(labelId, on) =>
+                  library.onLabel(labelId, on, [{ section_template_id: library.sectionId, id: entry.id }])
+                }
+                onCreate={library.onCreate}
+                open={labelsOpen}
+                onOpenChange={setLabelsOpen}
+                title="Labels of this entry"
+                align="end"
+              >
+                {/* Opened from the menu; this only places it. */}
+                <span aria-hidden className="size-0" />
+              </LabelPicker>
+              <span className="opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100">
+                <RowMenu
+                  label={entry.title.trim() || "this entry"}
+                  actions={[
+                    ...(!showSummary && !summaryOff
+                      ? [{ label: "Add summary", icon: <TextIcon />, onSelect: addSummary }]
+                      : []),
+                    hasDetails(entry)
+                      ? suggestsDetails(sectionType)
+                        ? null
+                        : { label: "Remove role and dates", icon: <CalendarMinusIcon />, onSelect: clearDetails }
+                      : { label: "Add role and dates", icon: <CalendarPlusIcon />, onSelect: () => setOpenDetails(true) },
+                    // After the menu has let go of the focus, or the picker closes at once.
+                    { label: "Labels…", icon: <TagIcon />, onSelect: () => setTimeout(() => setLabelsOpen(true)) },
+                  ].filter((action) => action !== null)}
+                  move={canMoveUp || canMoveDown ? { canMoveUp, canMoveDown, onMove: (by) => onMove(entry.id, by) } : undefined}
+                >
+                  {canDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem variant="destructive" onSelect={askDelete}>
+                        <Trash2Icon />
+                        Delete entry
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </RowMenu>
+              </span>
+            </div>
+          )}
+          {!library && (
           <div
             className={cn(
               "-mr-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/entry:opacity-100 group-focus-within/entry:opacity-100 has-[[data-state=open]]:opacity-100",
@@ -203,24 +281,6 @@ const SectionEntryEditor = ({
                 <ArrowDownIcon />
               </IconAction>
             )}
-            {library && (
-              <LabelPicker
-                labels={library.labels}
-                filter={library.filter}
-                mode={{ kind: "toggle", own: library.itemLabels[entry.id] ?? [], inherited: [] }}
-                onChoose={(labelId, on) =>
-                  library.onLabel(labelId, on, [{ section_template_id: library.sectionId, id: entry.id }])
-                }
-                onCreate={library.onCreate}
-                open={labelsOpen}
-                onOpenChange={setLabelsOpen}
-                title="Labels of this entry"
-              >
-                <IconAction label="Labels of this entry">
-                  <TagIcon />
-                </IconAction>
-              </LabelPicker>
-            )}
             {!hasDetails(entry) && (
               <IconAction label="Add role and dates" onClick={() => setOpenDetails(true)}>
                 <CalendarPlusIcon />
@@ -240,6 +300,7 @@ const SectionEntryEditor = ({
               </IconAction>
             )}
           </div>
+          )}
         </div>
 
         <EntryDetails
@@ -320,7 +381,12 @@ const SectionEntryEditor = ({
           {editor && (
             <BlockToolbar
               editor={editor}
-              className="pointer-events-none absolute -bottom-9 left-0 opacity-0 transition-opacity group-focus-within/entry:pointer-events-auto group-focus-within/entry:opacity-100"
+              className={
+                library
+                  ? // In the card, below the text, so it never covers the next entry.
+                    "mt-3 hidden w-fit shadow-none group-focus-within/entry:flex"
+                  : "pointer-events-none absolute -bottom-9 left-0 opacity-0 transition-opacity group-focus-within/entry:pointer-events-auto group-focus-within/entry:opacity-100"
+              }
             />
           )}
         </div>

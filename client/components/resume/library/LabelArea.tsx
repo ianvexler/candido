@@ -10,7 +10,6 @@ import type { Editor } from "@tiptap/react";
 import { TagIcon } from "lucide-react";
 import { FocusEvent as ReactFocusEvent, KeyboardEvent, PointerEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { offerableItem } from "../LeaveOutArea";
-import { LEAVE_OUT_SPACE } from "../styles";
 import LabelPicker from "./LabelPicker";
 
 /** Labelling a library section's content: see SectionDocument. */
@@ -202,7 +201,7 @@ const LabelArea = ({ editor, sectionId, entryId, library, cardOpen, children }: 
   return (
     <div
       ref={areaRef}
-      className={cn("relative", LEAVE_OUT_SPACE)}
+      className="relative"
       onPointerMove={onPointerMove}
       onPointerLeave={() => setHovered(null)}
       // Before the card closes, so it counts as open.
