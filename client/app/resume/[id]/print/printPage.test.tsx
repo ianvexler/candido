@@ -71,8 +71,8 @@ describe("made into a PDF (?pdf=1)", () => {
     expect(document.body.textContent).not.toContain("Print again");
   });
 
-  it("says 404 when the CV can't be found or isn't theirs", async () => {
-    getCurriculum.mockRejectedValue(Object.assign(new Error("Not found"), { response: { status: 404 } }));
+  it.each([404, 403])("says 404 when the CV can't be found or isn't theirs (the API's %i)", async (status) => {
+    getCurriculum.mockRejectedValue(Object.assign(new Error("No"), { response: { status } }));
     await show("?pdf=1");
     await settle();
     expect(html.dataset.pdfReady).toBe("error");

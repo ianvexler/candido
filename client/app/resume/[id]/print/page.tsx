@@ -28,9 +28,11 @@ const noChanges = () => () => {};
 const useMakingPdf = () =>
   useSyncExternalStore(noChanges, () => new URLSearchParams(window.location.search).has("pdf"), () => false);
 
-/** 404 for a CV that isn't there or isn't theirs; anything else is the server's fault. */
-const statusOf = (error: unknown): 404 | 500 =>
-  (error as { response?: { status?: number } })?.response?.status === 404 ? 404 : 500;
+/** 404 for a CV that isn't there or isn't theirs (the API says 403); anything else is the server's fault. */
+const statusOf = (error: unknown): 404 | 500 => {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return status === 404 || status === 403 ? 404 : 500;
+};
 
 interface PrintPageProps {
   params: Promise<{ id: string }>;

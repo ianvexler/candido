@@ -91,6 +91,22 @@ Each case also has a hover pass, unless `--no-hover` is passed. With all of the 
 
 It prints the differences and a summary, and exits 1 if there are any. Which page each block is on needs `pdftotext` (poppler) or a command in `PARITY_PDF_TEXT` that prints a PDF's text with a form feed after each page; without either it stops, unless `--no-pdf-text` is passed, when only the page counts are compared. Blocks taller than a page are not covered. It refuses a `--url` or `--api` that isn't on this machine unless `--allow-remote` is passed.
 
+### Export's PDF
+
+Export saves the CV, then downloads a PDF the server makes: `GET /resume/<id>/pdf` on the client opens the CV's print page in a headless Chromium (`client/lib/pdf`) as the signed-in user, with their cookies, and returns it with no browser header or footer. One Chromium serves all exports, two at a time, 20 seconds each. If it fails, the editor offers the print view (the browser's own print dialog) instead.
+
+- `PDF_PUBLIC_ORIGIN`: the address the app is used at, where the print page is opened (for example `https://candidohq.com`). Required in production; without it only `localhost` requests are served.
+- `PDF_HOST_RESOLVER_RULES`: passed to Chromium as `--host-resolver-rules`. In Docker for development it is `MAP localhost host.docker.internal`, so `localhost` reaches the host's ports.
+- `CHROMIUM_PATH`: defaults to `/usr/bin/chromium-browser` (the images install Alpine's `chromium`).
+
+In production the client container must reach `PDF_PUBLIC_ORIGIN` and the API there, as a user's browser does.
+
+`client/scripts/pdf-check.mjs` checks it end to end on a throwaway account: for one CV in A4 and Letter it downloads the PDF from Export and checks the page size, the template's font, the same pages and text as the print page's own PDF, and no URL or title on the page; a CV of another account must give 404. The CV's paper is put back.
+
+```bash
+node scripts/pdf-check.mjs --cv <id> --other <someone else's id> --url http://localhost:3000 --api http://localhost:8000 --state auth.json --yes-this-is-a-throwaway-account
+```
+
 ## Production
 
 Live deploys client + Rails via `docker-compose.prod.yml` and **Deploy to Production**. The API image is `ghcr.io/<owner>/candido-backend`. Each deploy runs `db:migrate` before replacing the running containers, and stops there if a migration fails. Boot runs it again, which does nothing if it is up to date. Do not run `db:prepare` or `db:schema:load` on production.
