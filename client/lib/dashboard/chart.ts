@@ -5,6 +5,7 @@ type StatusKey = Exclude<keyof JobBoardEntriesStats["counts"], "total">;
 
 // The board's status colors, stepped so neighboring segments stay distinguishable
 // with color-vision deficiencies. Keep this order: it is the order that was checked.
+// Rejected jobs are closed, so they are left out: charts show the stages still in play.
 export const PIPELINE_STATUSES: { key: StatusKey; label: string; color: string }[] = [
   { key: "pending", label: "Pending", color: "#94a3b8" },
   { key: "applied", label: "Applied", color: "#d4940a" },
@@ -12,7 +13,6 @@ export const PIPELINE_STATUSES: { key: StatusKey; label: string; color: string }
   { key: "interview", label: "Interview", color: "#6366f1" },
   { key: "offered", label: "Offered", color: "#059669" },
   { key: "accepted", label: "Accepted", color: "#84cc16" },
-  { key: "rejected", label: "Rejected", color: "#ef4444" },
 ];
 
 /** The top of the axis and its ticks: whole numbers only, at most four steps above zero. */
