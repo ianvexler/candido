@@ -99,7 +99,15 @@ Export saves the CV, then downloads a PDF the server makes: `GET /resume/<id>/pd
 - `PDF_HOST_RESOLVER_RULES`: passed to Chromium as `--host-resolver-rules`. In Docker for development it is `MAP localhost host.docker.internal`, so `localhost` reaches the host's ports.
 - `CHROMIUM_PATH`: defaults to `/usr/bin/chromium-browser` (the images install Alpine's `chromium`).
 
-In production the client container must reach `PDF_PUBLIC_ORIGIN` and the API there, as a user's browser does.
+- `PDF_IGNORE_CERT_SPKI`: base64 SHA-256 hashes of certificate keys Chromium trusts though no public authority does (`--ignore-certificate-errors-spki-list`). Production needs it: `docker-compose.prod.yml` sends the client container's Chrome to this host's nginx (`extra_hosts`), which serves Cloudflare's origin certificate. Its hash, on the server:
+
+  ```bash
+  openssl x509 -in /etc/ssl/cloudflare/candidohq.pem -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
+  ```
+
+In production the client container must reach `PDF_PUBLIC_ORIGIN` and the API there, as a user's browser does: if the host has a firewall (ufw, iptables), allow the Docker bridge to reach port 443. After deploying, export one CV to check it; a failure shows in the client's logs as `PDF ...`.
+
+Only the `auth_token` cookie is passed to the server's Chrome. Exports wait their turn two at a time, with at most eight waiting (more get 503); each has 20 seconds from the request, waiting included, and an export whose user has gone is dropped. A Chrome that doesn't answer in time is ended and started again for the next export.
 
 `client/scripts/pdf-check.mjs` checks it end to end on a throwaway account: for one CV in A4 and Letter it downloads the PDF from Export and checks the page size, the template's font, the same pages and text as the print page's own PDF, and no URL or title on the page; a CV of another account must give 404. The CV's paper is put back.
 

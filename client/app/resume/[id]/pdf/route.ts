@@ -1,4 +1,4 @@
-import { PdfError, renderCv } from "@/lib/pdf/renderCv";
+import { AUTH_COOKIE, PdfError, renderCv } from "@/lib/pdf/renderCv";
 import { NextRequest } from "next/server";
 
 // Drives Chrome, so Node; and never cached: every export is of the CV as it is now.
@@ -13,6 +13,7 @@ const fail = (status: number, error = "Couldn't make the PDF.") => Response.json
  */
 const originOf = (request: NextRequest): string | null => {
   if (process.env.PDF_PUBLIC_ORIGIN) return process.env.PDF_PUBLIC_ORIGIN.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "production") return null;
   // The Host the browser sent: in Docker the server itself listens on another address.
   const host = request.headers.get("host") ?? request.nextUrl.host;
   const { protocol } = request.nextUrl;
@@ -35,15 +36,15 @@ const disposition = (name: string) => {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) return fail(404);
-  const cookies = request.cookies.getAll().map(({ name, value }) => ({ name, value }));
-  if (cookies.length === 0) return fail(401, "Sign in to export your CV.");
+  const token = request.cookies.get(AUTH_COOKIE)?.value;
+  if (!token) return fail(401, "Sign in to export your CV.");
   const origin = originOf(request);
   if (!origin) {
     console.error("PDF: set PDF_PUBLIC_ORIGIN to the address the app is used at.");
     return fail(500);
   }
   try {
-    const { pdf, name } = await renderCv({ id, origin, cookies });
+    const { pdf, name } = await renderCv({ id, origin, token, signal: request.signal });
     return new Response(pdf as BodyInit, {
       headers: {
         "Content-Type": "application/pdf",

@@ -28,9 +28,10 @@ const noChanges = () => () => {};
 const useMakingPdf = () =>
   useSyncExternalStore(noChanges, () => new URLSearchParams(window.location.search).has("pdf"), () => false);
 
-/** 404 for a CV that isn't there or isn't theirs (the API says 403); anything else is the server's fault. */
-const statusOf = (error: unknown): 404 | 500 => {
+/** 404 for a CV that isn't there or isn't theirs (the API says 403), 401 once signed out; else the server's fault. */
+const statusOf = (error: unknown): 401 | 404 | 500 => {
   const status = (error as { response?: { status?: number } })?.response?.status;
+  if (status === 401) return 401;
   return status === 404 || status === 403 ? 404 : 500;
 };
 
@@ -42,7 +43,7 @@ const PrintResumePage = ({ params }: PrintPageProps) => {
   const { id } = use(params);
   const [resume, setResume] = useState<ResumeDocument | null>(null);
   const [{ design, paper }, setLook] = useState(() => lookOf({}));
-  const [loadError, setLoadError] = useState<404 | 500 | null>(null);
+  const [loadError, setLoadError] = useState<401 | 404 | 500 | null>(null);
   const makingPdf = useMakingPdf();
 
   useEffect(() => {

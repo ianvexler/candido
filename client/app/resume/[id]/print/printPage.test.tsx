@@ -79,6 +79,13 @@ describe("made into a PDF (?pdf=1)", () => {
     expect(html.dataset.pdfStatus).toBe("404");
   });
 
+  it("says 401 when the session has ended", async () => {
+    getCurriculum.mockRejectedValue(Object.assign(new Error("No"), { response: { status: 401 } }));
+    await show("?pdf=1");
+    await settle();
+    expect(html.dataset.pdfStatus).toBe("401");
+  });
+
   it("says 500 for any other failure", async () => {
     getCurriculum.mockRejectedValue(new Error("Network Error"));
     await show("?pdf=1");

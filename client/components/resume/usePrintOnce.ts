@@ -16,7 +16,7 @@ const laidOut = async () => {
 };
 
 /** What the server's browser waits for before making the PDF: on `<html>`, as data-pdf-ready and data-pdf-status. */
-export type PdfState = { ready: false } | { ready: true } | { ready: "error"; status: 404 | 422 | 500 };
+export type PdfState = { ready: false } | { ready: true } | { ready: "error"; status: 401 | 404 | 422 | 500 };
 
 /** Says on `<html>` when the page can be made into a PDF, or why it can't. */
 export const usePdfReady = (enabled: boolean, state: PdfState) => {

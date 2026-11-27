@@ -9,11 +9,11 @@ const { renderCv, PdfError } = vi.hoisted(() => {
   }
   return { renderCv: vi.fn(), PdfError };
 });
-vi.mock("@/lib/pdf/renderCv", () => ({ renderCv, PdfError }));
+vi.mock("@/lib/pdf/renderCv", () => ({ renderCv, PdfError, AUTH_COOKIE: "auth_token" }));
 
 import { GET } from "./route";
 
-const call = (url: string, cookie = "_candido_session=abc", id = "7", host?: string) =>
+const call = (url: string, cookie = "auth_token=abc; other=1", id = "7", host?: string) =>
   GET(new NextRequest(url, { headers: { ...(cookie ? { cookie } : {}), ...(host ? { host } : {}) } }), {
     params: Promise.resolve({ id }),
   });
@@ -32,11 +32,8 @@ describe("GET /resume/[id]/pdf", () => {
       `attachment; filename="Ian Vexler - Backend roles.pdf"; filename*=UTF-8''Ian%20Vexler%20-%20Backend%20roles.pdf`
     );
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([37, 80, 68, 70]));
-    expect(renderCv).toHaveBeenCalledWith({
-      id: "7",
-      origin: "http://localhost:3001",
-      cookies: [{ name: "_candido_session", value: "abc" }],
-    });
+    // Only the sign-in goes to the server's Chrome, and it stops when the user does.
+    expect(renderCv).toHaveBeenCalledWith({ id: "7", origin: "http://localhost:3001", token: "abc", signal: expect.any(AbortSignal) });
   });
 
   it("keeps the file name to what a file may be called", async () => {
@@ -64,9 +61,16 @@ describe("GET /resume/[id]/pdf", () => {
     expect(renderCv).not.toHaveBeenCalled();
   });
 
-  it("needs someone signed in", async () => {
-    const response = await call("http://localhost:3001/resume/7/pdf", "");
+  it.each(["", "other=1"])("needs someone signed in (cookies: %j)", async (cookie) => {
+    const response = await call("http://localhost:3001/resume/7/pdf", cookie);
     expect(response.status).toBe(401);
+    expect(renderCv).not.toHaveBeenCalled();
+  });
+
+  it("won't follow localhost in production without PDF_PUBLIC_ORIGIN", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const response = await call("http://localhost:3001/resume/7/pdf");
+    expect(response.status).toBe(500);
     expect(renderCv).not.toHaveBeenCalled();
   });
 
@@ -76,7 +80,7 @@ describe("GET /resume/[id]/pdf", () => {
     expect(renderCv).not.toHaveBeenCalled();
   });
 
-  it.each([404, 422, 500, 504])("answers %i as the render says, with what went wrong", async (status) => {
+  it.each([401, 404, 422, 500, 503, 504])("answers %i as the render says, with what went wrong", async (status) => {
     renderCv.mockRejectedValue(new PdfError(status));
     const response = await call("http://localhost:3001/resume/7/pdf");
     expect(response.status).toBe(status);
