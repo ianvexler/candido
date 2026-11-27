@@ -31,7 +31,7 @@ describe("deleteDescription", () => {
     );
   });
   it("falls back to the library note", () => {
-    expect(deleteDescription({ cv_for_job: null })).toBe("Your section library is not affected.");
-    expect(deleteDescription(null)).toBe("Your section library is not affected.");
+    expect(deleteDescription({ cv_for_job: null })).toBe("Your library is not affected.");
+    expect(deleteDescription(null)).toBe("Your library is not affected.");
   });
 });

@@ -135,7 +135,7 @@ const ResumesPage = () => {
     <Button variant="ghost" asChild>
       <NextLink href="/resume/sections">
         <LibraryBigIcon />
-        Section library
+        Library
       </NextLink>
     </Button>
   );

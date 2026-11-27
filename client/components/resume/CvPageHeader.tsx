@@ -118,7 +118,7 @@ const CvPageHeader = ({
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <LibraryBigIcon className="size-4" />
-          Section library
+          Library
         </NextLink>
         {/* On a smaller screen the page may only be held there by a month that isn't finished. */}
         <Segmented label="View" options={VIEWS} value={view} onChange={onViewChange} className={cn(!compact && "max-lg:hidden")} />

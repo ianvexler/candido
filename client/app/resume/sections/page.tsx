@@ -111,7 +111,7 @@ const SectionLibraryPage = () => {
       })
       .catch((error) => {
         console.error(error);
-        if (!cancelled) toast.error("Failed to load your section library");
+        if (!cancelled) toast.error("Failed to load your library");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -311,9 +311,9 @@ const SectionLibraryPage = () => {
           </NextLink>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <Title>Section library</Title>
+              <Title>Library</Title>
               <Description className="mt-1">
-                Write each section once, then reuse it in any CV.
+                Everything you've written for your CVs, in one place. Pick from it for each application.
               </Description>
             </div>
             <Button variant="outline" onClick={() => setImportOpen(true)}>

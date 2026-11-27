@@ -50,7 +50,7 @@ export const cvsItem: NavItem = {
 
 export const sectionLibraryItem: NavItem = {
   href: "/resume/sections",
-  label: "Section library",
+  label: "Library",
   icon: LibraryBigIcon,
   isActive: isSectionLibraryPath,
 };

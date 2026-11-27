@@ -17,7 +17,7 @@ describe("nav items", () => {
     expect(sectionLibraryItem.isActive(path)).toBe(false);
   });
 
-  it("marks only the section library active on its page", () => {
+  it("marks only the library active on its page", () => {
     expect(sectionLibraryItem.isActive("/resume/sections")).toBe(true);
     expect(cvsItem.isActive("/resume/sections")).toBe(false);
   });
