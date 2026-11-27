@@ -75,7 +75,9 @@ describe("postingUrl", () => {
     expect(postingUrl("a.example:8443/job")).toBe("https://a.example:8443/job");
   });
   it("rejects anything else", () => {
-    ["", "  ", "javascript:alert(1)", "data:text/html,x", "mailto:a@b.example", "not a url"].forEach((url) => expect(postingUrl(url)).toBeNull());
+    ["", "  ", "javascript:alert(1)", "data:text/html,x", "mailto:a@b.example", "not a url", "notes", "https://intranet"].forEach((url) =>
+      expect(postingUrl(url)).toBeNull()
+    );
     expect(postingUrl(undefined)).toBeNull();
   });
 });

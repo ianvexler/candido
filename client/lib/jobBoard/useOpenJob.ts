@@ -17,7 +17,12 @@ export const useOpenJob = () => {
   }, [jobId]);
 
   const openJob = useCallback(
-    (id: number) => {
+    /** With replace, picking another job doesn't add a history entry for each one looked at. */
+    (id: number, { replace = false }: { replace?: boolean } = {}) => {
+      if (replace) {
+        window.history.replaceState(null, "", `${pathname}?job=${id}`);
+        return;
+      }
       pushed.current = true;
       window.history.pushState(null, "", `${pathname}?job=${id}`);
     },

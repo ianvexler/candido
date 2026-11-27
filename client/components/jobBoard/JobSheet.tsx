@@ -15,15 +15,13 @@ interface JobSheetProps {
   /** The open job; undefined while closed. */
   entry: JobBoardEntry | undefined;
   allEntries: JobBoardEntry[];
-  /** The page behind it, to come back to from the full view. */
-  from: "board" | "sheet";
   onClose: () => void;
   onPatchJob: (id: number, patch: EntryPatch) => void;
   onDelete: (entry: JobBoardEntry) => void;
 }
 
-/** A job's side panel, over the board or sheet. Loads the job's notes. */
-const JobSheet = ({ entry, allEntries, from, onClose, onPatchJob, onDelete }: JobSheetProps) => {
+/** A job's side panel over the board. Loads the job's notes. */
+const JobSheet = ({ entry, allEntries, onClose, onPatchJob, onDelete }: JobSheetProps) => {
   const router = useRouter();
   // Kept while it slides out, still following the job's saves. Then it goes, so the next opening
   // starts from the job as it is by then: it may be moved on the board meanwhile.
@@ -50,7 +48,7 @@ const JobSheet = ({ entry, allEntries, from, onClose, onPatchJob, onDelete }: Jo
           entry={job}
           allEntries={allEntries}
           onClose={onClose}
-          onPrepare={() => router.push(`/board/${job.id}${from === "sheet" ? "?from=sheet" : ""}`)}
+          onPrepare={() => router.push(`/board/${job.id}`)}
           onPatchJob={onPatchJob}
           onDelete={onDelete}
           notes={notes[job.id] ?? []}
