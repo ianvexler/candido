@@ -68,7 +68,10 @@ const WeeklyChart = ({ weeks }: WeeklyChartProps) => {
                         <span
                           className={cn(
                             "block w-3/5 max-w-6 rounded-t transition-[filter] group-hover:brightness-90 group-focus-visible:brightness-90",
-                            isCurrent ? "bg-[#d4940a]" : "bg-candido"
+                            // This week in ink, past weeks in amber. Darkening ink shows nothing, so it lightens instead.
+                            isCurrent
+                              ? "bg-candido-ink group-hover:bg-candido-ink/75 group-focus-visible:bg-candido-ink/75"
+                              : "bg-candido"
                           )}
                           style={{ height: percent(count) }}
                         />

@@ -12,6 +12,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* The landing page's condensed face, loaded on <body> by the root layout. */
+  --font-heading: var(--font-display), sans-serif;
   --color-candido-black: var(--candido-black);
   --color-candido: var(--candido);
   --color-candido-ink: var(--candido-ink);
@@ -176,5 +178,14 @@
     -45deg,
     var(--candido) 0 3px,
     var(--candido-black) 3px 6px
+  );
+}
+
+/* The same tape at full size, for the edge of a banner. */
+@utility hazard-tape {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--candido) 0 12px,
+    var(--candido-ink) 12px 24px
   );
 }
